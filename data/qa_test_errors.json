@@ -1,0 +1,27 @@
+[
+    {
+        "error_message": "TimeoutException: Message: timeout: Timed out receiving message from renderer",
+        "stack_trace": "Selenium::WebDriver::Error::TimeoutError: timed out receiving message from renderer\n  (Session info: chrome=120.0.6099.109)\n  at line 89 in base.py",
+        "previous_fix": "Este error suele ocurrir cuando el driver de Chrome no puede comunicarse con la pestaña. Solución: Aumentar el 'pageLoadTimeout' o usar las banderas '--disable-gpu' y '--no-sandbox' en las opciones de Chrome."
+    },
+    {
+        "error_message": "StaleElementReferenceException: Message: stale element reference: element is not attached to the page document",
+        "stack_trace": "selenium.common.exceptions.StaleElementReferenceException: Message: stale element reference: element is not attached to the page document\n  at find_element (session.py:1234)",
+        "previous_fix": "El DOM ha cambiado después de encontrar el elemento. Solución: Implementar una estrategia de reintento (Wait) o volver a buscar el elemento justo antes de la interacción."
+    },
+    {
+        "error_message": "AssertionError: expected 'Welcome, User' but found 'Login Failed'",
+        "stack_trace": "Traceback (most recent call last):\n  File 'test_login.py', line 45, in test_valid_login\n    assert dashboard.get_welcome_message() == 'Welcome, User'",
+        "previous_fix": "El test falla porque las credenciales en el entorno de pruebas han expirado. Solución: Actualizar las secretas en el CI/CD o usar el mock de autenticación."
+    },
+    {
+        "error_message": "ConnectionRefusedError: [Errno 111] Connection refused",
+        "stack_trace": "urllib3.exceptions.MaxRetryError: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/v1/status",
+        "previous_fix": "El servicio backend no está arrancado antes de lanzar los tests. Solución: Asegurarse de que el comando de 'docker-compose up' ha finalizado correctamente antes de ejecutar Pytest."
+    },
+    {
+        "error_message": "NoSuchElementException: Message: no such element: Unable to locate element: {\"method\":\"css selector\",\"selector\":\"#submit-btn\"}",
+        "stack_trace": "selenium.common.exceptions.NoSuchElementException: Message: no such element: Unable to locate element\n  at line 67 in payment_page.py",
+        "previous_fix": "El botón de envío tarda más de 5 segundos en aparecer debido a la latencia de la API. Solución: Cambiar 'driver.find_element' por 'WebDriverWait(driver, 10).until(EC.presence_of_element_located...)'."
+    }
+]

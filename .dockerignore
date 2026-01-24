@@ -1,0 +1,13 @@
+__pycache__
+.git
+.env
+db_chroma
+history.db
+data/logs/*.log
+data/logs/*.json
+data/logs/*.pdf
+data/logs/*.md
+venv
+.venv
+.pytest_cache
+.langsmith
