@@ -10,6 +10,26 @@ class VectorStoreManager:
 
     def get_vectorstore(self, chunks=None):
         """Returns a Chroma vectorstore, creating it if it doesn't exist."""
+        from src.config import CHROMA_HOST, CHROMA_PORT
+        
+        if CHROMA_HOST:
+            print(f"Connecting to remote vector database at {CHROMA_HOST}:{CHROMA_PORT}...")
+            import chromadb
+            client = chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
+            if chunks:
+                return Chroma.from_documents(
+                    documents=chunks,
+                    embedding=self.embeddings,
+                    client=client,
+                    collection_name="error_logs"
+                )
+            else:
+                return Chroma(
+                    client=client,
+                    embedding_function=self.embeddings,
+                    collection_name="error_logs"
+                )
+
         if os.path.exists(self.db_path) and not (chunks):
             print("Loading existing vector database...")
             return Chroma(persist_directory=self.db_path, embedding_function=self.embeddings)
