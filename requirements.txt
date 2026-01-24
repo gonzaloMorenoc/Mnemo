@@ -9,3 +9,5 @@ langchain-ollama
 chromadb
 sentence-transformers
 python-dotenv
+streamlit
+streamlit-chat

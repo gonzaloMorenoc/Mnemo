@@ -35,14 +35,19 @@ Para garantizar la escalabilidad desde el MVP a producción, el código se ha or
    pip3 install -r requirements.txt
    ```
 
-## Modo de uso
+## 🛠️ Modo de uso
 
-1. **Histórico**: Copia tus archivos de logs o reportes de errores previos en la carpeta `data/logs/`. El sistema acepta formatos `.log` y `.json`.
-2. **Ejecución**: Inicia el sistema con:
-   ```bash
-   python3 main.py
-   ```
-3. **Consulta**: Introduce una traza de error o un log sospechoso. El sistema buscará en el histórico y DeepSeek generará un análisis de causa raíz y posibles soluciones.
+### Opción A: Interfaz Web (Recomendada)
+Para una experiencia visual e interactiva:
+```bash
+streamlit run ui.py
+```
+
+### Opción B: Consola (CLI)
+Para pruebas rápidas en terminal:
+```bash
+python3 main.py
+```
 
 ## Notas sobre el procesamiento JSON
 
