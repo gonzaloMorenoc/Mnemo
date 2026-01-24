@@ -23,10 +23,11 @@ class DatabaseInspector:
             return
 
         for i in range(min(limit, len(ids))):
+            content_snippet = documents[i][:150].replace('\n', ' ')
             print(f"\n🔹 Chnk ID: {ids[i]}")
             print(f"   Fuente: {metadatas[i].get('source', 'N/A')}")
             print(f"   Tipo: {metadatas[i].get('type', 'log')}")
-            print(f"   Contenido: {documents[i][:150].replace('\n', ' ')}...")
+            print(f"   Contenido: {content_snippet}...")
         
         print("\n" + "="*50)
 

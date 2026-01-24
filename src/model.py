@@ -1,5 +1,5 @@
 from langchain_ollama import OllamaLLM
-from langchain.chains import RetrievalQA
+from langchain_classic.chains import RetrievalQA
 from src.config import MODEL_NAME, OLLAMA_BASE_URL
 from src.prompts import PROMPT
 
