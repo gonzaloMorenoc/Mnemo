@@ -1,8 +1,11 @@
 langchain
 langchain-classic
 langchain-community
+langchain-core
 langchain-huggingface
 langchain-text-splitters
+langchain-chroma
+langchain-ollama
 chromadb
 sentence-transformers
-ollama
+python-dotenv

@@ -20,6 +20,11 @@ def main():
     vs_manager = VectorStoreManager()
     try:
         vectorstore = vs_manager.get_vectorstore(chunks if chunks else None)
+        
+        # Show a quick summary of what's inside
+        from src.inspector import DatabaseInspector
+        inspector = DatabaseInspector()
+        inspector.inspect(limit=0) # limit=0 runs only the header/total
     except Exception as e:
         print(f"Error initializing Vector Store: {e}")
         return

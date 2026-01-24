@@ -24,5 +24,8 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
+# Documentación personal/técnica
+TECHNICAL_GUIDE.md
+
 # Configuración de entornos
 .env
