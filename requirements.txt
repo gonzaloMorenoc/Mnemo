@@ -11,3 +11,7 @@ sentence-transformers
 python-dotenv
 streamlit
 streamlit-chat
+ragas
+atlassian-python-api
+pypdf
+pandas

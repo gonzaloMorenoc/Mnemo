@@ -23,3 +23,18 @@ class VectorStoreManager:
             )
         
         raise ValueError("No existing DB found and no chunks provided to create one.")
+    def update_feedback(self, doc_id, rating):
+        """Updates the rating of a specific document in ChromaDB."""
+        # Note: ChromaDB update requires the full document or just metadata
+        # For simplicity in this MVP, we find the doc and update its 'rating' metadata
+        try:
+            # Get existing metadata
+            res = self.vectorstore.get(ids=[doc_id])
+            if res['metadatas']:
+                new_metadata = res['metadatas'][0]
+                new_metadata['rating'] = new_metadata.get('rating', 0) + rating
+                self.vectorstore.update_metadata(ids=[doc_id], metadatas=[new_metadata])
+                return True
+        except Exception as e:
+            print(f"Error updating feedback: {e}")
+        return False
