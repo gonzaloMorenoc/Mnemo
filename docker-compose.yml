@@ -1,0 +1,45 @@
+services:
+  chroma:
+    image: chromadb/chroma:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      - ALLOW_RESET=TRUE
+      - PERSIST_DIRECTORY=/chroma/chroma
+    restart: always
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: always
+
+  # Helper service to ensure the model is pulled
+  ollama-pull:
+    image: curlimages/curl:latest
+    depends_on:
+      - ollama
+    entrypoint: [ "sh", "-c", "until curl -s http://ollama:11434/api/tags | grep -q 'deepseek-r1:8b'; do curl -X POST http://ollama:11434/api/pull -d '{\"name\": \"deepseek-r1:8b\"}'; sleep 10; done" ]
+
+  streamlit-app:
+    build: .
+    ports:
+      - "8501:8501"
+    environment:
+      - CHROMA_HOST=chroma
+      - CHROMA_PORT=8000
+      - OLLAMA_BASE_URL=http://ollama:11434
+    depends_on:
+      - chroma
+      - ollama
+    volumes:
+      - .:/app
+    restart: on-failure
+
+volumes:
+  chroma_data:
+  ollama_data:
