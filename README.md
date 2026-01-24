@@ -1,44 +1,49 @@
-# Smart Error Debugger
+# Smart Error Debugger 🚀
 
-Analizador de logs y buscador de errores diseñado para equipos de QA. Este proyecto utiliza técnicas de RAG (Retrieval-Augmented Generation) para contrastar nuevos errores con históricos de la base de datos y ofrecer soluciones basadas en experiencias previas.
+Analizador de logs y buscador de errores avanzado diseñado para equipos de QA. Este proyecto utiliza técnicas de RAG (Retrieval-Augmented Generation) para contrastar nuevos errores con históricos y documentación técnica, ofreciendo soluciones basadas en inteligencia artificial local.
 
 ## Stack Tecnológico
 
-El proyecto está construido sobre un stack moderno orientado a IA local y eficiencia en el procesamiento de texto:
+El proyecto está construido sobre un stack moderno orientado a IA local y observabilidad:
 
-- **LLM**: DeepSeek-R1 (8B) corriendo sobre **Ollama**.
-- **Orquestación**: **LangChain** para la gestión de cadenas y recuperación de contexto.
-- **Base de Datos Vectorial**: **ChromaDB** para el almacenamiento persistente de fragmentos de logs.
-- **Embeddings**: Modelo **all-MiniLM-L6-v2** de HuggingFace (ejecución 100% local).
-- **Ingesta**: Procesamiento personalizado para archivos `.log` y reportes estructurados `.json`.
+- **LLM**: DeepSeek-R1 (8B) mediante **Ollama** (Reasoning Model).
+- **Orquestación**: **LangChain** para la gestión de cadenas RAG.
+- **Base de Datos Vectorial**: **ChromaDB** para almacenamiento persistente.
+- **UI**: **Streamlit** para un dashboard interactivo y visual.
+- **QA de la IA**: **RAGAS** para medir la fidelidad y relevancia de las respuestas.
+- **Observabilidad**: Integración nativa con **LangSmith**.
+- **Ingesta**: Soporta `.log`, `.json`, `.pdf`, `.md` y conectores API (**Jira/Confluence**).
 
 ## Estructura del código
 
-Para garantizar la escalabilidad desde el MVP a producción, el código se ha organizado de forma modular:
+El proyecto sigue una arquitectura modular y limpia:
 
-- `main.py`: Punto de entrada y CLI interactiva.
-- `src/config.py`: Centraliza rutas, nombres de modelos e hiperparámetros.
-- `src/loader.py`: Gestiona la carga de archivos. Incluye lógica específica para extraer campos clave de JSONs de error (error_message, stack_trace, fix).
-- `src/vector_store.py`: Encapsula la persistencia y recuperación en ChromaDB.
-- `src/model.py`: Configura el cerebro del sistema y la cadena de razonamiento de DeepSeek.
-- `src/prompts.py`: Define el "persona" del asistente como un ingeniero experto en QA.
+- `ui.py`: Dashboard interactivo de Streamlit.
+- `main.py`: Interfaz de línea de comandos (CLI).
+- `src/loader.py`: Ingestión multifuente (Local, Jira, Confluence) con procesamiento inteligente.
+- `src/evaluator.py`: Cálculo de métricas de calidad (Faithfulness y Relevancy).
+- `src/vector_store.py`: Gestión de ChromaDB y Feedback Loop.
+- `src/model.py`: Orquestación de DeepSeek y la cadena de recuperación.
+- `src/inspector.py`: Herramienta para auditar el contenido de los vectores.
 
-## Instalación y Configuración
+## 🛠️ Instalación y Configuración
 
-1. **Modelos Locales**: Asegúrate de tener Ollama instalado y el modelo descargado:
+1. **Modelos Locales**:
    ```bash
    ollama pull deepseek-r1:8b
    ```
 
-2. **Entorno de Python**: Instala las dependencias necesarias:
+2. **Dependencias**:
    ```bash
    pip3 install -r requirements.txt
    ```
 
-## 🛠️ Modo de uso
+3. **Variables de Entorno**: Configura tu archivo `.env` (usa `.env.example` como plantilla) con tus claves de LangSmith, Jira o Confluence.
+
+## 🚀 Modo de uso
 
 ### Opción A: Interfaz Web (Recomendada)
-Para una experiencia visual e interactiva:
+Ofrece dashboard de calidad, visualización de razonamiento y feedback interactivo:
 ```bash
 streamlit run ui.py
 ```
@@ -49,6 +54,9 @@ Para pruebas rápidas en terminal:
 python3 main.py
 ```
 
-## Notas sobre el procesamiento JSON
+## ✨ Funcionalidades Avanzadas
 
-A diferencia de un cargador de texto simple, este sistema procesa los archivos JSON de forma inteligente. Si el archivo contiene campos como `previous_fix` o `error_message`, el cargador prioriza esta información para que el modelo pueda aprender de soluciones que ya funcionaron en el pasado.
+- **Thought Visualization**: Visualiza el proceso de razonamiento interno de DeepSeek-R1 antes de dar la solución.
+- **Quality Metrics**: Cada respuesta incluye métricas de "Fidelidad" para asegurar que la IA no alucina.
+- **Feedback Loop**: Permite calificar las soluciones para mejorar el ranking de resultados en el futuro.
+- **Multi-Source**: Combina tus logs locales con tickets de Jira y páginas de Confluence automáticamente.
