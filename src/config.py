@@ -1,4 +1,8 @@
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Model Settings
 MODEL_NAME = "deepseek-r1:8b"
