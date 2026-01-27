@@ -17,8 +17,8 @@ CHROMA_HOST = os.getenv("CHROMA_HOST")
 CHROMA_PORT = os.getenv("CHROMA_PORT", "8000")
 
 # Chunking Settings
-CHUNK_SIZE = 1000
-CHUNK_OVERLAP = 200
+CHUNK_SIZE = 2500
+CHUNK_OVERLAP = 500
 
 # Jira/Confluence Search Paths (Optional)
 JIRA_URL = os.getenv("JIRA_URL")

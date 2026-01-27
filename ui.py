@@ -31,7 +31,7 @@ def get_components():
     chunks = loader.load()
     vs_manager = VectorStoreManager()
     vectorstore = vs_manager.get_vectorstore(chunks if chunks else None)
-    analyzer = BugAnalyzer(vectorstore)
+    analyzer = BugAnalyzer(vectorstore, chunks=chunks)
     inspector = DatabaseInspector()
     evaluator = RAGASEvaluator()
     history = HistoryManager()
@@ -94,8 +94,15 @@ def main():
                         context_text = [d.page_content for d in docs]
                         
                         # 2. Generation
-                        response = analyzer.analyze(error_input)
-                        result = response["result"]
+                        # Optimization: Use already retrieved docs to avoid re-running Reranker
+                        with st.spinner("Generando solución..."):
+                            raw_response = analyzer.qa_chain.combine_documents_chain.invoke({
+                                "input_documents": docs,
+                                "question": error_input
+                            })
+                            # Handle different output formats
+                            result = raw_response.get("output_text", raw_response) if isinstance(raw_response, dict) else raw_response
+                            response = {"result": result}
                         
                         # 3. Evaluation (RAGAS)
                         metrics = evaluator.evaluate_response(error_input, result, context_text)
