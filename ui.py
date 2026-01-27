@@ -72,7 +72,7 @@ def main():
 
     # Main Interface
     # Tabs for different views
-    tab_analyzer, tab_history = st.tabs(["🔍 Analizador", "📊 Dashboard & Historial"])
+    tab_analyzer, tab_history, tab_ingestion = st.tabs(["🔍 Analizador", "📊 Dashboard & Historial", "⚙️ Gestión de Datos"])
 
     with tab_analyzer:
         col1, col2 = st.columns([1.5, 1])
@@ -219,6 +219,70 @@ def main():
                         mime="text/markdown",
                         key=f"dl_{item['id']}"
                     )
+
+    with tab_ingestion:
+        st.markdown("### 📥 Ingesta de Nueva Documentación")
+        col_up1, col_up2 = st.columns([2, 1])
+        
+        with col_up1:
+            uploaded_files = st.file_uploader(
+                "Sube logs, manuales (PDF/MD) o soluciones previas (JSON)", 
+                accept_multiple_files=True,
+                type=["log", "pdf", "md", "json"]
+            )
+            
+            if st.button("💾 Guardar y Procesar Archivos"):
+                if uploaded_files:
+                    from src.config import DATA_PATH
+                    if not os.path.exists(DATA_PATH):
+                        os.makedirs(DATA_PATH)
+                    
+                    saved_count = 0
+                    for uploaded_file in uploaded_files:
+                        file_path = os.path.join(DATA_PATH, uploaded_file.name)
+                        with open(file_path, "wb") as f:
+                            f.write(uploaded_file.getbuffer())
+                        saved_count += 1
+                    
+                    st.success(f"¡{saved_count} archivos guardados en {DATA_PATH}!")
+                    st.info("Haz clic en 'Sincronizar Todo' en la barra lateral para indexarlos.")
+                else:
+                    st.warning("Por favor, selecciona archivos primero.")
+
+        with col_up2:
+            st.info("""
+            **Formatos aceptados:**
+            - `.log`: Trazas crudas.
+            - `.pdf / .md`: Documentación oficial.
+            - `.json`: Casos de éxito (formato específico).
+            """)
+
+        st.divider()
+        st.markdown("### 🔌 Configuración de Fuentes Externas")
+        
+        # Use session state or local .env editing logic
+        from src.config import JIRA_URL, JIRA_USERNAME, CONFLUENCE_URL
+        
+        with st.form("external_sources_form"):
+            st.write("Configura tus credenciales (Se guardarán en memoria para esta sesión)")
+            new_jira_url = st.text_input("Jira URL", value=JIRA_URL or "")
+            new_jira_user = st.text_input("Jira Username", value=JIRA_USERNAME or "")
+            new_jira_token = st.text_input("Jira API Token", type="password")
+            
+            st.divider()
+            new_conf_url = st.text_input("Confluence URL", value=CONFLUENCE_URL or "")
+            
+            if st.form_submit_button("✅ Actualizar Conexiones"):
+                # Simplified: In a real app, we'd write to .env or a DB.
+                # Here we show it's possible to override.
+                os.environ["JIRA_URL"] = new_jira_url
+                os.environ["JIRA_USERNAME"] = new_jira_user
+                if new_jira_token:
+                    os.environ["JIRA_API_TOKEN"] = new_jira_token
+                os.environ["CONFLUENCE_URL"] = new_conf_url
+                
+                st.success("Configuración actualizada. Reinicia la sincronización para aplicar.")
+                st.cache_resource.clear()
 
 if __name__ == "__main__":
     main()
