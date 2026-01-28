@@ -1,30 +1,34 @@
 # Smart Error Debugger
 
-Analizador de logs y buscador de errores avanzado diseñado para equipos de QA. Este proyecto utiliza técnicas de RAG (Retrieval-Augmented Generation) para contrastar nuevos errores con históricos y documentación técnica, ofreciendo soluciones basadas en inteligencia artificial local.
+Analizador de logs y buscador de errores avanzado diseñado para equipos de QA. Este proyecto utiliza un motor RAG (Retrieval-Augmented Generation) optimizado para entornos de debugging, contrastando nuevos errores con históricos y documentación técnica.
 
 ## Stack Tecnologico
 
 El proyecto esta construido sobre un stack moderno orientado a IA local y observabilidad:
 
 - LLM: DeepSeek-R1 (8B) mediante Ollama (Reasoning Model).
+- Backend API: FastAPI para exponer el motor de inferencia como servicio REST.
 - Orquestacion: LangChain para la gestion de cadenas RAG.
-- Base de Datos Vectorial: ChromaDB para almacenamiento persistente.
-- UI: Streamlit para un dashboard interactivo y visual con sistema de pestañas.
+- Recuperacion Avanzada:
+  - Busqueda Hibrida: EnsembleRetriever combinando logica vectorial (ChromaDB) y palabras clave (BM25).
+  - Re-ranking: Cross-Encoder (BGE-Reranker) para reordenar resultados segun relevancia.
+- UI: Streamlit para un dashboard interactivo con gestion de datos integrada.
 - QA de la IA: RAGAS para medir la fidelidad y relevancia de las respuestas.
 - Historial: SQLite para la persistencia de analisis y metricas.
 - Ingesta: Soporta .log, .json, .pdf, .md y conectores API (Jira/Confluence).
 
 ## Estructura del codigo
 
-El proyecto sigue una arquitectura modular y limpia:
+El proyecto sigue una arquitectura modular API-First:
 
-- ui.py: Dashboard interactivo de Streamlit con Analizador y Dashboard de historial.
-- main.py: Interfaz de linea de comandos (CLI).
-- src/loader.py: Ingestion multifuente (Local, Jira, Confluence) con procesamiento inteligente.
+- api.py: API REST construida con FastAPI que expone endpoints de analisis y sincronizacion.
+- ui.py: Dashboard interactivo que permite analisis, visualizacion de historico y gestion de datos.
+- src/retriever.py: Fabrica del recuperador avanzado (BM25 + Chroma + Reranker).
+- src/loader.py: Ingestion multifuente (Local, Jira, Confluence) con chunking optimizado para logs.
 - src/evaluator.py: Calculo de metricas de calidad (Faithfulness y Relevancy).
-- src/vector_store.py: Gestion de ChromaDB (Local y Remote) y Feedback Loop.
-- src/model.py: Orquestacion de DeepSeek y la cadena de recuperacion.
-- src/history.py: Gestion del historial de analisis y persistencia de datos.
+- src/vector_store.py: Gestion de ChromaDB (Local y Remote).
+- src/model.py: Orquestacion de DeepSeek y la cadena de cuestion-respuesta.
+- src/history.py: Capa de persistencia en SQLite.
 
 ## Instalacion y Configuracion
 
@@ -42,37 +46,35 @@ El proyecto sigue una arquitectura modular y limpia:
 
 ## Modo de uso
 
-### Opcion A: Interfaz Web (Recomendada)
-Ofrece dashboard de calidad, visualizacion de razonamiento, historial de analisis y feedback interactivo:
+### Opcion A: Interfaz Web (Dashboard)
+Ofrece analisis visual, gestion de archivos drag-and-drop y configuracion de fuentes:
 ```bash
 streamlit run ui.py
 ```
 
-### Opcion B: Consola (CLI)
-Para pruebas rapidas en terminal:
+### Opcion B: API REST (Backend)
+Ideal para integraciones o desacoplar el motor de ia:
 ```bash
-python3 main.py
+uvicorn api:app --reload
 ```
+Documentacion interactiva disponible en: http://localhost:8000/docs
 
 ### Opcion C: Docker
 Levanta todo el stack (Ollama, ChromaDB y UI) con un solo comando:
 ```bash
 docker-compose up --build
 ```
-Nota: La primera vez descargara el modelo DeepSeek-R1 automaticamente mediante el servicio ollama-pull.
-
-## Dataset de Errores QA
-Se ha incluido un dataset inicial en data/qa_test_errors.json con ejemplos reales de:
-- Timeouts de Selenium
-- Stale Element Exceptions
-- Fallos de conexion de API
-- Errores de asercion de negocio
 
 ## Funcionalidades Avanzadas
 
-- Thought Visualization: Visualiza el proceso de razonamiento interno de DeepSeek-R1 antes de dar la solucion.
-- Quality Metrics: Cada respuesta incluye metricas de Fidelidad para asegurar que la IA no alucina.
-- History & Dashboard: Pestaña dedicada para ver la evolucion de la calidad y el total de analisis realizados.
-- Professional Export: Permite descargar reportes tecnicos de cada error en formato Markdown.
-- Feedback Loop: Permite calificar las soluciones para mejorar el ranking de resultados en el futuro.
-- Multi-Source: Combina logs locales con tickets de Jira y paginas de Confluence automaticamente.
+### Motor de Busqueda Hibrida
+A diferencia de un RAG estandar, este sistema utiliza BM25 para capturar codigos de error exactos (ej: 0x8004210B) combinandolo con embeddings semanticos.
+
+### Re-ranking Neural
+Los resultados preliminares pasan por un modelo Cross-Encoder que lee y reordena los documentos, asegurando que el contexto enviado al LLM sea el mas pertinente.
+
+### Gestion de Datos en UI
+Nueva pestaña "Gestion de Datos" que permite subir logs y documentación desde el navegador, asi como configurar credenciales de Jira/Confluence en caliente sin reiniciar el servidor.
+
+### Metricas de Calidad
+Cada respuesta incluye scores de Fidelidad (Faithfulness) y Relevancia calculados por RAGAS para auditar el desempeño de la IA.

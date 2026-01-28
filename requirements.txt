@@ -16,3 +16,6 @@ atlassian-python-api
 pypdf
 pandas
 rank_bm25
+fastapi
+uvicorn
+pydantic
