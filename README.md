@@ -17,6 +17,10 @@ El proyecto esta construido sobre un stack moderno orientado a IA local y observ
 - Historial: SQLite para la persistencia de analisis y metricas.
 - Ingesta: Soporta .log, .json, .pdf, .md y conectores API (Jira/Confluence).
 
+## Diagrama de Arquitectura
+
+![Arquitectura del Proyecto](doc/arq.png)
+
 ## Estructura del codigo
 
 El proyecto sigue una arquitectura modular API-First:
