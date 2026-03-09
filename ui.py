@@ -77,6 +77,12 @@ def main():
     with tab_analyzer:
         col1, col2 = st.columns([1.5, 1])
 
+        # Use session_state to persist docs and result across re-renders
+        if "last_docs" not in st.session_state:
+            st.session_state.last_docs = []
+        if "last_result" not in st.session_state:
+            st.session_state.last_result = None
+
         with col1:
             st.markdown("### 🔍 Analizar Nuevo Error")
             error_input = st.text_area(
@@ -89,10 +95,11 @@ def main():
             if st.button("🚀 Analizar"):
                 if error_input.strip():
                     with st.spinner("DeepSeek está analizando e inspeccionando el historial..."):
-                        # 1. Retrieval
+                        # 1. Retrieval (stored in session_state for reuse in col2)
                         docs = analyzer.qa_chain.retriever.invoke(error_input)
+                        st.session_state.last_docs = docs
                         context_text = [d.page_content for d in docs]
-                        
+
                         # 2. Generation
                         # Optimization: Use already retrieved docs to avoid re-running Reranker
                         with st.spinner("Generando solución..."):
@@ -102,22 +109,24 @@ def main():
                             })
                             # Handle different output formats
                             result = raw_response.get("output_text", raw_response) if isinstance(raw_response, dict) else raw_response
-                            response = {"result": result}
-                        
+                            st.session_state.last_result = result
+
                         # 3. Evaluation (RAGAS)
                         metrics = evaluator.evaluate_response(error_input, result, context_text)
-                        
+                        if metrics is None:
+                            metrics = {"faithfulness": 0.0, "relevancy": 0.0}
+
                         # 4. Save to History
                         history.save_analysis(
-                            error_input, 
-                            result, 
-                            metrics['faithfulness'], 
-                            metrics['relevancy'], 
+                            error_input,
+                            result,
+                            metrics['faithfulness'],
+                            metrics['relevancy'],
                             context_text
                         )
-                        
+
                         st.markdown("---")
-                        
+
                         # Dashboard de Calidad (QA de la IA)
                         q_col1, q_col2, q_col3 = st.columns(3)
                         with q_col1:
@@ -135,30 +144,38 @@ def main():
                                 st.write(parts[0].replace("<thought>", "").strip())
                         else:
                             st.success(result)
-                        
+
                         # 5. Feedback Loop
                         st.divider()
                         st.write("¿Fue útil esta solución?")
                         f_col1, f_col2 = st.columns([1, 5])
                         with f_col1:
                             if st.button("👍 Sí"):
+                                for doc in docs:
+                                    doc_id = doc.metadata.get("id")
+                                    if doc_id:
+                                        vs_manager.update_feedback(doc_id, 1)
                                 st.toast("¡Gracias! Feedback registrado para mejorar el ranking.")
                         with f_col2:
-                             if st.button("👎 No"):
-                                 st.toast("Entendido, ajustaremos el contexto.")
+                            if st.button("👎 No"):
+                                for doc in docs:
+                                    doc_id = doc.metadata.get("id")
+                                    if doc_id:
+                                        vs_manager.update_feedback(doc_id, -1)
+                                st.toast("Entendido, ajustaremos el contexto.")
 
         with col2:
             st.markdown("### 📚 Contexto & Evidencias")
-            if error_input.strip():
-                docs = analyzer.qa_chain.retriever.invoke(error_input)
-                for i, doc in enumerate(docs):
+            # Reuse docs from session_state to avoid calling the retriever again
+            if st.session_state.last_docs:
+                for i, doc in enumerate(st.session_state.last_docs):
                     source_name = os.path.basename(doc.metadata.get('source', 'External API'))
                     rating = doc.metadata.get('rating', 0)
                     with st.expander(f"📖 {source_name} (⭐ {rating})"):
                         st.write(doc.page_content)
                         st.caption(f"Tipo: {doc.metadata.get('type', 'external')}")
             else:
-                st.info("Escribe algo para ver los documentos relacionados.")
+                st.info("Analiza un error para ver los documentos relacionados.")
 
     with tab_history:
         hist_data = history.get_history()

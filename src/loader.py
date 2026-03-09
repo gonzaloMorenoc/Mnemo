@@ -16,22 +16,39 @@ class LogLoader:
             chunk_overlap=CHUNK_OVERLAP
         )
 
+    def _process_json_entry(self, entry, source):
+        """Converts a single JSON object (dict) into a Document."""
+        content_parts = []
+        if "error_message" in entry:
+            content_parts.append(f"Error: {entry['error_message']}")
+        if "stack_trace" in entry:
+            content_parts.append(f"Stack Trace: {entry['stack_trace']}")
+        if "previous_fix" in entry:
+            content_parts.append(f"Solution: {entry['previous_fix']}")
+
+        if not content_parts:
+            content_parts.append(json.dumps(entry, indent=2))
+
+        content = "\n".join(content_parts)
+        return Document(page_content=content, metadata={"source": source, "type": "json", "rating": 0})
+
     def _process_json_file(self, file_path):
-        """Processes a single JSON file and converts it into a Document."""
+        """Processes a single JSON file (object or array) and returns a list of Documents."""
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            
-            content_parts = []
-            if "error_message" in data: content_parts.append(f"Error: {data['error_message']}")
-            if "stack_trace" in data: content_parts.append(f"Stack Trace: {data['stack_trace']}")
-            if "previous_fix" in data: content_parts.append(f"Solution: {data['previous_fix']}")
-            
-            if not content_parts:
-                content_parts.append(json.dumps(data, indent=2))
-            
-            content = "\n".join(content_parts)
-            return Document(page_content=content, metadata={"source": file_path, "type": "json", "rating": 0})
+
+            if isinstance(data, list):
+                docs = []
+                for entry in data:
+                    if isinstance(entry, dict):
+                        docs.append(self._process_json_entry(entry, file_path))
+                return docs if docs else None
+            elif isinstance(data, dict):
+                return [self._process_json_entry(data, file_path)]
+            else:
+                print(f"Unexpected JSON structure in {file_path}: {type(data)}")
+                return None
         except Exception as e:
             print(f"Error processing JSON {file_path}: {e}")
             return None
@@ -117,9 +134,9 @@ class LogLoader:
         for filename in os.listdir(self.data_path):
             if filename.endswith(".json"):
                 file_path = os.path.join(self.data_path, filename)
-                doc = self._process_json_file(file_path)
-                if doc:
-                    all_docs.append(doc)
+                docs = self._process_json_file(file_path)
+                if docs:
+                    all_docs.extend(docs)
         
         # 3. Load External Sources
         all_docs.extend(self._load_jira())

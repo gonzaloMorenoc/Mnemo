@@ -1,6 +1,8 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
+from contextlib import asynccontextmanager
+import asyncio
 import uvicorn
 import os
 
@@ -23,16 +25,14 @@ class AnalysisResponse(BaseModel):
 
 class FeedbackRequest(BaseModel):
     analysis_id: int
-    rating: int # 1 (useful) or -1 (not useful)
-
-# App & State
-app = FastAPI(title="Smart Error Debugger API", version="1.0.0")
+    rating: int  # 1 (useful) or -1 (not useful)
 
 class AppState:
     analyzer: Optional[BugAnalyzer] = None
     history: Optional[HistoryManager] = None
     evaluator: Optional[RAGASEvaluator] = None
     inspector: Optional[DatabaseInspector] = None
+    lock: Optional[asyncio.Lock] = None
 
 state = AppState()
 
@@ -40,19 +40,24 @@ def initialize_system():
     print("Initializing System Components...")
     loader = LogLoader()
     chunks = loader.load()
-    
+
     vs_manager = VectorStoreManager()
     vectorstore = vs_manager.get_vectorstore(chunks if chunks else None)
-    
+
     state.analyzer = BugAnalyzer(vectorstore, chunks=chunks)
     state.history = HistoryManager()
     state.evaluator = RAGASEvaluator()
     state.inspector = DatabaseInspector()
     print("System Ready.")
 
-@app.on_event("startup")
-async def startup_event():
-    initialize_system()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    state.lock = asyncio.Lock()
+    await asyncio.to_thread(initialize_system)
+    yield
+
+# App & State
+app = FastAPI(title="Smart Error Debugger API", version="1.0.0", lifespan=lifespan)
 
 @app.post("/analyze", response_model=AnalysisResponse)
 async def analyze_error(request: AnalysisRequest):
@@ -74,14 +79,16 @@ async def analyze_error(request: AnalysisRequest):
     
     # 3. Evaluate
     metrics = state.evaluator.evaluate_response(request.error_log, result, context_text)
-    
+    if metrics is None:
+        metrics = {"faithfulness": 0.0, "relevancy": 0.0}
+
     # 4. Save History
     # We save to SQLite
     state.history.save_analysis(
-        request.error_log, 
-        result, 
-        metrics['faithfulness'], 
-        metrics['relevancy'], 
+        request.error_log,
+        result,
+        metrics['faithfulness'],
+        metrics['relevancy'],
         context_text
     )
     
@@ -99,8 +106,11 @@ async def analyze_error(request: AnalysisRequest):
 @app.post("/sync")
 async def sync_data(background_tasks: BackgroundTasks):
     """Triggers a full system reload to ingest new data."""
-    # Run in background to not block the request
-    background_tasks.add_task(initialize_system)
+    async def _safe_reinit():
+        async with state.lock:
+            await asyncio.to_thread(initialize_system)
+
+    background_tasks.add_task(_safe_reinit)
     return {"status": "Synchronization started in background"}
 
 @app.get("/history")

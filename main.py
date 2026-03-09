@@ -30,7 +30,7 @@ def main():
         return
 
     # 3. Setup Analyzer
-    analyzer = BugAnalyzer(vectorstore)
+    analyzer = BugAnalyzer(vectorstore, chunks=chunks)
     
     print("\n--- IA DEBUGGING SYSTEM READY ---")
     print("Type 'salir' to exit.")
