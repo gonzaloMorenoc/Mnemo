@@ -34,8 +34,18 @@ class VectorStoreManager:
 
         if os.path.exists(self.db_path) and not chunks:
             print("Loading existing vector database...")
-            self._vectorstore = Chroma(persist_directory=self.db_path, embedding_function=self.embeddings)
-            return self._vectorstore
+            try:
+                self._vectorstore = Chroma(persist_directory=self.db_path, embedding_function=self.embeddings)
+                # Validate that the stored embedding dimensions match the current model
+                self._vectorstore.get(limit=1)
+                return self._vectorstore
+            except Exception as e:
+                print(
+                    f"[VectorStore] Could not load existing DB: {e}\n"
+                    f"  This is likely a dimension mismatch after changing EMBEDDING_MODEL.\n"
+                    f"  Delete '{self.db_path}/' and re-sync to rebuild the index."
+                )
+                raise
 
         if chunks:
             print("Creating/Updating vector database...")

@@ -269,7 +269,12 @@ def main():
         return
 
     # ── Session state defaults ──
-    for key, default in [("last_docs", []), ("last_result", None), ("last_metrics", None)]:
+    for key, default in [
+        ("last_docs", []),
+        ("last_result", None),
+        ("last_metrics", None),
+        ("last_rewritten_query", None),
+    ]:
         if key not in st.session_state:
             st.session_state[key] = default
 
@@ -379,40 +384,82 @@ def main():
                 if not error_input.strip():
                     st.warning("Por favor, introduce un error antes de analizar.")
                 else:
-                    # ── Progress ──
-                    progress_bar = st.progress(0, text="Inicializando pipeline RAG...")
+                    # ── Step 1: Query Rewriting ──
+                    progress_bar = st.progress(10, text="✏️ Optimizando query para recuperación semántica...")
+                    rewritten_query = analyzer.rewrite_query(error_input)
+                    st.session_state.last_rewritten_query = rewritten_query if rewritten_query != error_input else None
 
-                    progress_bar.progress(15, text="🔎 Recuperando documentos relevantes (BM25 + Semántico)...")
-                    docs = analyzer.qa_chain.retriever.invoke(error_input)
+                    # ── Step 2: Hybrid Retrieval ──
+                    progress_bar.progress(30, text="🔎 Recuperando documentos (BM25 + Semántico)...")
+                    docs = analyzer.qa_chain.retriever.invoke(rewritten_query)
                     st.session_state.last_docs = docs
                     context_text = [d.page_content for d in docs]
 
-                    progress_bar.progress(45, text="⚙️ Re-ranking con Cross-Encoder...")
+                    progress_bar.progress(55, text="⚙️ Re-ranking con Cross-Encoder...")
+                    progress_bar.progress(65, text="🧠 DeepSeek-R1 generando respuesta en streaming...")
+                    progress_bar.empty()
 
-                    progress_bar.progress(60, text="🧠 DeepSeek-R1 generando solución...")
-                    raw_response = analyzer.qa_chain.combine_documents_chain.invoke({
-                        "input_documents": docs,
-                        "question": error_input,
-                    })
-                    result = raw_response.get("output_text", raw_response) if isinstance(raw_response, dict) else raw_response
-                    st.session_state.last_result = result
+                    # ── Step 3: Streaming Generation ──
+                    stream_label = st.markdown(
+                        "<div style='color:#8b949e; font-size:0.8rem; margin-bottom:0.5rem;'>🧠 DeepSeek-R1 generando...</div>",
+                        unsafe_allow_html=True,
+                    )
+                    reasoning_ph = st.empty()
+                    answer_ph = st.empty()
 
-                    progress_bar.progress(85, text="📊 Evaluando calidad (Faithfulness & Relevancy)...")
-                    metrics = evaluator.evaluate_response(error_input, result, context_text)
+                    full_result = ""
+                    for chunk in analyzer.stream(docs, error_input):
+                        full_result += chunk
+                        if "</thought>" in full_result:
+                            parts = full_result.split("</thought>", 1)
+                            reasoning = parts[0].replace("<thought>", "").strip()
+                            answer_so_far = parts[1].strip() if len(parts) > 1 else ""
+                            reasoning_ph.markdown(
+                                f"""<div style="background:#0d1117; border-left:3px solid #6e40c9;
+                                border-radius:0 6px 6px 0; padding:0.5rem 0.9rem; margin-bottom:0.4rem;
+                                font-size:0.73rem; color:#6e7681; font-family:monospace;
+                                max-height:90px; overflow:hidden; line-height:1.4;">
+                                🤔 {reasoning[-350:]}</div>""",
+                                unsafe_allow_html=True,
+                            )
+                            answer_ph.markdown(answer_so_far + " ▌" if answer_so_far else "▌")
+                        elif "<thought>" in full_result:
+                            thought_content = full_result.split("<thought>", 1)[1]
+                            reasoning_ph.markdown(
+                                f"""<div style="background:#0d1117; border-left:3px solid #6e40c9;
+                                border-radius:0 6px 6px 0; padding:0.5rem 0.9rem; margin-bottom:0.4rem;
+                                font-size:0.73rem; color:#6e7681; font-family:monospace;
+                                max-height:90px; overflow:hidden; line-height:1.4;">
+                                🤔 Razonando... {thought_content[-350:]}</div>""",
+                                unsafe_allow_html=True,
+                            )
+                        else:
+                            answer_ph.markdown(full_result + " ▌")
+
+                    # Clear streaming placeholders; results render from session_state below
+                    stream_label.empty()
+                    reasoning_ph.empty()
+                    answer_ph.empty()
+                    st.session_state.last_result = full_result
+
+                    # ── Step 4: Evaluation ──
+                    eval_status = st.markdown(
+                        "<div style='color:#8b949e; font-size:0.8rem;'>📊 Evaluando calidad...</div>",
+                        unsafe_allow_html=True,
+                    )
+                    metrics = evaluator.evaluate_response(error_input, full_result, context_text)
                     if metrics is None:
                         metrics = {"faithfulness": 0.0, "relevancy": 0.0}
                     st.session_state.last_metrics = metrics
+                    eval_status.empty()
 
                     history.save_analysis(
                         error_input,
-                        result,
+                        full_result,
                         metrics['faithfulness'],
                         metrics['relevancy'],
                         context_text,
                     )
-
-                    progress_bar.progress(100, text="✅ Análisis completado")
-                    progress_bar.empty()
 
             # ── Results ──
             if st.session_state.last_result:
@@ -421,6 +468,18 @@ def main():
                 docs = st.session_state.last_docs
 
                 st.markdown("<br>", unsafe_allow_html=True)
+
+                # Show rewritten query if it was optimized
+                if st.session_state.last_rewritten_query:
+                    st.markdown(
+                        f"""<div style="background:#161b22; border:1px solid #30363d;
+                        border-left:3px solid #58a6ff; border-radius:0 6px 6px 0;
+                        padding:0.5rem 0.9rem; margin-bottom:0.75rem; font-size:0.78rem; color:#8b949e;">
+                        <span style="color:#58a6ff; font-weight:600;">✏️ Query optimizada:</span>
+                        &nbsp;{st.session_state.last_rewritten_query}
+                        </div>""",
+                        unsafe_allow_html=True,
+                    )
 
                 # Quality bar
                 f_val = metrics['faithfulness']

@@ -64,26 +64,22 @@ async def analyze_error(request: AnalysisRequest):
     if not state.analyzer:
         raise HTTPException(status_code=503, detail="System not initialized")
     
-    # 1. Retrieve
-    # We invoke the retriever created by AdvancedRetrieverFactory inside BugAnalyzer
-    docs = state.analyzer.qa_chain.retriever.invoke(request.error_log)
+    # 1. Query Rewriting: transform noisy stack trace into a clean semantic query
+    rewritten_query = await asyncio.to_thread(state.analyzer.rewrite_query, request.error_log)
+
+    # 2. Retrieve using the optimized query
+    docs = state.analyzer.qa_chain.retriever.invoke(rewritten_query)
     context_text = [d.page_content for d in docs]
+
+    # 3. Generate via streaming (collect full result for API response)
+    result = "".join(state.analyzer.stream(docs, request.error_log))
     
-    # 2. Generate (Optimized: using combine_documents_chain directly)
-    # This matches the optimization done in ui.py to avoid calling Reranker twice
-    raw_response = state.analyzer.qa_chain.combine_documents_chain.invoke({
-        "input_documents": docs,
-        "question": request.error_log
-    })
-    result = raw_response.get("output_text", raw_response) if isinstance(raw_response, dict) else raw_response
-    
-    # 3. Evaluate
+    # 4. Evaluate
     metrics = state.evaluator.evaluate_response(request.error_log, result, context_text)
     if metrics is None:
         metrics = {"faithfulness": 0.0, "relevancy": 0.0}
 
-    # 4. Save History
-    # We save to SQLite
+    # 5. Save History
     state.history.save_analysis(
         request.error_log,
         result,

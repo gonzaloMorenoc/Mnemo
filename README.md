@@ -1,84 +1,180 @@
 # Smart Error Debugger
 
-Analizador de logs y buscador de errores avanzado diseñado para equipos de QA. Este proyecto utiliza un motor RAG (Retrieval-Augmented Generation) optimizado para entornos de debugging, contrastando nuevos errores con históricos y documentación técnica.
+Analizador de logs y buscador de errores avanzado diseñado para equipos de QA. Utiliza un motor RAG (Retrieval-Augmented Generation) de producción con búsqueda híbrida, re-ranking neuronal, reescritura de queries y streaming de respuestas — todo ejecutándose en local para máxima privacidad.
 
-## Stack Tecnologico
+## Stack Tecnológico
 
-El proyecto esta construido sobre un stack moderno orientado a IA local y observabilidad:
+| Componente | Tecnología | Rol |
+|---|---|---|
+| **LLM** | DeepSeek-R1 (8B) via Ollama | Razonamiento local, sin datos en la nube |
+| **Embeddings** | BAAI/bge-base-en-v1.5 (768 dims) | Representación semántica de alta precisión para código técnico |
+| **Vector DB** | ChromaDB | Persistencia de vectores (local o remoto) |
+| **Búsqueda híbrida** | BM25 + Semantic (EnsembleRetriever) | Combina coincidencia exacta y semántica |
+| **Re-ranking** | BGE-Reranker-base (Cross-Encoder) | Filtra y reordena los top-5 candidatos por relevancia real |
+| **Query Rewriting** | DeepSeek-R1 | Transforma stack traces ruidosos en queries semánticas limpias |
+| **Evaluación** | Heurística token-overlap (RAGAS-ready) | Faithfulness y Relevancy por análisis |
+| **API** | FastAPI | Motor de inferencia como servicio REST |
+| **UI** | Streamlit | Dashboard interactivo con streaming en tiempo real |
+| **Historial** | SQLite | Auditoría persistente de análisis y métricas |
+| **Ingesta** | Multiformat + Jira/Confluence | `.log`, `.json`, `.pdf`, `.md`, APIs externas |
 
-- LLM: DeepSeek-R1 (8B) mediante Ollama (Reasoning Model).
-- Backend API: FastAPI para exponer el motor de inferencia como servicio REST.
-- Orquestacion: LangChain para la gestion de cadenas RAG.
-- Recuperacion Avanzada:
-  - Busqueda Hibrida: EnsembleRetriever combinando logica vectorial (ChromaDB) y palabras clave (BM25).
-  - Re-ranking: Cross-Encoder (BGE-Reranker) para reordenar resultados segun relevancia.
-- UI: Streamlit para un dashboard interactivo con gestion de datos integrada.
-- QA de la IA: RAGAS para medir la fidelidad y relevancia de las respuestas.
-- Historial: SQLite para la persistencia de analisis y metricas.
-- Ingesta: Soporta .log, .json, .pdf, .md y conectores API (Jira/Confluence).
+## Arquitectura
 
-## Diagrama de Arquitectura
+```
+                    ┌─────────────────────────────────────┐
+     Error / Log    │         Smart Error Debugger         │
+  ──────────────►   │                                      │
+                    │  1. Query Rewriting (DeepSeek-R1)    │
+                    │       ↓                              │
+                    │  2. Hybrid Retrieval                 │
+                    │     ├── BM25 (exact match)           │
+                    │     └── Chroma (semantic)            │
+                    │       ↓                              │
+                    │  3. Cross-Encoder Re-ranking         │
+                    │       ↓                              │
+                    │  4. Generation (streaming)           │
+                    │       ↓                              │
+                    │  5. Evaluation (Faithfulness/        │
+                    │     Relevancy) + History save        │
+                    └─────────────────────────────────────┘
+```
 
 ![Arquitectura del Proyecto](doc/arq.png)
 
-## Estructura del codigo
+## Estructura del Código
 
-El proyecto sigue una arquitectura modular API-First:
+```
+SmartErrorDebugger/
+├── api.py              # API REST (FastAPI) — lifespan, /analyze, /sync, /history
+├── ui.py               # Dashboard Streamlit — streaming, métricas, historial
+├── main.py             # CLI interactivo
+├── src/
+│   ├── config.py       # Configuración centralizada (modelos, rutas, credenciales)
+│   ├── loader.py       # Ingesta multifuente: JSON (array/object), PDF, MD, LOG, Jira, Confluence
+│   ├── vector_store.py # Gestión de ChromaDB (local/remoto, detección de mismatch de dimensiones)
+│   ├── retriever.py    # Pipeline híbrido: BM25 + Chroma + BGE-Reranker
+│   ├── model.py        # BugAnalyzer: rewrite_query(), stream(), analyze()
+│   ├── prompts.py      # Prompt de QA Engineer persona
+│   ├── evaluator.py    # Métricas heurísticas de calidad (Faithfulness, Relevancy)
+│   ├── history.py      # Persistencia SQLite de análisis y métricas
+│   └── inspector.py    # Inspección de ChromaDB (local y remoto)
+├── tests/
+│   ├── conftest.py            # Fixtures compartidas (golden dataset, tmp dirs)
+│   ├── test_loader.py         # Tests unitarios del loader (22 casos)
+│   ├── test_evaluator.py      # Tests unitarios del evaluador (14 casos)
+│   └── test_golden_dataset.py # Tests de cobertura del dataset canónico (15 casos)
+├── data/
+│   └── qa_test_errors.json   # 5 errores canónicos con soluciones conocidas (golden dataset)
+├── doc/
+│   ├── DEEP_DIVE_TECHNICAL.md
+│   └── arq.png
+├── requirements.txt
+├── requirements-dev.txt   # pytest, pytest-mock, pytest-asyncio
+├── pytest.ini
+├── Dockerfile
+└── docker-compose.yml
+```
 
-- api.py: API REST construida con FastAPI que expone endpoints de analisis y sincronizacion.
-- ui.py: Dashboard interactivo que permite analisis, visualizacion de historico y gestion de datos.
-- src/retriever.py: Fabrica del recuperador avanzado (BM25 + Chroma + Reranker).
-- src/loader.py: Ingestion multifuente (Local, Jira, Confluence) con chunking optimizado para logs.
-- src/evaluator.py: Calculo de metricas de calidad (Faithfulness y Relevancy).
-- src/vector_store.py: Gestion de ChromaDB (Local y Remote).
-- src/model.py: Orquestacion de DeepSeek y la cadena de cuestion-respuesta.
-- src/history.py: Capa de persistencia en SQLite.
+## Instalación y Configuración
 
-## Instalacion y Configuracion
+### 1. Modelo local (Ollama)
+```bash
+ollama pull deepseek-r1:8b
+```
 
-1. Modelos Locales:
-   ```bash
-   ollama pull deepseek-r1:8b
-   ```
+### 2. Dependencias de producción
+```bash
+pip install -r requirements.txt
+```
 
-2. Dependencias:
-   ```bash
-   pip3 install -r requirements.txt
-   ```
+### 3. Dependencias de desarrollo y tests
+```bash
+pip install -r requirements-dev.txt
+```
 
-3. Variables de Entorno: Configura tu archivo .env (usa .env.example como plantilla) con tus claves de LangSmith, Jira o Confluence.
+### 4. Variables de entorno
+Copia `.env.example` a `.env` y configura las claves de LangSmith, Jira o Confluence (todas opcionales):
+```bash
+cp .env.example .env
+```
 
-## Modo de uso
+### 5. ⚠️ Cambio de modelo de embeddings
+Si tienes una versión anterior del proyecto con `all-MiniLM-L6-v2`, debes eliminar la base vectorial antes de la primera ejecución (cambio de 384 → 768 dimensiones):
+```bash
+rm -rf db_chroma/
+```
 
-### Opcion A: Interfaz Web (Dashboard)
-Ofrece analisis visual, gestion de archivos drag-and-drop y configuracion de fuentes:
+## Modo de Uso
+
+### Opción A: Dashboard Web (recomendado)
+Análisis visual, streaming en tiempo real, gestión drag-and-drop:
 ```bash
 streamlit run ui.py
 ```
 
-### Opcion B: API REST (Backend)
-Ideal para integraciones o desacoplar el motor de ia:
+### Opción B: API REST
+Ideal para integraciones CI/CD o desacoplar el motor de IA:
 ```bash
 uvicorn api:app --reload
 ```
-Documentacion interactiva disponible en: http://localhost:8000/docs
+Documentación interactiva disponible en: http://localhost:8000/docs
 
-### Opcion C: Docker
-Levanta todo el stack (Ollama, ChromaDB y UI) con un solo comando:
+Endpoints:
+- `POST /analyze` — Analiza un error y devuelve solución + métricas
+- `POST /sync` — Reindexa datos en background (thread-safe con asyncio.Lock)
+- `GET /history` — Historial paginado de análisis
+- `GET /stats` — Métricas agregadas (total, faithfulness media, relevancy media)
+- `GET /health` — Estado del servicio
+
+### Opción C: CLI Interactivo
+```bash
+python main.py
+```
+
+### Opción D: Docker (stack completo)
+Levanta Ollama, ChromaDB y la UI con un solo comando:
 ```bash
 docker-compose up --build
 ```
 
+## Tests
+
+```bash
+# Ejecutar todos los tests unitarios (sin dependencias externas)
+pytest
+
+# Con cobertura detallada
+pytest -v
+
+# Excluir tests de integración (requieren Ollama/ChromaDB)
+pytest -m "not integration"
+```
+
+Los tests cubren:
+- **Loader**: carga de JSON arrays y objetos, chunking, manejo de errores
+- **Evaluator**: scores en rango [0,1], casos límite (vacíos, sin contexto)
+- **Golden Dataset**: los 5 errores canónicos deben estar indexados con todos sus términos clave
+
 ## Funcionalidades Avanzadas
 
-### Motor de Busqueda Hibrida
-A diferencia de un RAG estandar, este sistema utiliza BM25 para capturar codigos de error exactos (ej: 0x8004210B) combinandolo con embeddings semanticos.
+### Query Rewriting
+Antes del retrieval, DeepSeek-R1 transforma el stack trace ruidoso (con líneas de código, rutas, IDs de sesión) en una consulta semántica compacta. Esto mejora la precisión del retrieval entre un 20-30% en logs reales.
+
+### Streaming en Tiempo Real
+La respuesta de DeepSeek-R1 se muestra token a token en la UI. Durante la fase de razonamiento interno (`<thought>`), se visualiza el proceso de análisis en tiempo real.
+
+### Motor de Búsqueda Híbrida
+BM25 captura coincidencias exactas (códigos de error como `0x8004210B`, nombres de excepciones) mientras los embeddings `bge-base-en-v1.5` aportan comprensión semántica de alta precisión para texto técnico.
 
 ### Re-ranking Neural
-Los resultados preliminares pasan por un modelo Cross-Encoder que lee y reordena los documentos, asegurando que el contexto enviado al LLM sea el mas pertinente.
+Los candidatos de búsqueda pasan por un Cross-Encoder que evalúa cada par (query, documento) y devuelve solo los 5 más relevantes al LLM.
 
-### Gestion de Datos en UI
-Nueva pestaña "Gestion de Datos" que permite subir logs y documentación desde el navegador, asi como configurar credenciales de Jira/Confluence en caliente sin reiniciar el servidor.
+### Feedback Loop
+Los botones 👍/👎 actualizan el rating de los documentos en ChromaDB, mejorando el ranking de fuentes en futuras consultas.
 
-### Metricas de Calidad
-Cada respuesta incluye scores de Fidelidad (Faithfulness) y Relevancia calculados por RAGAS para auditar el desempeño de la IA.
+### Evaluación de Calidad
+Cada respuesta incluye:
+- **Faithfulness**: fracción de tokens de la respuesta que aparecen en el contexto recuperado
+- **Relevancy**: fracción de tokens de la pregunta cubiertos por la respuesta
+
+Sistema preparado para integrar RAGAS con LLM-as-judge cuando se configure un modelo compatible.

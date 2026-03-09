@@ -7,7 +7,11 @@ load_dotenv()
 # Model Settings
 MODEL_NAME = "deepseek-r1:8b"
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+# Upgraded from all-MiniLM-L6-v2 (384 dims) to bge-base-en-v1.5 (768 dims) for
+# significantly better retrieval precision on technical/code content.
+# IMPORTANT: delete db_chroma/ before first run after this change to avoid
+# dimension mismatch errors with the existing vector store.
+EMBEDDING_MODEL = "BAAI/bge-base-en-v1.5"
 
 # Paths
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
