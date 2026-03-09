@@ -1,0 +1,110 @@
+# Smart Error Debugger — Auto-analyze CI failures
+#
+# This workflow triggers whenever another workflow in this repository completes
+# with a failure. It downloads the test logs, sends them to the SmartErrorDebugger
+# API, and posts the analysis as a comment on the triggering workflow run.
+#
+# Setup:
+#   1. Deploy SmartErrorDebugger API (`uvicorn api:app --host 0.0.0.0 --port 8000`)
+#      and make it reachable from GitHub Actions runners (or use a self-hosted runner).
+#   2. Add the following repository secrets / variables in Settings → Secrets:
+#        SMART_DEBUGGER_URL  — e.g. https://your-server:8000  (no trailing slash)
+#   3. Optionally add SMART_DEBUGGER_API_KEY if you add auth to the API.
+
+name: Auto-analyze CI Failure
+
+on:
+  workflow_run:
+    workflows: ["*"]      # Trigger on failure of any workflow
+    types: [completed]
+
+jobs:
+  analyze-failure:
+    name: Send failure to SmartErrorDebugger
+    # Only run when the triggering workflow actually failed
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download workflow logs
+        uses: actions/github-script@v7
+        id: get-logs
+        with:
+          script: |
+            const run_id = context.payload.workflow_run.id;
+            // Download logs archive
+            const logs = await github.rest.actions.downloadWorkflowRunLogs({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              run_id,
+            });
+            const fs = require('fs');
+            fs.writeFileSync('logs.zip', Buffer.from(logs.data));
+            console.log(`Downloaded logs for run ${run_id}`);
+
+      - name: Extract log text
+        id: extract
+        run: |
+          unzip -o logs.zip -d logs_dir 2>/dev/null || true
+          # Concatenate all .txt log files, truncated to 8 KB to stay within API limits
+          LOG_TEXT=$(find logs_dir -name "*.txt" | sort | xargs cat 2>/dev/null | head -c 8000)
+          if [ -z "$LOG_TEXT" ]; then
+            LOG_TEXT="No log files found. Workflow run ID: ${{ github.event.workflow_run.id }}"
+          fi
+          # Escape for JSON
+          LOG_JSON=$(printf '%s' "$LOG_TEXT" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
+          echo "log_json=$LOG_JSON" >> "$GITHUB_OUTPUT"
+
+      - name: Send to SmartErrorDebugger API
+        id: analyze
+        run: |
+          RESPONSE=$(curl -s -X POST "${{ vars.SMART_DEBUGGER_URL }}/analyze" \
+            -H "Content-Type: application/json" \
+            -d "{\"error_log\": ${{ steps.extract.outputs.log_json }}}" \
+            --max-time 120 \
+            --retry 2 --retry-delay 5)
+
+          if [ $? -ne 0 ] || [ -z "$RESPONSE" ]; then
+            echo "analysis=SmartErrorDebugger API unreachable or timed out." >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Extract the result field from the JSON response
+          ANALYSIS=$(echo "$RESPONSE" | python3 -c "
+          import sys, json
+          try:
+              data = json.load(sys.stdin)
+              raw = data.get('result', '')
+              # Strip DeepSeek thought tags if present
+              if '</thought>' in raw:
+                  raw = raw.split('</thought>', 1)[1]
+              print(raw.strip()[:3000])
+          except Exception as e:
+              print(f'Could not parse API response: {e}')
+          ")
+          echo "analysis<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$ANALYSIS"   >> "$GITHUB_OUTPUT"
+          echo "EOF"         >> "$GITHUB_OUTPUT"
+
+      - name: Post analysis as workflow annotation
+        run: |
+          WORKFLOW_NAME="${{ github.event.workflow_run.name }}"
+          RUN_URL="${{ github.event.workflow_run.html_url }}"
+          echo "::notice title=🔬 SmartErrorDebugger Analysis for '$WORKFLOW_NAME'::${{ steps.analyze.outputs.analysis }}"
+          echo ""
+          echo "---"
+          echo "Full run: $RUN_URL"
+
+      - name: Create issue comment (optional — requires issue number)
+        # Uncomment and adapt if you want to open a GitHub Issue automatically
+        # uses: actions/github-script@v7
+        # with:
+        #   script: |
+        #     await github.rest.issues.create({
+        #       owner: context.repo.owner,
+        #       repo:  context.repo.repo,
+        #       title: `CI Failure: ${{ github.event.workflow_run.name }}`,
+        #       body:  `## Auto-analysis by SmartErrorDebugger\n\n${{ steps.analyze.outputs.analysis }}\n\n[View run](${{ github.event.workflow_run.html_url }})`,
+        #       labels: ['bug', 'ci-failure'],
+        #     });
+        run: echo "Issue creation is commented out — enable in workflow if desired."

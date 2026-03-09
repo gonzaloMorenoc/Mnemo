@@ -4,16 +4,22 @@ from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import DirectoryLoader, TextLoader, PyPDFLoader, UnstructuredMarkdownLoader
 from langchain_community.document_loaders import ConfluenceLoader
-from src.config import DATA_PATH, CHUNK_SIZE, CHUNK_OVERLAP
+from src.config import DATA_PATH, CHUNK_SIZE, CHUNK_OVERLAP, CHILD_CHUNK_SIZE, CHILD_CHUNK_OVERLAP
 from src.config import JIRA_URL, JIRA_API_TOKEN, JIRA_USERNAME
 from src.config import CONFLUENCE_URL, CONFLUENCE_API_TOKEN, CONFLUENCE_USERNAME
 
 class LogLoader:
     def __init__(self, data_path=DATA_PATH):
         self.data_path = data_path
+        # Parent splitter: large chunks (2500 chars) that give the LLM rich context
         self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=CHUNK_SIZE, 
+            chunk_size=CHUNK_SIZE,
             chunk_overlap=CHUNK_OVERLAP
+        )
+        # Child splitter: small chunks (512 chars) for precise vector/BM25 retrieval
+        self._child_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=CHILD_CHUNK_SIZE,
+            chunk_overlap=CHILD_CHUNK_OVERLAP
         )
 
     def _process_json_entry(self, entry, source):
@@ -145,4 +151,24 @@ class LogLoader:
         if not all_docs:
             return []
 
-        return self.text_splitter.split_documents(all_docs)
+        return self._split_with_parent_refs(all_docs)
+
+    def _split_with_parent_refs(self, docs: list) -> list:
+        """Applies parent-child chunking and stores parent text in child metadata.
+
+        Strategy:
+        1. Split each document into large parent chunks (CHUNK_SIZE = 2500 chars).
+        2. Split each parent chunk into small child chunks (CHILD_CHUNK_SIZE = 512 chars).
+        3. Store parent_content in each child's metadata.
+
+        Result: vector/BM25 retrieval operates on precise 512-char child chunks,
+        but BugAnalyzer._expand_to_parents() gives the LLM the full 2500-char parent.
+        """
+        all_children = []
+        parent_chunks = self.text_splitter.split_documents(docs)
+        for parent in parent_chunks:
+            children = self._child_splitter.split_documents([parent])
+            for child in children:
+                child.metadata["parent_content"] = parent.page_content
+                all_children.append(child)
+        return all_children

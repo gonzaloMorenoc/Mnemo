@@ -163,12 +163,33 @@ class TestLoaderLoad:
         chunks = loader.load()
         assert all(c.page_content.strip() for c in chunks)
 
-    def test_chunk_size_does_not_exceed_limit(self, data_dir_with_golden):
-        """Chunks must respect the configured CHUNK_SIZE (with some tolerance for word boundaries)."""
-        from src.config import CHUNK_SIZE
+    def test_chunk_size_does_not_exceed_child_limit(self, data_dir_with_golden):
+        """With parent-child chunking, indexed chunks must not exceed CHILD_CHUNK_SIZE."""
+        from src.config import CHILD_CHUNK_SIZE
         loader = LogLoader(data_path=data_dir_with_golden)
         chunks = loader.load()
         # Allow 5% overflow due to splitter behaviour on long words
-        max_allowed = int(CHUNK_SIZE * 1.05)
+        max_allowed = int(CHILD_CHUNK_SIZE * 1.05)
         oversized = [c for c in chunks if len(c.page_content) > max_allowed]
-        assert not oversized, f"{len(oversized)} chunks exceed the size limit"
+        assert not oversized, (
+            f"{len(oversized)} child chunks exceed CHILD_CHUNK_SIZE ({CHILD_CHUNK_SIZE})"
+        )
+
+    def test_chunks_have_parent_content_metadata(self, data_dir_with_golden):
+        """Every child chunk must carry parent_content in metadata for context expansion."""
+        loader = LogLoader(data_path=data_dir_with_golden)
+        chunks = loader.load()
+        missing = [c for c in chunks if "parent_content" not in c.metadata]
+        assert not missing, (
+            f"{len(missing)} chunks are missing 'parent_content' metadata"
+        )
+
+    def test_parent_content_larger_than_child(self, data_dir_with_golden):
+        """parent_content should be >= child page_content (or equal if doc was short)."""
+        loader = LogLoader(data_path=data_dir_with_golden)
+        chunks = loader.load()
+        for chunk in chunks:
+            parent = chunk.metadata.get("parent_content", "")
+            assert len(parent) >= len(chunk.page_content), (
+                "Parent content is shorter than child — chunking inversion"
+            )

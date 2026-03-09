@@ -20,9 +20,13 @@ DB_PATH = os.path.join(BASE_DIR, "db_chroma")
 CHROMA_HOST = os.getenv("CHROMA_HOST")
 CHROMA_PORT = os.getenv("CHROMA_PORT", "8000")
 
-# Chunking Settings
+# Chunking Settings — parent-child strategy
+# Parent chunks (2500 chars) stored in metadata give the LLM full context.
+# Child chunks (512 chars) are what gets indexed and searched for precision.
 CHUNK_SIZE = 2500
 CHUNK_OVERLAP = 500
+CHILD_CHUNK_SIZE = 512
+CHILD_CHUNK_OVERLAP = 50
 
 # Jira/Confluence Search Paths (Optional)
 JIRA_URL = os.getenv("JIRA_URL")

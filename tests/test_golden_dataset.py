@@ -34,6 +34,7 @@ class TestGoldenDatasetLoading:
     """All 5 golden dataset entries must be fully loaded and chunked."""
 
     def test_at_least_five_chunks_produced(self, data_dir_with_golden, golden_dataset):
+        """Parent-child chunking produces ≥1 child per golden dataset entry."""
         loader = LogLoader(data_path=data_dir_with_golden)
         chunks = loader.load()
         assert len(chunks) >= len(golden_dataset), (

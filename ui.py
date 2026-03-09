@@ -7,6 +7,7 @@ from src.model import BugAnalyzer
 from src.inspector import DatabaseInspector
 from src.evaluator import RAGASEvaluator
 from src.history import HistoryManager
+from src.prompts import parse_analysis_json
 
 # ─────────────────────────────────────────────
 # PAGE CONFIG
@@ -208,6 +209,88 @@ def _source_pill(source_type: str) -> str:
     }
     color, label = colors.get(source_type, ("#58a6ff", source_type.upper()))
     return _badge(label, color)
+
+_SEVERITY_COLORS = {
+    "critical": "#f85149",
+    "high":     "#d29922",
+    "medium":   "#58a6ff",
+    "low":      "#3fb950",
+}
+_CONFIDENCE_COLORS = {
+    "high":   "#3fb950",
+    "medium": "#d29922",
+    "low":    "#f85149",
+}
+
+
+def _render_structured_report(parsed: dict):
+    """Renders a structured analysis report with severity, root cause, steps and fix."""
+    severity = parsed.get("severity", "medium")
+    confidence = parsed.get("confidence", "low")
+    sev_color = _SEVERITY_COLORS.get(severity, "#58a6ff")
+    conf_color = _CONFIDENCE_COLORS.get(confidence, "#d29922")
+
+    # Header badges
+    st.markdown(f"""
+    <div style="display:flex; gap:0.5rem; align-items:center; margin-bottom:1rem; flex-wrap:wrap;">
+        <span style="background:{sev_color}22; color:{sev_color}; border:1px solid {sev_color}66;
+            border-radius:20px; padding:3px 12px; font-size:0.8rem; font-weight:700;
+            text-transform:uppercase; letter-spacing:0.05em;">
+            {severity}
+        </span>
+        <span style="background:{conf_color}22; color:{conf_color}; border:1px solid {conf_color}66;
+            border-radius:20px; padding:3px 12px; font-size:0.8rem; font-weight:600;">
+            Confianza: {confidence}
+        </span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Root cause
+    st.markdown(f"""
+    <div style="background:#161b22; border:1px solid #30363d; border-left:3px solid {sev_color};
+        border-radius:0 8px 8px 0; padding:0.85rem 1.1rem; margin-bottom:0.75rem;">
+        <div style="color:#8b949e; font-size:0.7rem; text-transform:uppercase;
+            letter-spacing:0.08em; font-weight:600; margin-bottom:0.35rem;">🎯 Causa raíz</div>
+        <div style="color:#e6edf3; font-size:0.9rem; line-height:1.6;">
+            {parsed.get("root_cause", "—")}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Investigation steps
+    steps = parsed.get("investigation_steps", [])
+    if steps:
+        steps_html = "".join(
+            f'<li style="margin-bottom:0.4rem; color:#e6edf3;">{s}</li>'
+            for s in steps
+        )
+        st.markdown(f"""
+        <div style="background:#161b22; border:1px solid #30363d; border-left:3px solid #58a6ff;
+            border-radius:0 8px 8px 0; padding:0.85rem 1.1rem; margin-bottom:0.75rem;">
+            <div style="color:#8b949e; font-size:0.7rem; text-transform:uppercase;
+                letter-spacing:0.08em; font-weight:600; margin-bottom:0.5rem;">🔍 Pasos de investigación</div>
+            <ol style="margin:0; padding-left:1.2rem; font-size:0.875rem; line-height:1.7;">
+                {steps_html}
+            </ol>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # Suggested fix
+    fix = parsed.get("suggested_fix", "")
+    if fix:
+        st.markdown(f"""
+        <div style="background:#161b22; border:1px solid #30363d; border-left:3px solid #3fb950;
+            border-radius:0 8px 8px 0; padding:0.85rem 1.1rem;">
+            <div style="color:#8b949e; font-size:0.7rem; text-transform:uppercase;
+                letter-spacing:0.08em; font-weight:600; margin-bottom:0.4rem;">💡 Solución sugerida</div>
+            <div style="font-family:monospace; font-size:0.83rem; color:#e6edf3;
+                white-space:pre-wrap; line-height:1.6; background:#0d1117;
+                border-radius:6px; padding:0.75rem;">
+                {fix}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
 
 def _header():
     st.markdown("""
@@ -459,6 +542,7 @@ def main():
                         metrics['faithfulness'],
                         metrics['relevancy'],
                         context_text,
+                        eval_method=metrics.get("method", "heuristic"),
                     )
 
             # ── Results ──
@@ -469,7 +553,7 @@ def main():
 
                 st.markdown("<br>", unsafe_allow_html=True)
 
-                # Show rewritten query if it was optimized
+                # Rewritten query banner
                 if st.session_state.last_rewritten_query:
                     st.markdown(
                         f"""<div style="background:#161b22; border:1px solid #30363d;
@@ -481,35 +565,48 @@ def main():
                         unsafe_allow_html=True,
                     )
 
-                # Quality bar
+                # Quality metrics row
                 f_val = metrics['faithfulness']
                 r_val = metrics['relevancy']
-                f_color = _score_color(f_val)
-                r_color = _score_color(r_val)
+                eval_method = metrics.get("method", "heuristic")
+                method_color = "#3fb950" if eval_method == "llm_judge" else "#d29922"
+                method_label = "LLM Judge" if eval_method == "llm_judge" else "Heurística"
 
-                m1, m2, m3 = st.columns(3)
+                m1, m2, m3, m4 = st.columns(4)
                 with m1:
-                    st.markdown(_metric_card("Faithfulness", f"{f_val*100:.0f}%", f_color, "🎯"), unsafe_allow_html=True)
+                    st.markdown(_metric_card("Faithfulness", f"{f_val*100:.0f}%", _score_color(f_val), "🎯"), unsafe_allow_html=True)
                 with m2:
-                    st.markdown(_metric_card("Relevancy", f"{r_val*100:.0f}%", r_color, "📌"), unsafe_allow_html=True)
+                    st.markdown(_metric_card("Relevancy", f"{r_val*100:.0f}%", _score_color(r_val), "📌"), unsafe_allow_html=True)
                 with m3:
-                    sources_count = len(docs)
-                    st.markdown(_metric_card("Fuentes usadas", str(sources_count), "#58a6ff", "📚"), unsafe_allow_html=True)
+                    st.markdown(_metric_card("Fuentes usadas", str(len(docs)), "#58a6ff", "📚"), unsafe_allow_html=True)
+                with m4:
+                    st.markdown(_metric_card("Eval method", method_label, method_color, "⚖️"), unsafe_allow_html=True)
 
                 st.markdown("<br>", unsafe_allow_html=True)
 
-                # Report
+                # ── Structured output rendering ──
                 st.markdown("""<div style="color:#8b949e; font-size:0.75rem; text-transform:uppercase;
                     letter-spacing:0.08em; margin-bottom:0.75rem; font-weight:600;">
                     📝 Reporte de análisis
                 </div>""", unsafe_allow_html=True)
 
+                # Extract reasoning block if present
+                reasoning_text = None
                 if "</thought>" in result:
-                    parts = result.split("</thought>")
-                    analysis_text = parts[1].strip()
+                    parts = result.split("</thought>", 1)
                     reasoning_text = parts[0].replace("<thought>", "").strip()
 
-                    st.markdown(_result_card(analysis_text), unsafe_allow_html=True)
+                parsed = parse_analysis_json(result)
+
+                if parsed:
+                    _render_structured_report(parsed)
+                else:
+                    # Fallback: plain text display
+                    display_text = result.split("</thought>", 1)[1].strip() if "</thought>" in result else result
+                    st.markdown(_result_card(display_text), unsafe_allow_html=True)
+
+                # Reasoning expander
+                if reasoning_text:
                     st.markdown("<br>", unsafe_allow_html=True)
                     with st.expander("🤔 Ver razonamiento interno de DeepSeek"):
                         st.markdown(f"""<div style="
@@ -518,8 +615,6 @@ def main():
                             font-family:monospace; font-size:0.8rem; color:#8b949e;
                             white-space:pre-wrap; line-height:1.6;
                         ">{reasoning_text}</div>""", unsafe_allow_html=True)
-                else:
-                    st.markdown(_result_card(result), unsafe_allow_html=True)
 
                 # Feedback
                 st.markdown("<br>", unsafe_allow_html=True)
@@ -615,6 +710,62 @@ def main():
             df = df.sort_values('timestamp')
             chart_data = df.set_index('timestamp')[['faithfulness', 'relevancy']]
             st.line_chart(chart_data, color=["#58a6ff", "#3fb950"], height=220)
+
+        # ── Pattern analysis ──
+        st.markdown("<br>", unsafe_allow_html=True)
+        pat_col, gap_col = st.columns(2, gap="large")
+
+        with pat_col:
+            st.markdown("""<div style="color:#8b949e; font-size:0.75rem; text-transform:uppercase;
+                letter-spacing:0.08em; margin-bottom:0.75rem; font-weight:600;">
+                🔁 Errores recurrentes
+            </div>""", unsafe_allow_html=True)
+            patterns = history.get_patterns(min_occurrences=2)
+            if patterns:
+                for p in patterns:
+                    fc = _score_color(p['avg_faithfulness'])
+                    st.markdown(f"""
+                    <div style="background:#161b22; border:1px solid #30363d; border-radius:8px;
+                        padding:0.7rem 1rem; margin-bottom:0.4rem; display:flex;
+                        justify-content:space-between; align-items:center;">
+                        <div style="font-size:0.8rem; color:#e6edf3; flex:1; margin-right:0.5rem;
+                            white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                            {p['error_prefix']}...
+                        </div>
+                        <div style="display:flex; gap:0.5rem; flex-shrink:0;">
+                            <span style="background:#30363d; color:#e6edf3; border-radius:20px;
+                                padding:1px 8px; font-size:0.73rem;">×{p['occurrences']}</span>
+                            <span style="background:{fc}22; color:{fc}; border-radius:20px;
+                                padding:1px 8px; font-size:0.73rem;">{p['avg_faithfulness']*100:.0f}%</span>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            else:
+                st.markdown("<div style='color:#6e7681; font-size:0.8rem;'>Se necesitan ≥2 análisis del mismo error.</div>", unsafe_allow_html=True)
+
+        with gap_col:
+            st.markdown("""<div style="color:#8b949e; font-size:0.75rem; text-transform:uppercase;
+                letter-spacing:0.08em; margin-bottom:0.75rem; font-weight:600;">
+                ⚠️ Errores con baja cobertura en KB
+            </div>""", unsafe_allow_html=True)
+            weak = history.get_weak_coverage_errors()
+            if weak:
+                for w in weak:
+                    st.markdown(f"""
+                    <div style="background:#161b22; border:1px solid #f8514933; border-left:3px solid #f85149;
+                        border-radius:0 8px 8px 0; padding:0.7rem 1rem; margin-bottom:0.4rem;">
+                        <div style="font-size:0.8rem; color:#e6edf3; margin-bottom:0.2rem;
+                            white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                            {w['error_prefix']}...
+                        </div>
+                        <div style="font-size:0.73rem; color:#f85149;">
+                            Faithfulness media: {w['avg_faithfulness']*100:.0f}% · {w['occurrences']} análisis
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                st.markdown("<div style='color:#6e7681; font-size:0.75rem; margin-top:0.5rem;'>💡 Añade documentación sobre estos errores para mejorar la cobertura.</div>", unsafe_allow_html=True)
+            else:
+                st.markdown("<div style='color:#6e7681; font-size:0.8rem;'>Sin errores con baja cobertura detectados.</div>", unsafe_allow_html=True)
 
         # History list
         st.markdown("<br>", unsafe_allow_html=True)
