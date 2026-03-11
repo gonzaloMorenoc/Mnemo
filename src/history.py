@@ -19,24 +19,39 @@ class HistoryManager:
                     analysis_result TEXT,
                     faithfulness REAL,
                     relevancy REAL,
+                    context_precision REAL DEFAULT 0.0,
+                    context_recall REAL DEFAULT 0.0,
                     context TEXT
                 )
             """)
+            # Migrate: add new columns if table already exists without them
+            try:
+                cursor.execute("ALTER TABLE analysis_history ADD COLUMN context_precision REAL DEFAULT 0.0")
+            except sqlite3.OperationalError:
+                pass  # column already exists
+            try:
+                cursor.execute("ALTER TABLE analysis_history ADD COLUMN context_recall REAL DEFAULT 0.0")
+            except sqlite3.OperationalError:
+                pass  # column already exists
             conn.commit()
 
-    def save_analysis(self, error_input, result, faithfulness, relevancy, context):
+    def save_analysis(self, error_input, result, faithfulness, relevancy, context,
+                      context_precision=0.0, context_recall=0.0):
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO analysis_history 
-                (timestamp, error_input, analysis_result, faithfulness, relevancy, context)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO analysis_history
+                (timestamp, error_input, analysis_result, faithfulness, relevancy,
+                 context_precision, context_recall, context)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 datetime.now().isoformat(),
                 error_input,
                 result,
                 faithfulness,
                 relevancy,
+                context_precision,
+                context_recall,
                 json.dumps(context)
             ))
             conn.commit()
@@ -51,10 +66,16 @@ class HistoryManager:
     def get_stats(self):
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*), AVG(faithfulness), AVG(relevancy) FROM analysis_history")
-            count, avg_faith, avg_relevancy = cursor.fetchone()
+            cursor.execute("""
+                SELECT COUNT(*), AVG(faithfulness), AVG(relevancy),
+                       AVG(context_precision), AVG(context_recall)
+                FROM analysis_history
+            """)
+            count, avg_faith, avg_relevancy, avg_ctx_prec, avg_ctx_recall = cursor.fetchone()
             return {
                 "total_analyses": count or 0,
                 "avg_faithfulness": avg_faith or 0.0,
-                "avg_relevancy": avg_relevancy or 0.0
+                "avg_relevancy": avg_relevancy or 0.0,
+                "avg_context_precision": avg_ctx_prec or 0.0,
+                "avg_context_recall": avg_ctx_recall or 0.0,
             }
