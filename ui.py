@@ -109,23 +109,27 @@ def main():
                         
                         # 4. Save to History
                         history.save_analysis(
-                            error_input, 
-                            result, 
-                            metrics['faithfulness'], 
-                            metrics['relevancy'], 
-                            context_text
+                            error_input,
+                            result,
+                            metrics['faithfulness'],
+                            metrics['relevancy'],
+                            context_text,
+                            context_precision=metrics.get('context_precision', 0.0),
+                            context_recall=metrics.get('context_recall', 0.0),
                         )
                         
                         st.markdown("---")
                         
-                        # Dashboard de Calidad (QA de la IA)
-                        q_col1, q_col2, q_col3 = st.columns(3)
+                        # Dashboard de Calidad (QA de la IA) - 4 RAGAS metrics
+                        q_col1, q_col2, q_col3, q_col4 = st.columns(4)
                         with q_col1:
-                            st.metric("Faithfulness", f"{metrics['faithfulness']*100:.1f}%", help="¿La IA se inventa cosas o usa los logs?")
+                            st.metric("Faithfulness", f"{metrics['faithfulness']*100:.1f}%", help="¿La respuesta se basa en el contexto recuperado?")
                         with q_col2:
-                            st.metric("Relevancy", f"{metrics['relevancy']*100:.1f}%", help="¿La respuesta es útil para el error?")
+                            st.metric("Relevancy", f"{metrics['relevancy']*100:.1f}%", help="¿La respuesta es relevante para la pregunta?")
                         with q_col3:
-                            st.success("Analizado con DeepSeek-R1")
+                            st.metric("Ctx Precision", f"{metrics.get('context_precision', 0)*100:.1f}%", help="¿Los documentos recuperados son precisos?")
+                        with q_col4:
+                            st.metric("Ctx Recall", f"{metrics.get('context_recall', 0)*100:.1f}%", help="¿Se recuperó toda la información necesaria?")
 
                         st.markdown("### 📝 REPORTE DE ANÁLISIS")
                         if "</thought>" in result:
@@ -165,19 +169,26 @@ def main():
         st.markdown("### 📊 Métricas de Rendimiento")
         stats = history.get_stats()
         
-        m_col1, m_col2, m_col3 = st.columns(3)
+        m_col1, m_col2, m_col3, m_col4, m_col5 = st.columns(5)
         m_col1.metric("Total Análisis", stats['total_analyses'])
         m_col2.metric("Fidelidad Media", f"{stats['avg_faithfulness']*100:.1f}%")
         m_col3.metric("Relevancia Media", f"{stats['avg_relevancy']*100:.1f}%")
+        m_col4.metric("Ctx Precision Media", f"{stats.get('avg_context_precision', 0)*100:.1f}%")
+        m_col5.metric("Ctx Recall Media", f"{stats.get('avg_context_recall', 0)*100:.1f}%")
 
         # Trend Chart
         if hist_data:
             df = pd.DataFrame(hist_data)
             df['timestamp'] = pd.to_datetime(df['timestamp'])
             df = df.sort_values('timestamp')
-            
+
+            # Ensure new columns exist (backward compat with old DB rows)
+            for col in ['context_precision', 'context_recall']:
+                if col not in df.columns:
+                    df[col] = 0.0
+
             st.markdown("#### Evolución de la Calidad")
-            chart_data = df.set_index('timestamp')[['faithfulness', 'relevancy']]
+            chart_data = df.set_index('timestamp')[['faithfulness', 'relevancy', 'context_precision', 'context_recall']]
             st.line_chart(chart_data)
 
         st.divider()
@@ -195,10 +206,12 @@ def main():
                     st.write(item['analysis_result'])
                     
                     st.markdown("---")
-                    col_ev1, col_ev2, col_ev3 = st.columns(3)
+                    col_ev1, col_ev2, col_ev3, col_ev4 = st.columns(4)
                     col_ev1.write(f"**Faithfulness:** {item['faithfulness']*100:.1f}%")
                     col_ev2.write(f"**Relevancy:** {item['relevancy']*100:.1f}%")
-                    
+                    col_ev3.write(f"**Ctx Precision:** {(item.get('context_precision') or 0)*100:.1f}%")
+                    col_ev4.write(f"**Ctx Recall:** {(item.get('context_recall') or 0)*100:.1f}%")
+
                     # Markdown Export
                     md_report = f"""# Reporte de Error - {item['timestamp']}
 ## Error
@@ -208,9 +221,11 @@ def main():
 {item['analysis_result']}
 
 ---
-**Métricas de Calidad:**
+**Métricas de Calidad (RAGAS):**
 - Faithfulness: {item['faithfulness']*100:.1f}%
 - Relevancy: {item['relevancy']*100:.1f}%
+- Context Precision: {(item.get('context_precision') or 0)*100:.1f}%
+- Context Recall: {(item.get('context_recall') or 0)*100:.1f}%
 """
                     st.download_button(
                         label="📥 Descargar Reporte (MD)",

@@ -72,17 +72,18 @@ async def analyze_error(request: AnalysisRequest):
     })
     result = raw_response.get("output_text", raw_response) if isinstance(raw_response, dict) else raw_response
     
-    # 3. Evaluate
+    # 3. Evaluate (RAGAS - 4 metrics)
     metrics = state.evaluator.evaluate_response(request.error_log, result, context_text)
-    
+
     # 4. Save History
-    # We save to SQLite
     state.history.save_analysis(
-        request.error_log, 
-        result, 
-        metrics['faithfulness'], 
-        metrics['relevancy'], 
-        context_text
+        request.error_log,
+        result,
+        metrics['faithfulness'],
+        metrics['relevancy'],
+        context_text,
+        context_precision=metrics.get('context_precision', 0.0),
+        context_recall=metrics.get('context_recall', 0.0),
     )
     
     # Get ID of inserted item (simple approach for MVP)
@@ -110,6 +111,17 @@ async def get_history(limit: int = 50):
 @app.get("/stats")
 async def get_stats():
     return state.history.get_stats()
+
+@app.post("/evaluate")
+async def run_evaluation():
+    """Runs RAGAS evaluation on the full test dataset (data/eval_dataset.json)."""
+    if not state.evaluator:
+        raise HTTPException(status_code=503, detail="Evaluator not initialized")
+    try:
+        result = state.evaluator.evaluate_dataset()
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Evaluation failed: {e}")
 
 @app.get("/health")
 async def health_check():
