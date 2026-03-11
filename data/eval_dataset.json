@@ -1,0 +1,66 @@
+[
+    {
+        "question": "TimeoutException: Message: timeout: Timed out receiving message from renderer",
+        "ground_truth": "Este error ocurre cuando el driver de Chrome no puede comunicarse con la pestaña del navegador. Las causas principales son: página con carga pesada, recursos del sistema insuficientes, o configuración incorrecta del driver. Soluciones: 1) Aumentar el pageLoadTimeout, 2) Usar las banderas '--disable-gpu' y '--no-sandbox' en ChromeOptions, 3) Verificar que la versión de ChromeDriver coincide con Chrome.",
+        "contexts": [
+            "TimeoutException: Message: timeout: Timed out receiving message from renderer\nSelenium::WebDriver::Error::TimeoutError: timed out receiving message from renderer\n(Session info: chrome=120.0.6099.109)\nat line 89 in base.py",
+            "Este error suele ocurrir cuando el driver de Chrome no puede comunicarse con la pestaña. Solución: Aumentar el 'pageLoadTimeout' o usar las banderas '--disable-gpu' y '--no-sandbox' en las opciones de Chrome."
+        ]
+    },
+    {
+        "question": "StaleElementReferenceException: Message: stale element reference: element is not attached to the page document",
+        "ground_truth": "El DOM ha cambiado después de encontrar el elemento, causando que la referencia quede obsoleta. Esto ocurre frecuentemente en aplicaciones SPA con contenido dinámico. Soluciones: 1) Implementar una estrategia de reintento con WebDriverWait, 2) Volver a buscar el elemento justo antes de la interacción, 3) Usar Expected Conditions como staleness_of o element_to_be_clickable.",
+        "contexts": [
+            "selenium.common.exceptions.StaleElementReferenceException: Message: stale element reference: element is not attached to the page document\nat find_element (session.py:1234)",
+            "El DOM ha cambiado después de encontrar el elemento. Solución: Implementar una estrategia de reintento (Wait) o volver a buscar el elemento justo antes de la interacción."
+        ]
+    },
+    {
+        "question": "AssertionError: expected 'Welcome, User' but found 'Login Failed'",
+        "ground_truth": "El test de login falla porque las credenciales del entorno de pruebas han expirado o son inválidas. Causas posibles: 1) Credenciales expiradas en el CI/CD, 2) Cambio en la API de autenticación, 3) Base de datos de test no sincronizada. Soluciones: Actualizar las credenciales secretas en el pipeline CI/CD, usar un mock de autenticación para tests unitarios, o verificar el estado del servicio de auth.",
+        "contexts": [
+            "Traceback (most recent call last):\nFile 'test_login.py', line 45, in test_valid_login\nassert dashboard.get_welcome_message() == 'Welcome, User'",
+            "El test falla porque las credenciales en el entorno de pruebas han expirado. Solución: Actualizar las secretas en el CI/CD o usar el mock de autenticación."
+        ]
+    },
+    {
+        "question": "ConnectionRefusedError: [Errno 111] Connection refused al ejecutar tests contra localhost:8000",
+        "ground_truth": "El servicio backend no está arrancado o accesible cuando se ejecutan los tests. Causas: 1) docker-compose no ha terminado de levantar los servicios, 2) El puerto está ocupado por otro proceso, 3) El servicio ha crasheado durante el arranque. Soluciones: Añadir un health check o wait-for-it script antes de ejecutar pytest, verificar logs de docker-compose, comprobar que el puerto no está en uso.",
+        "contexts": [
+            "urllib3.exceptions.MaxRetryError: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/v1/status",
+            "El servicio backend no está arrancado antes de lanzar los tests. Solución: Asegurarse de que el comando de 'docker-compose up' ha finalizado correctamente antes de ejecutar Pytest."
+        ]
+    },
+    {
+        "question": "NoSuchElementException: Unable to locate element: {\"method\":\"css selector\",\"selector\":\"#submit-btn\"}",
+        "ground_truth": "El elemento no se encuentra en el DOM en el momento de la búsqueda. Causas frecuentes: 1) El elemento tarda en renderizarse por una llamada async, 2) El selector CSS ha cambiado, 3) El elemento está dentro de un iframe. Soluciones: Usar WebDriverWait con expected_conditions.presence_of_element_located, aumentar el timeout explícito a 10+ segundos, verificar si el elemento está en un iframe y cambiar el contexto con switch_to.frame().",
+        "contexts": [
+            "selenium.common.exceptions.NoSuchElementException: Message: no such element: Unable to locate element\nat line 67 in payment_page.py",
+            "El botón de envío tarda más de 5 segundos en aparecer debido a la latencia de la API. Solución: Cambiar 'driver.find_element' por 'WebDriverWait(driver, 10).until(EC.presence_of_element_located...)'."
+        ]
+    },
+    {
+        "question": "ElementClickInterceptedException: element click intercepted: Element is not clickable at point (x, y)",
+        "ground_truth": "Otro elemento está superpuesto sobre el elemento objetivo, interceptando el click. Causas: 1) Un modal, overlay o cookie banner cubre el elemento, 2) El elemento no está completamente visible en el viewport. Soluciones: Usar JavaScript executor para hacer click directo (execute_script), hacer scroll hasta el elemento con scrollIntoView, o esperar a que el overlay desaparezca con expected_conditions.invisibility_of_element.",
+        "contexts": [
+            "selenium.common.exceptions.ElementClickInterceptedException: element click intercepted: Element <button id='save-btn'> is not clickable at point (320, 540). Other element would receive the click: <div class='modal-overlay'>",
+            "Cuando un overlay o modal bloquea el click, se puede usar driver.execute_script('arguments[0].click()', element) para forzar el click via JavaScript."
+        ]
+    },
+    {
+        "question": "WebDriverException: unknown error: session deleted because of page crash from unknown error: cannot determine loading status",
+        "ground_truth": "El navegador Chrome ha crasheado durante la ejecución del test. Causas: 1) Memoria insuficiente (común en CI/CD con contenedores limitados), 2) Página web con memory leaks o JavaScript pesado, 3) Versión incompatible de ChromeDriver. Soluciones: Aumentar la memoria del contenedor, usar --disable-dev-shm-usage en ChromeOptions, limitar el número de tabs abiertos, actualizar ChromeDriver a la versión compatible.",
+        "contexts": [
+            "selenium.common.exceptions.WebDriverException: unknown error: session deleted because of page crash\nfrom unknown error: cannot determine loading status\nfrom tab crashed",
+            "Chrome crashes en CI suelen ser por memoria insuficiente. Usar --disable-dev-shm-usage y --no-sandbox en las opciones de Chrome. También aumentar la memoria del runner/container."
+        ]
+    },
+    {
+        "question": "InvalidSessionIdException: Message: invalid session id después de cerrar el navegador",
+        "ground_truth": "Se está intentando interactuar con un WebDriver cuya sesión ya fue terminada (browser cerrado). Causas: 1) Se llamó a driver.quit() antes de completar todas las operaciones, 2) El timeout del session expiró, 3) Un test anterior cerró el driver sin cleanup adecuado. Soluciones: Implementar el patrón setUp/tearDown correctamente, usar context managers, verificar que driver.quit() solo se llama en el tearDown del test.",
+        "contexts": [
+            "selenium.common.exceptions.InvalidSessionIdException: Message: invalid session id\nat line 23 in test_checkout.py\ndriver.find_element(By.ID, 'total-price')",
+            "Si el session id es inválido, el navegador fue cerrado prematuramente. Asegurarse de que driver.quit() se ejecuta solo en tearDown y no entre tests."
+        ]
+    }
+]

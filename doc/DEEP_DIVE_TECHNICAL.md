@@ -103,29 +103,163 @@ async def analyze_error(request: AnalysisRequest):
 
 **Detalle Tecnico**: Note la optimizacion donde invocamos directamente `combine_documents_chain`. Esto es crucial porque el `retriever` ya ha realizado el re-ranking pesado. Re-ejecutar la cadena completa duplicaria el tiempo de respuesta innecesariamente.
 
-## 6. Persistencia y Observabilidad (History Manager)
+## 6. Evaluacion con RAGAS 0.4.x
 
-Utilizamos SQLite en `src/history.py` para registrar tanto la entrada/salida como las metricas de calidad calculadas por RAGAS.
+El modulo `src/evaluator.py` implementa evaluacion real del pipeline RAG utilizando el framework RAGAS con LLMs locales via Ollama. Esto reemplaza la version anterior que retornaba metricas simuladas con `random.uniform()`.
+
+### Arquitectura del Evaluador
 
 ```python
-def save_analysis(self, error_input, result, faithfulness, relevancy, context):
+from ragas import evaluate, EvaluationDataset, SingleTurnSample
+from ragas.metrics import Faithfulness, ResponseRelevancy, LLMContextPrecisionWithoutReference, LLMContextRecall
+from ragas.llms import LangchainLLMWrapper
+from ragas.embeddings import LangchainEmbeddingsWrapper
+
+class RAGASEvaluator:
+    def __init__(self, model_name=MODEL_NAME):
+        self.llm = LangchainLLMWrapper(
+            OllamaLLM(model=model_name, base_url=OLLAMA_BASE_URL)
+        )
+        self.embeddings = LangchainEmbeddingsWrapper(
+            OllamaEmbeddings(model=EMBEDDING_MODEL, base_url=OLLAMA_BASE_URL)
+        )
+        self.metrics = [
+            Faithfulness(llm=self.llm),
+            ResponseRelevancy(llm=self.llm, embeddings=self.embeddings),
+            LLMContextPrecisionWithoutReference(llm=self.llm),
+            LLMContextRecall(llm=self.llm),
+        ]
+```
+
+**Detalle Tecnico**: RAGAS requiere un LLM para calcular sus metricas (actua como "juez"). Usamos `LangchainLLMWrapper` para adaptar `OllamaLLM` al formato que RAGAS espera, eliminando la dependencia de OpenAI. El mismo modelo DeepSeek-R1 que genera respuestas tambien evalua la calidad.
+
+### Las 4 Metricas
+
+| Metrica | Clase RAGAS | Que mide |
+|---------|------------|----------|
+| **Faithfulness** | `Faithfulness` | Verifica que cada afirmacion de la respuesta este respaldada por el contexto recuperado. Descompone la respuesta en claims y verifica cada uno contra los documentos. |
+| **Response Relevancy** | `ResponseRelevancy` | Genera preguntas a partir de la respuesta y mide su similitud semantica con la pregunta original usando embeddings. Requiere tanto LLM como embeddings. |
+| **Context Precision** | `LLMContextPrecisionWithoutReference` | Evalua si los documentos recuperados contienen informacion relevante, sin necesitar ground truth. Usa el LLM para juzgar cada fragmento. |
+| **Context Recall** | `LLMContextRecall` | Mide si el contexto recuperado cubre toda la informacion necesaria para responder. Compara contra una referencia cuando esta disponible. |
+
+### Evaluacion en Tiempo Real (Single Response)
+
+Cada vez que un usuario analiza un error, el sistema ejecuta evaluacion automatica:
+
+```python
+def evaluate_response(self, question, answer, contexts, reference=None):
+    sample = SingleTurnSample(
+        user_input=question,
+        response=answer,
+        retrieved_contexts=contexts,
+        reference=reference or "",
+    )
+    dataset = EvaluationDataset(samples=[sample])
+    result = evaluate(dataset=dataset, metrics=self.metrics)
+    scores = result.to_pandas().iloc[0].to_dict()
+    return {
+        "faithfulness": scores.get("faithfulness", 0.0),
+        "relevancy": scores.get("response_relevancy", 0.0),
+        "context_precision": scores.get("llm_context_precision_without_reference", 0.0),
+        "context_recall": scores.get("llm_context_recall", 0.0),
+    }
+```
+
+**Manejo de errores**: Si el LLM no esta disponible o RAGAS falla, el metodo retorna `0.0` para todas las metricas en lugar de romper el flujo del usuario.
+
+### Evaluacion Batch (Dataset Completo)
+
+Para testing sistematico, `evaluate_dataset()` procesa `data/eval_dataset.json` de una sola vez:
+
+```python
+def evaluate_dataset(self, dataset_path=None):
+    # Carga 8 casos de test con ground truth
+    # Construye EvaluationDataset con todos los samples
+    # Retorna scores individuales + promedios agregados
+```
+
+El dataset contiene 8 errores reales de QA/Selenium con:
+- `question`: El error completo (TimeoutException, StaleElementReferenceException, etc.)
+- `ground_truth`: La solucion de referencia esperada
+- `contexts`: Documentos de contexto relevantes
+
+Este endpoint esta expuesto via `POST /evaluate` en la API REST.
+
+## 7. Testing con pytest
+
+La suite de tests en `tests/test_evaluation.py` valida el pipeline de evaluacion a dos niveles:
+
+### Tests Unitarios (sin Ollama)
+
+Usan mocks para verificar la logica sin necesitar el LLM:
+
+- **TestEvalDataset** (5 tests): Valida que `eval_dataset.json` existe, tiene al menos 5 muestras, estructura correcta (`question`, `ground_truth`, `contexts`), contextos son listas no vacias, y ningun campo esta vacio.
+- **TestEvaluatorInit** (3 tests): Verifica que el evaluador se importa correctamente, crea exactamente 4 metricas, e incluye `Faithfulness` y `ResponseRelevancy`.
+- **TestEvaluatorOutputFormat** (4 tests): Valida que la salida tiene las 4 claves esperadas, valores en rango [0, 1], retorna zeros en caso de fallo, y acepta parametro `reference`.
+- **TestBatchEvaluation** (1 test): Verifica la estructura de retorno de `evaluate_dataset()` (per_sample, averages, total_samples).
+
+### Tests de Integracion (con Ollama)
+
+Marcados con `@pytest.mark.integration`, requieren Ollama corriendo:
+
+- **test_single_evaluation_real**: Ejecuta evaluacion real y verifica formato y rangos.
+- **test_faithfulness_high_for_grounded_answer**: Una respuesta que viene directamente del contexto debe tener faithfulness alto (>= 0.5).
+- **test_relevancy_low_for_irrelevant_answer**: Una respuesta completamente irrelevante ("receta de paella") debe tener relevancy bajo (< 0.7).
+
+### Ejecucion
+
+```bash
+# Solo unitarios (rapido, CI-friendly)
+pytest tests/test_evaluation.py -v -m "not integration"
+
+# Solo integracion (requiere Ollama)
+pytest tests/test_evaluation.py -v -m integration
+```
+
+## 8. Persistencia y Observabilidad (History Manager)
+
+Utilizamos SQLite en `src/history.py` para registrar la entrada/salida y las 4 metricas RAGAS.
+
+```python
+def save_analysis(self, error_input, result, faithfulness, relevancy, context,
+                  context_precision=0.0, context_recall=0.0):
     cursor.execute("""
-        INSERT INTO analysis_history 
-        (timestamp, error_input, analysis_result, faithfulness, relevancy, context)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO analysis_history
+        (timestamp, error_input, analysis_result, faithfulness, relevancy,
+         context_precision, context_recall, context)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, (...))
 ```
 
-Esta base de datos permite a la UI (`ui.py`) generar graficos de rendimiento en tiempo real utilizando Pandas, facilitando la auditoria del sistema por parte del equipo de QA.
+### Esquema de la tabla
 
-## 7. Gestion de Configuracion
+```sql
+CREATE TABLE analysis_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp DATETIME,
+    error_input TEXT,
+    analysis_result TEXT,
+    faithfulness REAL,
+    relevancy REAL,
+    context_precision REAL DEFAULT 0.0,
+    context_recall REAL DEFAULT 0.0,
+    context TEXT  -- JSON serializado
+);
+```
+
+**Migracion automatica**: El constructor detecta bases de datos antiguas (sin las columnas `context_precision`/`context_recall`) y las migra automaticamente via `ALTER TABLE`, garantizando compatibilidad hacia atras.
+
+Las estadisticas agregadas (`get_stats()`) retornan promedios de las 4 metricas para el dashboard de tendencias.
+
+## 9. Gestion de Configuracion
 
 El archivo `src/config.py` centraliza los parametros criticos:
-- `DB_PATH`: Directorio de persistencia de ChromaDB.
-- `EMBEDDING_MODEL`: Modelo de generacion de vectores (`all-MiniLM-L6-v2`).
 - `MODEL_NAME`: El modelo de razonamiento local (`deepseek-r1:8b`).
-- Credenciales de API para conectores externos.
+- `OLLAMA_BASE_URL`: URL del servidor Ollama (usado por el evaluador y el modelo).
+- `EMBEDDING_MODEL`: Modelo de generacion de vectores (`all-MiniLM-L6-v2`), compartido entre el retriever y el evaluador RAGAS.
+- `DB_PATH`: Directorio de persistencia de ChromaDB.
+- Credenciales de API para conectores externos (Jira, Confluence).
 
 ## Conclusion
 
-La arquitectura de Smart Error Debugger esta diseñada bajo el principio de "calidad sobre cantidad". Cada componente (BM25, Reranker, RAGAS Evaluator) ha sido seleccionado para mitigar los fallos comunes de los sistemas RAG basicos, convirtiendolo en una herramienta de grado industrial para la gestion de errores en el ciclo de vida del desarrollo de software.
+La arquitectura de Smart Error Debugger esta diseñada bajo el principio de "calidad sobre cantidad". Cada componente (BM25, Reranker, RAGAS Evaluator) ha sido seleccionado para mitigar los fallos comunes de los sistemas RAG basicos. La integracion de RAGAS con 4 metricas reales, respaldada por una suite de tests automatizados, convierte la evaluacion en un proceso medible y repetible, proporcionando confianza objetiva en la calidad de las respuestas del sistema.
