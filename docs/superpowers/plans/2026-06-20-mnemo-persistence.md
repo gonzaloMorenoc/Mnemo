@@ -119,7 +119,7 @@ cd /Users/gonzalo/Documents/GitHub/SmartErrorDebugger
 DBURL=$(grep -E '^DATABASE_URL=' .env | head -1 | cut -d= -f2-)
 PGCONNECT_TIMEOUT=20 psql "$DBURL" -v ON_ERROR_STOP=1 -f db/migrations/002_assurance.sql
 ```
-Expected: sin errores. NOTA: si `FORCE ROW LEVEL SECURITY` provoca que el propio rol de la app no pueda escribir (porque el rol del pooler tuviera BYPASSRLS o no se propague el claim), el test de integración de la Task 3 lo revelará; en ese caso, reportar y quitar las 3 líneas `force row level security` (RLS normal + filtros de la app siguen aislando). No bloquear aquí.
+Expected: sin errores. **CONFIRMADO (2026-06-20):** el rol del pooler `postgres` tiene `rolbypassrls=true`, así que **RLS NO se aplica** vía la conexión directa. El aislamiento se hace en la **capa de aplicación** (filtros por membership en cada query del repositorio — ver Task 3). `FORCE RLS` queda como red de seguridad para el futuro (si se conecta vía un rol `authenticated` real / PostgREST). La migración ya está aplicada en Supabase.
 
 - [ ] **Step 3: Verify tables exist**
 
@@ -359,6 +359,14 @@ class AssuranceRepository:
         with self._connect() as conn:
             self._set_claims(conn, user_id)
             with conn.cursor() as cur:
+                # Aislamiento en capa de app: el rol del pooler hace BYPASS de RLS,
+                # asi que verificamos membership explicitamente.
+                cur.execute(
+                    "select exists(select 1 from public.memberships where org_id=%s and user_id=%s) as ok",
+                    (org_id, user_id),
+                )
+                if not cur.fetchone()["ok"]:
+                    raise PermissionError("user is not a member of the organization")
                 cur.execute(
                     "insert into public.test_runs (org_id, project, source) values (%s, %s, %s) returning id",
                     (org_id, project, source),
@@ -433,10 +441,11 @@ class AssuranceRepository:
                     left join public.failures fl on fl.defect_family_id = f.id
                     left join public.test_runs r on r.id = fl.run_id
                     where f.scope = 'org' and f.org_id = %s
+                      and exists (select 1 from public.memberships m where m.org_id = f.org_id and m.user_id = %s)
                     group by f.id
                     order by f.occurrence_count desc, f.last_seen desc
                     """,
-                    (org_id,),
+                    (org_id, user_id),
                 )
                 return [
                     {
@@ -453,8 +462,14 @@ class AssuranceRepository:
             self._set_claims(conn, user_id)
             with conn.cursor() as cur:
                 cur.execute(
-                    "select id, title, status, occurrence_count from public.defect_families where id = %s",
-                    (defect_id,),
+                    """
+                    select f.id, f.title, f.status, f.occurrence_count
+                    from public.defect_families f
+                    where f.id = %s
+                      and (f.scope = 'global'
+                           or exists (select 1 from public.memberships m where m.org_id = f.org_id and m.user_id = %s))
+                    """,
+                    (defect_id, user_id),
                 )
                 fam = cur.fetchone()
                 if fam is None:
