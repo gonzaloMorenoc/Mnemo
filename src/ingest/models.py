@@ -7,8 +7,8 @@ _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
 
 def strip_ansi(text: str) -> str:
-	"""Elimina secuencias de escape ANSI (colores) de un texto."""
-	return _ANSI_RE.sub("", text) if text else text
+    """Elimina secuencias de escape ANSI (colores) de un texto."""
+    return _ANSI_RE.sub("", text) if text else text
 
 
 def parse_error_type(message: str) -> Optional[str]:
