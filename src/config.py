@@ -28,3 +28,22 @@ JIRA_USERNAME = os.getenv("JIRA_USERNAME")
 CONFLUENCE_URL = os.getenv("CONFLUENCE_URL")
 CONFLUENCE_API_TOKEN = os.getenv("CONFLUENCE_API_TOKEN")
 CONFLUENCE_USERNAME = os.getenv("CONFLUENCE_USERNAME")
+
+# Multi-tenant KB (Postgres + Supabase). Defaults vacios = modo single-tenant.
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+UPLOAD_DIR = os.getenv("UPLOAD_DIR", os.path.join(BASE_DIR, "data", "uploads"))
+_raw_top_k = os.getenv("DEFAULT_TOP_K", "8")
+try:
+    DEFAULT_TOP_K = int(_raw_top_k)
+except ValueError as exc:
+    raise ValueError(f"DEFAULT_TOP_K must be an integer, got: {_raw_top_k!r}") from exc
+
+# Supabase auth (verificacion JWT via JWKS)
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_JWKS_URL = os.getenv("SUPABASE_JWKS_URL", "")
+SUPABASE_JWT_AUDIENCE = os.getenv("SUPABASE_JWT_AUDIENCE", "")
+
+
+def multi_tenant_enabled() -> bool:
+    """True solo si hay BD Postgres y Supabase configurados."""
+    return bool(DATABASE_URL and SUPABASE_URL)
