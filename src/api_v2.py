@@ -224,7 +224,7 @@ def health_v2() -> Dict[str, Any]:
 def ingest_report_v2(
     file: UploadFile = File(...),
     project: str = Form(...),
-    source: str = Form(...),
+    source: str = Form("auto"),
     org_id: str = Form(...),
     user: AuthenticatedUser = Depends(get_current_user),
     service: IngestionService = Depends(get_ingestion_service),
