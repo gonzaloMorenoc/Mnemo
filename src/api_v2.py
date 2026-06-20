@@ -4,10 +4,17 @@ import psycopg
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from src.config import multi_tenant_enabled
+from src.defects.ingestion_service import IngestionService
+from src.defects.repository import AssuranceRepository
 from src.multitenant_models import (
     AnalyzeV2Request,
     AnalyzeV2Response,
     CreateOrgRequest,
+    DefectFamilyResponse,
+    DefectFamilySummary,
+    DefectLineageResponse,
+    FailureRef,
+    IngestReportResponse,
     JoinOrgRequest,
     OrganizationResponse,
     ScopeSource,
@@ -23,6 +30,8 @@ router = APIRouter(prefix="/v2", tags=["v2"])
 # Singletons perezosos (sin anotacion PEP 604 para compatibilidad <3.10)
 _repo = None
 _analyzer = None
+_assurance_repo = None
+_ingestion_service = None
 
 
 def get_repo() -> TenantKBRepository:
@@ -39,6 +48,25 @@ def get_analyzer() -> StructuredAnalyzer:
     if _analyzer is None:
         _analyzer = StructuredAnalyzer()
     return _analyzer
+
+
+def get_assurance_repo() -> AssuranceRepository:
+    if not multi_tenant_enabled():
+        raise HTTPException(status_code=503, detail="Multi-tenant KB not configured")
+    global _assurance_repo
+    if _assurance_repo is None:
+        _assurance_repo = AssuranceRepository()
+    return _assurance_repo
+
+
+def get_ingestion_service() -> IngestionService:
+    if not multi_tenant_enabled():
+        raise HTTPException(status_code=503, detail="Multi-tenant KB not configured")
+    global _ingestion_service
+    if _ingestion_service is None:
+        from src.defects.embedder import LocalEmbedder
+        _ingestion_service = IngestionService(repo=get_assurance_repo(), embedder=LocalEmbedder())
+    return _ingestion_service
 
 
 def _unique_scopes(contexts: List[Dict[str, Any]]) -> List[str]:
@@ -178,3 +206,53 @@ def upload_v2(
 @router.get("/health")
 def health_v2() -> Dict[str, Any]:
     return {"status": "active", "multi_tenant_enabled": multi_tenant_enabled()}
+
+
+@router.post("/ingest/report", response_model=IngestReportResponse)
+def ingest_report_v2(
+    file: UploadFile = File(...),
+    project: str = Form(...),
+    source: str = Form(...),
+    org_id: str = Form(...),
+    user: AuthenticatedUser = Depends(get_current_user),
+    service: IngestionService = Depends(get_ingestion_service),
+) -> IngestReportResponse:
+    try:
+        data = file.file.read()
+        result = service.ingest_report(
+            user_id=user.user_id, org_id=org_id, project=project, source=source, data=data
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except (ValueError, OSError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    return IngestReportResponse(**result)
+
+
+@router.get("/defects", response_model=List[DefectFamilyResponse])
+def list_defects_v2(
+    org_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+    repo: AssuranceRepository = Depends(get_assurance_repo),
+) -> List[DefectFamilyResponse]:
+    try:
+        rows = repo.list_defects(user_id=user.user_id, org_id=org_id)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    return [DefectFamilyResponse(**r) for r in rows]
+
+
+@router.get("/defects/{defect_id}", response_model=DefectLineageResponse)
+def defect_lineage_v2(
+    defect_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+    repo: AssuranceRepository = Depends(get_assurance_repo),
+) -> DefectLineageResponse:
+    try:
+        data = repo.get_lineage(user_id=user.user_id, defect_id=defect_id)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    family = DefectFamilySummary(**data["family"]) if data["family"] else None
+    return DefectLineageResponse(family=family, failures=[FailureRef(**f) for f in data["failures"]])
