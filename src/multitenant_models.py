@@ -40,7 +40,7 @@ class AnalyzeV2Response(BaseModel):
 
 class UploadResponse(BaseModel):
     document_id: str
-    global_document_id: Optional[str]
+    global_document_id: Optional[str] = None
     chunk_count: int
     storage_path: str
 

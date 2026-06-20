@@ -145,8 +145,8 @@ def upload_v2(
     user: AuthenticatedUser = Depends(get_current_user),
     repo: TenantKBRepository = Depends(get_repo),
 ) -> UploadResponse:
-    data = file.file.read()
     try:
+        data = file.file.read()
         result = repo.ingest_file(
             user_id=user.user_id,
             filename=file.filename or "upload.txt",
@@ -156,6 +156,8 @@ def upload_v2(
             contribute_global=contribute_global,
             mime_type=file.content_type,
         )
+    except OSError as exc:
+        raise HTTPException(status_code=400, detail="Could not read uploaded file") from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except psycopg.Error as exc:

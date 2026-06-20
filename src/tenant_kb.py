@@ -71,6 +71,10 @@ class TenantKBRepository:
                     (name.strip(), user_id),
                 )
                 organization = cur.fetchone()
+                # El trigger set_default_org_owner_membership crea la membership de owner;
+                # reflejamos ese rol en la respuesta (el RETURNING no incluye role).
+                if organization is not None:
+                    organization["role"] = "owner"
             conn.commit()
         return organization
 
