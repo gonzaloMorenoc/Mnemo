@@ -6,14 +6,18 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from src.config import multi_tenant_enabled
 from src.defects.ingestion_service import IngestionService
 from src.defects.repository import AssuranceRepository
+from src.assurance.narrator import LocalNarrator, Narrator
+from src.assurance.verdict import build_verdict
 from src.multitenant_models import (
     AnalyzeV2Request,
     AnalyzeV2Response,
+    AssuranceVerdictResponse,
     CreateOrgRequest,
     DefectFamilyResponse,
     DefectFamilySummary,
     DefectLineageResponse,
     FailureRef,
+    FamilyVerdict,
     IngestReportResponse,
     JoinOrgRequest,
     OrganizationResponse,
@@ -32,6 +36,7 @@ _repo = None
 _analyzer = None
 _assurance_repo = None
 _ingestion_service = None
+_narrator = None
 
 
 def get_repo() -> TenantKBRepository:
@@ -67,6 +72,13 @@ def get_ingestion_service() -> IngestionService:
         from src.defects.embedder import LocalEmbedder
         _ingestion_service = IngestionService(repo=get_assurance_repo(), embedder=LocalEmbedder())
     return _ingestion_service
+
+
+def get_narrator() -> Narrator:
+    global _narrator
+    if _narrator is None:
+        _narrator = LocalNarrator()
+    return _narrator
 
 
 def _unique_scopes(contexts: List[Dict[str, Any]]) -> List[str]:
@@ -256,3 +268,27 @@ def defect_lineage_v2(
         raise HTTPException(status_code=502, detail="Database error") from exc
     family = DefectFamilySummary(**data["family"]) if data["family"] else None
     return DefectLineageResponse(family=family, failures=[FailureRef(**f) for f in data["failures"]])
+
+
+@router.get("/assurance/run/{run_id}", response_model=AssuranceVerdictResponse)
+def assurance_verdict_v2(
+    run_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+    repo: AssuranceRepository = Depends(get_assurance_repo),
+    narrator: Narrator = Depends(get_narrator),
+) -> AssuranceVerdictResponse:
+    try:
+        data = repo.get_run_assurance_data(user_id=user.user_id, run_id=run_id)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    if data["run"] is None:
+        raise HTTPException(status_code=404, detail="run not found")
+    verdict = build_verdict(run_summary=data["summary"], run_families=data["families"])
+    narrative = narrator.summarize(verdict)
+    return AssuranceVerdictResponse(
+        run_id=run_id,
+        ingested=verdict["ingested"], known=verdict["known"], novel=verdict["novel"],
+        risk=verdict["risk"],
+        top_families=[FamilyVerdict(**f) for f in verdict["top_families"]],
+        narrative=narrative,
+    )
