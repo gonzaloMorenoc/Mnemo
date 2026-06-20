@@ -45,8 +45,7 @@ class JiraIngestionService:
             return {"run_id": None, "ingested": 0, "known": 0, "novel": 0, "skipped": skipped}
         result = self.repo.ingest_run(user_id=user_id, org_id=org_id, project=project,
                                       source="jira", items=items)
-        result["skipped"] = skipped
-        return result
+        return {**result, "skipped": skipped}
 
     def ingest_from_export(self, *, user_id: str, org_id: str, project: str,
                            data: bytes) -> Dict[str, Any]:
