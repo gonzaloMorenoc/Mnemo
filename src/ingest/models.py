@@ -26,4 +26,4 @@ class FailureRecord:
     message: str
     trace: Optional[str]
     project: str
-    source: str  # "allure" | "junit"
+    source: str  # allure | junit | testng | cucumber | playwright | cypress | robot
