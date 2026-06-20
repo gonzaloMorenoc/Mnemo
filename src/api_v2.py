@@ -1,14 +1,18 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import psycopg
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from src.config import multi_tenant_enabled
 from src.multitenant_models import (
     AnalyzeV2Request,
     AnalyzeV2Response,
+    CreateOrgRequest,
+    JoinOrgRequest,
+    OrganizationResponse,
     ScopeSource,
     StructuredAnalysisPayload,
+    UploadResponse,
 )
 from src.security import AuthenticatedUser, get_current_user
 from src.structured_analyzer import StructuredAnalyzer
@@ -79,4 +83,87 @@ def analyze_v2(
         ],
         source_scopes=source_scopes,
         analysis_id=analysis_id,
+    )
+
+
+def _org_to_response(org: Dict[str, Any]) -> OrganizationResponse:
+    return OrganizationResponse(
+        id=str(org["id"]),
+        name=org["name"],
+        join_code=org["join_code"],
+        role=org.get("role"),
+        created_at=str(org["created_at"]) if org.get("created_at") is not None else None,
+    )
+
+
+@router.get("/orgs", response_model=List[OrganizationResponse])
+def list_orgs(
+    user: AuthenticatedUser = Depends(get_current_user),
+    repo: TenantKBRepository = Depends(get_repo),
+) -> List[OrganizationResponse]:
+    try:
+        orgs = repo.list_user_organizations(user_id=user.user_id)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    return [_org_to_response(o) for o in orgs]
+
+
+@router.post("/orgs", response_model=OrganizationResponse)
+def create_org(
+    req: CreateOrgRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+    repo: TenantKBRepository = Depends(get_repo),
+) -> OrganizationResponse:
+    try:
+        org = repo.create_organization(user_id=user.user_id, name=req.name)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    return _org_to_response(org)
+
+
+@router.post("/orgs/join", response_model=OrganizationResponse)
+def join_org(
+    req: JoinOrgRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+    repo: TenantKBRepository = Depends(get_repo),
+) -> OrganizationResponse:
+    try:
+        org = repo.join_organization(user_id=user.user_id, join_code=req.join_code)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    return _org_to_response(org)
+
+
+@router.post("/upload", response_model=UploadResponse)
+def upload_v2(
+    file: UploadFile = File(...),
+    scope: str = Form("user"),
+    org_id: Optional[str] = Form(None),
+    contribute_global: bool = Form(False),
+    user: AuthenticatedUser = Depends(get_current_user),
+    repo: TenantKBRepository = Depends(get_repo),
+) -> UploadResponse:
+    data = file.file.read()
+    try:
+        result = repo.ingest_file(
+            user_id=user.user_id,
+            filename=file.filename or "upload.txt",
+            data=data,
+            scope=scope,
+            org_id=org_id,
+            contribute_global=contribute_global,
+            mime_type=file.content_type,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+
+    return UploadResponse(
+        document_id=str(result.document_id),
+        global_document_id=str(result.global_document_id) if result.global_document_id else None,
+        chunk_count=result.chunk_count,
+        storage_path=result.storage_path,
     )

@@ -79,3 +79,42 @@ def test_analyze_503_when_not_configured(monkeypatch):
     client = make_client(analyzer=MagicMock())
     resp = client.post("/v2/analyze", json={"error_log": "TimeoutException at line 10"})
     assert resp.status_code == 503
+
+
+def _org(role="member"):
+    return {"id": "org-1", "name": "Acme QA", "join_code": "ABC123", "role": role, "created_at": "2026-06-19T10:00:00"}
+
+
+def test_list_orgs_maps_response():
+    repo = MagicMock()
+    repo.list_user_organizations.return_value = [_org("owner")]
+    client = make_client(repo=repo)
+    resp = client.get("/v2/orgs")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body[0]["id"] == "org-1"
+    assert body[0]["role"] == "owner"
+
+
+def test_create_org_validation_error():
+    repo = MagicMock()
+    client = make_client(repo=repo)
+    resp = client.post("/v2/orgs", json={"name": "x"})  # min_length=2
+    assert resp.status_code == 422
+
+
+def test_create_org_happy_path():
+    repo = MagicMock()
+    repo.create_organization.return_value = _org("owner")
+    client = make_client(repo=repo)
+    resp = client.post("/v2/orgs", json={"name": "Acme QA"})
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "Acme QA"
+
+
+def test_join_org_unknown_code_returns_404():
+    repo = MagicMock()
+    repo.join_organization.side_effect = ValueError("Could not join organization with the provided code")
+    client = make_client(repo=repo)
+    resp = client.post("/v2/orgs/join", json={"join_code": "BADCODE"})
+    assert resp.status_code == 404
