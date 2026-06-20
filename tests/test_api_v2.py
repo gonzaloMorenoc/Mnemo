@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 import src.api_v2 as api_v2
 from src.security import AuthenticatedUser
+from src.tenant_kb import IngestionResult
 
 
 def _fake_user() -> AuthenticatedUser:
@@ -118,3 +119,36 @@ def test_join_org_unknown_code_returns_404():
     client = make_client(repo=repo)
     resp = client.post("/v2/orgs/join", json={"join_code": "BADCODE"})
     assert resp.status_code == 404
+
+
+def test_upload_happy_path():
+    repo = MagicMock()
+    repo.ingest_file.return_value = IngestionResult(
+        document_id="doc-1", chunk_count=3, global_document_id=None, storage_path="/uploads/user-123/a.log"
+    )
+    client = make_client(repo=repo)
+    resp = client.post(
+        "/v2/upload",
+        data={"scope": "user", "contribute_global": "false"},
+        files={"file": ("a.log", b"NullPointerException at Foo.java:42", "text/plain")},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["document_id"] == "doc-1"
+    assert body["chunk_count"] == 3
+    kwargs = repo.ingest_file.call_args.kwargs
+    assert kwargs["scope"] == "user"
+    assert kwargs["filename"] == "a.log"
+    assert kwargs["data"] == b"NullPointerException at Foo.java:42"
+
+
+def test_upload_org_scope_without_org_id_is_400():
+    repo = MagicMock()
+    repo.ingest_file.side_effect = ValueError("org_id is required when scope is 'org'")
+    client = make_client(repo=repo)
+    resp = client.post(
+        "/v2/upload",
+        data={"scope": "org", "contribute_global": "false"},
+        files={"file": ("a.log", b"some error log content", "text/plain")},
+    )
+    assert resp.status_code == 400
