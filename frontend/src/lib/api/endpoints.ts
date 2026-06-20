@@ -24,7 +24,10 @@ export function joinOrganization(token: string, payload: { join_code: string }) 
 }
 
 export function analyzeError(token: string, payload: AnalyzeV2Request) {
-  return apiRequest<AnalyzeV2Response>("/api/v2/analyze", "POST", { token, body: payload });
+  return apiRequest<AnalyzeV2Response>("/api/v2/analyze", "POST", {
+    token,
+    body: payload as unknown as Record<string, unknown>,
+  });
 }
 
 export function uploadKnowledge(token: string, payload: FormData) {
