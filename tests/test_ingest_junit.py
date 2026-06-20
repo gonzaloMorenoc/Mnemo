@@ -1,3 +1,5 @@
+import pytest
+
 from src.ingest.junit import parse_junit
 
 JUNIT_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
@@ -29,3 +31,8 @@ def test_parse_junit_falls_back_to_message_for_type():
     recs = parse_junit(xml, project="p")
     assert recs[0].error_type == "TimeoutException"
     assert recs[0].test_name == "t"
+
+
+def test_parse_junit_raises_on_invalid_xml():
+    with pytest.raises(ValueError):
+        parse_junit(b"<not-closed", project="p")

@@ -6,7 +6,10 @@ from src.ingest.models import FailureRecord, parse_error_type
 
 def parse_junit(data: bytes, *, project: str) -> List[FailureRecord]:
     """Parsea JUnit XML; devuelve testcases con <failure> o <error>."""
-    root = ET.fromstring(data)
+    try:
+        root = ET.fromstring(data)
+    except ET.ParseError as exc:
+        raise ValueError(f"Invalid JUnit XML: {exc}") from exc
     records: List[FailureRecord] = []
     for tc in root.iter("testcase"):
         node = tc.find("failure")

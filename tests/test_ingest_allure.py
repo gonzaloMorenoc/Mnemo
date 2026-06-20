@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from src.ingest.allure import parse_allure
 
 
@@ -37,3 +39,8 @@ def test_parse_allure_handles_missing_fields():
     assert recs[0].test_name == "unknown"
     assert recs[0].message == ""
     assert recs[0].trace is None
+
+
+def test_parse_allure_raises_on_invalid_json():
+    with pytest.raises(ValueError):
+        parse_allure(b"not json{", project="p")
