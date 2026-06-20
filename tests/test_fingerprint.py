@@ -27,3 +27,13 @@ def test_fingerprint_differs_for_different_errors():
 def test_fingerprint_is_hex_sha1():
     fp = fingerprint(_rec("X", None))
     assert len(fp) == 40 and all(c in "0123456789abcdef" for c in fp)
+
+
+def test_normalize_empty_returns_empty():
+    assert normalize("") == ""
+
+
+def test_fingerprint_handles_none_error_type():
+    rec = FailureRecord(test_name="t", error_type=None, message="boom", trace=None, project="p", source="allure")
+    fp = fingerprint(rec)
+    assert len(fp) == 40
