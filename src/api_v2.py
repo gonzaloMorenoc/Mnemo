@@ -284,7 +284,12 @@ def assurance_verdict_v2(
     if data["run"] is None:
         raise HTTPException(status_code=404, detail="run not found")
     verdict = build_verdict(run_summary=data["summary"], run_families=data["families"])
-    narrative = narrator.summarize(verdict)
+    try:
+        narrative = narrator.summarize(verdict)
+    except Exception:
+        # La narrativa LLM es opcional: si el narrator (Ollama) falla, devolvemos
+        # el veredicto determinista sin narrativa en lugar de romper la respuesta.
+        narrative = None
     return AssuranceVerdictResponse(
         run_id=run_id,
         ingested=verdict["ingested"], known=verdict["known"], novel=verdict["novel"],

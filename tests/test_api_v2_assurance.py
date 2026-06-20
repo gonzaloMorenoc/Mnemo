@@ -1,3 +1,4 @@
+import psycopg
 from unittest.mock import MagicMock
 
 from fastapi import FastAPI
@@ -54,3 +55,28 @@ def test_assurance_verdict_requires_auth():
     client = make_client(repo=MagicMock(), narrator=MagicMock(), with_user=False)
     resp = client.get("/v2/assurance/run/r1")
     assert resp.status_code == 401
+
+
+def test_assurance_verdict_narrator_failure_degrades_gracefully():
+    repo = MagicMock()
+    repo.get_run_assurance_data.return_value = {
+        "run": {"id": "r1", "project": "p", "source": "allure"},
+        "summary": {"ingested": 1, "known": 0, "novel": 1},
+        "families": [{"id": "f1", "title": "T", "occurrence_count": 1, "run_count": 1}],
+    }
+    narrator = MagicMock()
+    narrator.summarize.side_effect = RuntimeError("ollama down")
+    client = make_client(repo=repo, narrator=narrator)
+    resp = client.get("/v2/assurance/run/r1")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["narrative"] is None
+    assert body["novel"] == 1 and body["risk"] == "atencion"
+
+
+def test_assurance_verdict_db_error_is_502():
+    repo = MagicMock()
+    repo.get_run_assurance_data.side_effect = psycopg.OperationalError("db down")
+    client = make_client(repo=repo, narrator=MagicMock())
+    resp = client.get("/v2/assurance/run/r1")
+    assert resp.status_code == 502
