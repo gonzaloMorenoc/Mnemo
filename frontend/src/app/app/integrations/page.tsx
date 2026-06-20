@@ -81,7 +81,7 @@ export default function IntegrationsPage() {
         org_id: orgId,
         base_url: baseUrl,
         email,
-        api_token: token,
+        token,
         jql,
       });
       setToken("");
