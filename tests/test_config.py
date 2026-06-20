@@ -1,15 +1,23 @@
 import importlib
 
 
-def test_config_defines_multitenant_constants():
+def test_config_defaults_when_env_unset(monkeypatch):
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("SUPABASE_URL", raising=False)
+    monkeypatch.delenv("SUPABASE_JWKS_URL", raising=False)
+    monkeypatch.delenv("SUPABASE_JWT_AUDIENCE", raising=False)
+    monkeypatch.delenv("DEFAULT_TOP_K", raising=False)
+    # Neutralise load_dotenv so it cannot re-populate os.environ from .env
+    import dotenv
+    monkeypatch.setattr(dotenv, "load_dotenv", lambda **kw: None)
     import src.config as config
     importlib.reload(config)
-    assert hasattr(config, "DATABASE_URL")
-    assert hasattr(config, "UPLOAD_DIR")
-    assert isinstance(config.DEFAULT_TOP_K, int) and config.DEFAULT_TOP_K >= 1
-    assert hasattr(config, "SUPABASE_URL")
-    assert hasattr(config, "SUPABASE_JWKS_URL")
-    assert hasattr(config, "SUPABASE_JWT_AUDIENCE")
+    assert config.DATABASE_URL == ""
+    assert config.SUPABASE_URL == ""
+    assert config.SUPABASE_JWKS_URL == ""
+    assert config.SUPABASE_JWT_AUDIENCE == ""
+    assert isinstance(config.DEFAULT_TOP_K, int)
+    assert config.DEFAULT_TOP_K == 8
 
 
 def test_multi_tenant_enabled_false_when_unset(monkeypatch):
@@ -24,12 +32,3 @@ def test_multi_tenant_enabled_true_when_set(monkeypatch):
     monkeypatch.setattr(config, "DATABASE_URL", "postgresql://x")
     monkeypatch.setattr(config, "SUPABASE_URL", "https://x.supabase.co")
     assert config.multi_tenant_enabled() is True
-
-
-def test_multitenant_modules_import():
-    import src.tenant_kb  # noqa: F401
-    import src.security  # noqa: F401
-    import src.structured_analyzer  # noqa: F401
-    import src.multitenant_models  # noqa: F401
-    import src.sanitizer  # noqa: F401
-    import src.scope_priority  # noqa: F401

@@ -32,7 +32,11 @@ CONFLUENCE_USERNAME = os.getenv("CONFLUENCE_USERNAME")
 # Multi-tenant KB (Postgres + Supabase). Defaults vacios = modo single-tenant.
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", os.path.join(BASE_DIR, "data", "uploads"))
-DEFAULT_TOP_K = int(os.getenv("DEFAULT_TOP_K", "8"))
+_raw_top_k = os.getenv("DEFAULT_TOP_K", "8")
+try:
+    DEFAULT_TOP_K = int(_raw_top_k)
+except ValueError as exc:
+    raise ValueError(f"DEFAULT_TOP_K must be an integer, got: {_raw_top_k!r}") from exc
 
 # Supabase auth (verificacion JWT via JWKS)
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
