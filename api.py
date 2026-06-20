@@ -10,6 +10,8 @@ from src.model import BugAnalyzer
 from src.evaluator import RAGASEvaluator
 from src.history import HistoryManager
 from src.inspector import DatabaseInspector
+from src.api_v2 import router as v2_router
+from src.config import multi_tenant_enabled
 
 # Data Models
 class AnalysisRequest(BaseModel):
@@ -27,6 +29,7 @@ class FeedbackRequest(BaseModel):
 
 # App & State
 app = FastAPI(title="Smart Error Debugger API", version="1.0.0")
+app.include_router(v2_router)
 
 class AppState:
     analyzer: Optional[BugAnalyzer] = None
@@ -125,7 +128,7 @@ async def run_evaluation():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "active", "model": "DeepSeek-R1"}
+    return {"status": "active", "model": "DeepSeek-R1", "multi_tenant_enabled": multi_tenant_enabled()}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

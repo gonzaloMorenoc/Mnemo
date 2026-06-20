@@ -152,3 +152,13 @@ def test_upload_org_scope_without_org_id_is_400():
         files={"file": ("a.log", b"some error log content", "text/plain")},
     )
     assert resp.status_code == 400
+
+
+def test_health_reports_multi_tenant_flag(monkeypatch):
+    monkeypatch.setattr(api_v2, "multi_tenant_enabled", lambda: True)
+    client = make_client(with_user=False)  # /v2/health requires no auth
+    resp = client.get("/v2/health")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["multi_tenant_enabled"] is True
+    assert "status" in body

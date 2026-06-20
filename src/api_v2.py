@@ -169,3 +169,8 @@ def upload_v2(
         chunk_count=result.chunk_count,
         storage_path=result.storage_path,
     )
+
+
+@router.get("/health")
+def health_v2() -> Dict[str, Any]:
+    return {"status": "active", "multi_tenant_enabled": multi_tenant_enabled()}
