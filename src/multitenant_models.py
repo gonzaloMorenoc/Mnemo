@@ -56,3 +56,58 @@ class OrganizationResponse(BaseModel):
 class ErrorResponse(BaseModel):
     detail: str
     extra: Optional[Dict[str, Any]] = None
+
+
+class IngestReportResponse(BaseModel):
+    run_id: str
+    ingested: int
+    known: int
+    novel: int
+
+
+class DefectFamilyResponse(BaseModel):
+    id: str
+    title: str
+    status: str
+    occurrence_count: int
+    first_seen: Optional[str] = None
+    last_seen: Optional[str] = None
+    projects: List[str] = Field(default_factory=list)
+
+
+class FailureRef(BaseModel):
+    id: str
+    test_name: str
+    error_type: Optional[str] = None
+    project: str
+    source: str
+    created_at: Optional[str] = None
+
+
+class DefectFamilySummary(BaseModel):
+    id: str
+    title: str
+    status: str
+    occurrence_count: int
+
+
+class DefectLineageResponse(BaseModel):
+    family: Optional[DefectFamilySummary] = None
+    failures: List[FailureRef] = Field(default_factory=list)
+
+
+class FamilyVerdict(BaseModel):
+    id: str
+    title: str
+    occurrence_count: int
+    recurring: bool
+
+
+class AssuranceVerdictResponse(BaseModel):
+    run_id: str
+    ingested: int
+    known: int
+    novel: int
+    risk: str
+    top_families: List[FamilyVerdict] = Field(default_factory=list)
+    narrative: Optional[str] = None
