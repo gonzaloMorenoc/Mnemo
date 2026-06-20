@@ -3,7 +3,7 @@ from src.defects.embedder import Embedder, LocalEmbedder
 
 def test_local_embedder_is_embedder_protocol():
     emb = LocalEmbedder()
-    assert hasattr(emb, "embed")
+    assert isinstance(emb, Embedder)
     assert emb._hf is None  # no cargado hasta el primer embed
 
 

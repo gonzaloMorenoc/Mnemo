@@ -249,8 +249,8 @@ class AssuranceRepository:
                         "title": r["title"],
                         "status": r["status"],
                         "occurrence_count": r["occurrence_count"],
-                        "first_seen": str(r["first_seen"]),
-                        "last_seen": str(r["last_seen"]),
+                        "first_seen": str(r["first_seen"]) if r["first_seen"] is not None else None,
+                        "last_seen": str(r["last_seen"]) if r["last_seen"] is not None else None,
                         "projects": list(r["projects"]),
                     }
                     for r in cur.fetchall()
