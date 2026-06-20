@@ -94,3 +94,20 @@ class DefectFamilySummary(BaseModel):
 class DefectLineageResponse(BaseModel):
     family: Optional[DefectFamilySummary] = None
     failures: List[FailureRef] = Field(default_factory=list)
+
+
+class FamilyVerdict(BaseModel):
+    id: str
+    title: str
+    occurrence_count: int
+    recurring: bool
+
+
+class AssuranceVerdictResponse(BaseModel):
+    run_id: str
+    ingested: int
+    known: int
+    novel: int
+    risk: str
+    top_families: List[FamilyVerdict] = Field(default_factory=list)
+    narrative: Optional[str] = None
