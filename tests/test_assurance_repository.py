@@ -20,6 +20,17 @@ def _emb(seed: float):
     return [seed] + [0.0] * 383
 
 
+def _emb_at(pos: int, val: float = 1.0):
+    """Return a unit vector with val at position pos and zeros elsewhere.
+
+    Two calls with different pos values produce orthogonal vectors (cosine = 0),
+    guaranteeing that decide_match creates separate defect families.
+    """
+    v = [0.0] * 384
+    v[pos] = val
+    return v
+
+
 @pytest.fixture
 def repo():
     if not DBURL:
@@ -110,3 +121,35 @@ def test_ingest_run_rejects_non_member(repo, org):
     with pytest.raises(PermissionError):
         repo.ingest_run(user_id=other_user, org_id=org["org_id"], project="p", source="allure",
                         items=[_item("p", "X", None, 0.3)])
+
+
+def test_get_run_assurance_data(repo, org):
+    u, o = org["user_id"], org["org_id"]
+    # Use orthogonal embeddings (different dimensions) so decide_match creates
+    # two separate defect families (cosine similarity == 0 between them).
+    rec_a = FailureRecord(test_name="t", error_type="TimeoutException",
+                          message="TimeoutException at host 10.0.0.1", trace="at A.java:1",
+                          project="proj-a", source="allure")
+    rec_b = FailureRecord(test_name="t", error_type="NullPointerException",
+                          message="NullPointer somewhere", trace="at B.java:2",
+                          project="proj-a", source="allure")
+    item_a = IngestItem(rec=rec_a, fingerprint=fingerprint(rec_a), embedding=_emb_at(0))
+    item_b = IngestItem(rec=rec_b, fingerprint=fingerprint(rec_b), embedding=_emb_at(1))
+    out = repo.ingest_run(user_id=u, org_id=o, project="proj-a", source="allure",
+                          items=[item_a, item_b])
+    run_id = out["run_id"]
+    data = repo.get_run_assurance_data(user_id=u, run_id=run_id)
+    assert data["run"] is not None
+    assert data["summary"]["ingested"] == 2
+    assert len(data["families"]) == 2
+    for fam in data["families"]:
+        assert fam["run_count"] >= 1 and "occurrence_count" in fam and "title" in fam
+
+
+def test_get_run_assurance_data_non_member(repo, org):
+    u, o = org["user_id"], org["org_id"]
+    out = repo.ingest_run(user_id=u, org_id=o, project="p", source="allure",
+                          items=[_item("p", "X error", None, 0.3)])
+    other = str(uuid.uuid4())
+    data = repo.get_run_assurance_data(user_id=other, run_id=out["run_id"])
+    assert data["run"] is None

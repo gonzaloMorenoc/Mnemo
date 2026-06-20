@@ -316,3 +316,46 @@ class AssuranceRepository:
                 },
                 "failures": failures,
             }
+
+    def get_run_assurance_data(self, *, user_id: str, run_id: str) -> Dict[str, Any]:
+        """Return a test run's assurance data including its defect families.
+
+        Returns ``{"run": None, "summary": {}, "families": []}`` when the run
+        does not exist or the user is not a member of the owning org.
+        """
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    select r.id, r.project, r.source, r.summary
+                    from public.test_runs r
+                    where r.id = %s
+                      and exists (select 1 from public.memberships m where m.org_id = r.org_id and m.user_id = %s)
+                    """,
+                    (run_id, user_id),
+                )
+                run = cur.fetchone()
+                if run is None:
+                    return {"run": None, "summary": {}, "families": []}
+                cur.execute(
+                    """
+                    select df.id, df.title, df.occurrence_count, count(fl.id) as run_count
+                    from public.failures fl
+                    join public.defect_families df on df.id = fl.defect_family_id
+                    where fl.run_id = %s
+                    group by df.id
+                    order by df.occurrence_count desc
+                    """,
+                    (run_id,),
+                )
+                families = [
+                    {"id": str(r["id"]), "title": r["title"],
+                     "occurrence_count": r["occurrence_count"], "run_count": r["run_count"]}
+                    for r in cur.fetchall()
+                ]
+            return {
+                "run": {"id": str(run["id"]), "project": run["project"], "source": run["source"]},
+                "summary": run["summary"] or {},
+                "families": families,
+            }
