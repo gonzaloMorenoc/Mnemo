@@ -17,6 +17,14 @@ __pycache__/
 *$py.class
 .pytest_cache/
 
+# Cobertura de tests
+.coverage
+.coverage.*
+htmlcov/
+
+# Artefactos de agentes/herramientas locales
+.agent/
+
 # Modelos y caches de HuggingFace/Transformers
 .cache/
 

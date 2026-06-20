@@ -31,6 +31,14 @@ def _emb_at(pos: int, val: float = 1.0):
     return v
 
 
+def _emb_two(p1: int, v1: float, p2: int, v2: float):
+    """Return a vector with two non-zero components (for crafting near/far neighbours)."""
+    v = [0.0] * 384
+    v[p1] = v1
+    v[p2] = v2
+    return v
+
+
 @pytest.fixture
 def repo():
     if not DBURL:
@@ -153,3 +161,51 @@ def test_get_run_assurance_data_non_member(repo, org):
     other = str(uuid.uuid4())
     data = repo.get_run_assurance_data(user_id=other, run_id=out["run_id"])
     assert data["run"] is None
+
+
+def test_exact_signature_match_survives_centroid_drift(repo, org):
+    """Regresion C1: una familia con firma exacta debe emparejarse aunque su
+    centroide haya derivado fuera del top-K por coseno.
+
+    Escenario: se crea la familia objetivo F, luego 11 familias senuelo cuyos
+    centroides estan mas cerca (coseno) del embedding de re-ingesta que el de F,
+    empujando a F fuera del top-10. Sin el fix de _query_candidates (UNION por
+    firma) se crearia una familia DUPLICADA con la misma firma; con el fix, F se
+    incluye siempre como candidato y el match exacto la reutiliza.
+    """
+    u, o = org["user_id"], org["org_id"]
+
+    # 1) Familia objetivo F: centroide ortogonal (posicion 383) al vector de re-ingesta.
+    rec_f = FailureRecord(test_name="t", error_type="TargetException",
+                          message="TargetException drift sentinel", trace="at T.java:1",
+                          project="proj-a", source="allure")
+    sig_f = fingerprint(rec_f)
+    repo.ingest_run(user_id=u, org_id=o, project="proj-a", source="allure",
+                    items=[IngestItem(rec=rec_f, fingerprint=sig_f, embedding=_emb_at(383))])
+
+    # 2) 11 familias senuelo, cada una mas cercana (coseno) a E=_emb_at(0) que F.
+    #    Usamos LETRAS distintas (no numeros, que normalize() colapsa a <n>) para
+    #    que cada senuelo tenga una firma unica.
+    letters = "BCDEFGHIJKL"
+    for i in range(1, 12):
+        rec_d = FailureRecord(test_name="t", error_type="DecoyException",
+                              message=f"DecoyException kind {letters[i - 1]} occurred",
+                              trace="at D.java:1", project="proj-a", source="allure")
+        repo.ingest_run(user_id=u, org_id=o, project="proj-a", source="allure",
+                        items=[IngestItem(rec=rec_d, fingerprint=fingerprint(rec_d),
+                                          embedding=_emb_two(0, 0.5, i, 1.0))])
+
+    # 3) Re-ingerir la MISMA firma que F con un embedding disimilar a su centroide.
+    rec_f2 = FailureRecord(test_name="t2", error_type="TargetException",
+                           message="TargetException drift sentinel", trace="at T.java:99",
+                           project="proj-b", source="allure")
+    assert fingerprint(rec_f2) == sig_f  # misma firma que F
+    repo.ingest_run(user_id=u, org_id=o, project="proj-b", source="allure",
+                    items=[IngestItem(rec=rec_f2, fingerprint=sig_f, embedding=_emb_at(0))])
+
+    # 4) Debe haber exactamente UNA familia con la firma de F (no un duplicado):
+    #    F (occurrence_count == 2) + 11 senuelos (occurrence_count == 1) = 12 familias.
+    defects = repo.list_defects(user_id=u, org_id=o)
+    assert len(defects) == 12
+    matched = [d for d in defects if d["occurrence_count"] == 2]
+    assert len(matched) == 1

@@ -56,18 +56,29 @@ class AssuranceRepository:
         cur: psycopg.Cursor,
         *,
         org_id: str,
+        fingerprint: str,
         embedding: Sequence[float],
         limit: int = 10,
     ) -> List[FamilyCandidate]:
+        # Incluye SIEMPRE la familia con la firma exacta (aunque su centroide haya
+        # derivado fuera del top-K por coseno) para no crear familias duplicadas,
+        # mas el top-K por coseno para el matching semantico.
         cur.execute(
             """
             select id, signature, centroid
             from public.defect_families
-            where scope = 'org' and org_id = %s and centroid is not null
-            order by centroid <=> %s
-            limit %s
+            where scope = 'org' and org_id = %(org)s and centroid is not null
+              and (
+                  signature = %(fp)s
+                  or id in (
+                      select id from public.defect_families
+                      where scope = 'org' and org_id = %(org)s and centroid is not null
+                      order by centroid <=> %(emb)s
+                      limit %(k)s
+                  )
+              )
             """,
-            (org_id, Vector(list(embedding)), limit),
+            {"org": org_id, "fp": fingerprint, "emb": Vector(list(embedding)), "k": limit},
         )
         rows = cur.fetchall()
         return [
@@ -120,7 +131,7 @@ class AssuranceRepository:
 
                 for item in items:
                     cands = self._query_candidates(
-                        cur, org_id=org_id, embedding=item.embedding
+                        cur, org_id=org_id, fingerprint=item.fingerprint, embedding=item.embedding
                     )
                     decision = decide_match(
                         fingerprint=item.fingerprint,
