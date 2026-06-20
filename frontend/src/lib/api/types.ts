@@ -92,7 +92,7 @@ export interface AssuranceVerdictResponse {
   ingested: number;
   known: number;
   novel: number;
-  risk: string;
+  risk: "ok" | "atencion";
   top_families: FamilyVerdict[];
   narrative: string | null;
 }

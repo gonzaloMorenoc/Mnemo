@@ -21,7 +21,7 @@ export default function AssurancePage() {
   const [submitting, setSubmitting] = useState(false);
 
   const orgsQuery = useQuery({
-    queryKey: ["orgs"],
+    queryKey: ["organizations", accessToken],
     queryFn: () => getOrganizations(accessToken!),
     enabled: Boolean(accessToken),
   });
@@ -36,6 +36,7 @@ export default function AssurancePage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setRunId(null); // descarta el veredicto del run anterior antes de ingerir el nuevo
     if (!file || !orgId) {
       setError("Falta archivo u organización.");
       return;
@@ -91,6 +92,12 @@ export default function AssurancePage() {
           <Button type="submit" disabled={submitting}>{submitting ? "Procesando…" : "Analizar run"}</Button>
         </form>
       </Card>
+
+      {runId && verdictQuery.isError && (
+        <Card className="max-w-xl p-5">
+          <p className="text-sm text-red-600">No se pudo cargar el veredicto del run.</p>
+        </Card>
+      )}
 
       {v && (
         <Card className="max-w-xl space-y-3 p-5">

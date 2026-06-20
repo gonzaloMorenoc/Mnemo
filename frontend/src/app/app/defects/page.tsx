@@ -15,7 +15,7 @@ export default function DefectsPage() {
   const [selected, setSelected] = useState<string | null>(null);
 
   const orgsQuery = useQuery({
-    queryKey: ["orgs"],
+    queryKey: ["organizations", accessToken],
     queryFn: () => getOrganizations(accessToken!),
     enabled: Boolean(accessToken),
   });
@@ -57,6 +57,9 @@ export default function DefectsPage() {
         <Card className="p-4">
           <h2 className="mb-3 text-sm font-medium text-zinc-700">Familias</h2>
           {defectsQuery.isLoading && <Skeleton className="h-24 w-full" />}
+          {defectsQuery.isError && (
+            <p className="text-sm text-red-600">No se pudieron cargar las familias de defecto.</p>
+          )}
           {defectsQuery.data && defectsQuery.data.length === 0 && (
             <p className="text-sm text-zinc-500">No hay familias todavía. Sube un reporte en Assurance.</p>
           )}
@@ -82,6 +85,9 @@ export default function DefectsPage() {
           <h2 className="mb-3 text-sm font-medium text-zinc-700">Linaje</h2>
           {!selected && <p className="text-sm text-zinc-500">Selecciona una familia.</p>}
           {lineageQuery.isLoading && <Skeleton className="h-24 w-full" />}
+          {lineageQuery.isError && (
+            <p className="text-sm text-red-600">No se pudo cargar el linaje de la familia.</p>
+          )}
           {lineageQuery.data?.family && (
             <div className="space-y-3">
               <p className="text-sm font-medium text-zinc-900">{lineageQuery.data.family.title}</p>
