@@ -39,6 +39,9 @@ class AssuranceRepository:
         return conn
 
     def _set_claims(self, conn: psycopg.Connection, user_id: str) -> None:
+        """Propaga el claim del usuario. NOTA: el rol del pooler hace BYPASS de RLS,
+        asi que esto es scaffolding para el futuro (conexion via rol authenticated);
+        el aislamiento real lo hacen los filtros por membership de cada query."""
         with conn.cursor() as cur:
             cur.execute(
                 "select set_config('request.jwt.claim.sub', %s, true)",
@@ -152,7 +155,7 @@ class AssuranceRepository:
                         family_id = decision.family_id
                         cur.execute(
                             "select occurrence_count, centroid"
-                            " from public.defect_families where id = %s",
+                            " from public.defect_families where id = %s for update",
                             (family_id,),
                         )
                         fam = cur.fetchone()

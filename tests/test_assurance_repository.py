@@ -103,3 +103,10 @@ def test_isolation_between_orgs(repo, org):
     )
     other_user = str(uuid.uuid4())
     assert repo.list_defects(user_id=other_user, org_id=o) == []
+
+
+def test_ingest_run_rejects_non_member(repo, org):
+    other_user = str(uuid.uuid4())
+    with pytest.raises(PermissionError):
+        repo.ingest_run(user_id=other_user, org_id=org["org_id"], project="p", source="allure",
+                        items=[_item("p", "X", None, 0.3)])
