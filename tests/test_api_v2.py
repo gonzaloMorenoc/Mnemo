@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock
 
+import psycopg
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -162,3 +163,39 @@ def test_health_reports_multi_tenant_flag(monkeypatch):
     body = resp.json()
     assert body["multi_tenant_enabled"] is True
     assert "status" in body
+
+
+def test_list_orgs_db_error_returns_502():
+    repo = MagicMock()
+    repo.list_user_organizations.side_effect = psycopg.OperationalError("boom")
+    client = make_client(repo=repo)
+    resp = client.get("/v2/orgs")
+    assert resp.status_code == 502
+
+
+def test_create_org_none_result_returns_502():
+    repo = MagicMock()
+    repo.create_organization.return_value = None
+    client = make_client(repo=repo)
+    resp = client.post("/v2/orgs", json={"name": "Acme QA"})
+    assert resp.status_code == 502
+
+
+def test_join_org_none_result_returns_502():
+    repo = MagicMock()
+    repo.join_organization.return_value = None
+    client = make_client(repo=repo)
+    resp = client.post("/v2/orgs/join", json={"join_code": "ABC123"})
+    assert resp.status_code == 502
+
+
+def test_root_health_includes_multi_tenant_flag():
+    import api
+    client = TestClient(api.app)  # no 'with' block -> startup event does NOT run
+    resp = client.get("/health")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "status" in body
+    assert "model" in body
+    assert "multi_tenant_enabled" in body
+    assert isinstance(body["multi_tenant_enabled"], bool)

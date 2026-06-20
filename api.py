@@ -11,7 +11,7 @@ from src.evaluator import RAGASEvaluator
 from src.history import HistoryManager
 from src.inspector import DatabaseInspector
 from src.api_v2 import router as v2_router
-from src.config import multi_tenant_enabled
+from src.config import MODEL_NAME, multi_tenant_enabled
 
 # Data Models
 class AnalysisRequest(BaseModel):
@@ -128,7 +128,7 @@ async def run_evaluation():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "active", "model": "DeepSeek-R1", "multi_tenant_enabled": multi_tenant_enabled()}
+    return {"status": "active", "model": MODEL_NAME, "multi_tenant_enabled": multi_tenant_enabled()}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

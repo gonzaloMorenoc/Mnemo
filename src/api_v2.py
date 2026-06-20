@@ -118,6 +118,8 @@ def create_org(
         org = repo.create_organization(user_id=user.user_id, name=req.name)
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail="Database error") from exc
+    if org is None:
+        raise HTTPException(status_code=502, detail="Organization could not be created")
     return _org_to_response(org)
 
 
@@ -133,6 +135,8 @@ def join_org(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail="Database error") from exc
+    if org is None:
+        raise HTTPException(status_code=502, detail="Joined organization could not be loaded")
     return _org_to_response(org)
 
 
