@@ -1,21 +1,70 @@
 import re
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Callable
 
 
-SENSITIVE_PATTERNS = [
-    (re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE), "[REDACTED_EMAIL]"),
-    (re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b"), "[REDACTED_IP]"),
-    (re.compile(r"\b(?:https?://|ssh://|git@)[^\s'\"<>]+", re.IGNORECASE), "[REDACTED_URL]"),
+# Defense-in-depth: cap the text length processed by regex patterns.
+# Realistic error messages are well under this limit; attacker-controlled
+# payloads beyond this limit cannot trigger catastrophic backtracking.
+_MAX_SANITIZE_LEN = 20_000
+
+# ---------------------------------------------------------------------------
+# Sensitive pattern definitions
+#
+# Each entry is: (compiled_regex, replacement, guard_fn | None)
+#
+# guard_fn(text) -> bool: called before the regex; if it returns False the
+# substitution is skipped entirely (O(1) short-circuit).  This prevents even
+# linear-time quadratic degradation on texts that obviously cannot match.
+#
+# Regex design rules (ReDoS prevention):
+#  - '.' MUST NOT appear inside a character class that is immediately followed
+#    by '\.', because the overlap creates catastrophic backtracking.
+#  - Use dot-as-separator form: [chars]+ instead of [chars.]+
+#    e.g. label\.label  not  [chars.]+\.label
+# ---------------------------------------------------------------------------
+
+# Email local-part: [A-Z0-9_%+-]+(?:\.[A-Z0-9_%+-]+)*
+#   '.' only allowed as a separator between chunks (not inside the class)
+# Email domain: [A-Z0-9-]+(?:\.[A-Z0-9-]+)+
+#   same dot-separator pattern; no '.' inside the repeated class
+_EMAIL_RE = re.compile(
+    r"\b[A-Z0-9_%+-]+(?:\.[A-Z0-9_%+-]+)*@[A-Z0-9-]+(?:\.[A-Z0-9-]+)+\b",
+    re.IGNORECASE,
+)
+
+# Hostname *.internal: [a-z0-9-]+(?:\.[a-z0-9-]+)*
+#   '.' only as a separator; class contains [a-z0-9-] with no '.'
+_INTERNAL_RE = re.compile(
+    r"\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.internal\b",
+    re.IGNORECASE,
+)
+
+SENSITIVE_PATTERNS: List[tuple] = [
+    (_EMAIL_RE, "[REDACTED_EMAIL]", lambda t: "@" in t),
+    (re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b"), "[REDACTED_IP]", None),
     (
-        re.compile(r"\b(?:api[_-]?key|token|secret|password|passwd|bearer)\s*[:=]\s*['\"]?[A-Za-z0-9_\-./+=]{8,}['\"]?", re.IGNORECASE),
+        re.compile(r"\b(?:https?://|ssh://|git@)[^\s'\"<>]+", re.IGNORECASE),
+        "[REDACTED_URL]",
+        lambda t: "://" in t or "git@" in t,
+    ),
+    (
+        re.compile(
+            r"\b(?:api[_-]?key|token|secret|password|passwd|bearer)\s*[:=]\s*['\"]?[A-Za-z0-9_\-./+=]{8,}['\"]?",
+            re.IGNORECASE,
+        ),
         "[REDACTED_SECRET]",
+        None,
     ),
-    (re.compile(r"\b(?:[A-Za-z]:\\|/)[^\s'\"<>]{3,}"), "[REDACTED_PATH]"),
+    (re.compile(r"\b(?:[A-Za-z]:\\|/)[^\s'\"<>]{3,}"), "[REDACTED_PATH]", None),
     (
-        re.compile(r"\b(?:user(?:name)?|account|login)\s*[:=]\s*['\"]?[A-Za-z0-9_.@-]{2,}['\"]?", re.IGNORECASE),
+        re.compile(
+            r"\b(?:user(?:name)?|account|login)\s*[:=]\s*['\"]?[A-Za-z0-9_.@-]{2,}['\"]?",
+            re.IGNORECASE,
+        ),
         "[REDACTED_USER]",
+        None,
     ),
-    (re.compile(r"\b[a-z0-9.-]+\.internal\b", re.IGNORECASE), "[REDACTED_HOSTNAME]"),
+    (_INTERNAL_RE, "[REDACTED_HOSTNAME]", lambda t: "internal" in t.lower()),
 ]
 
 
@@ -43,10 +92,23 @@ ERROR_TYPE_RULES = [
 
 
 def sanitize_text(text: str) -> str:
-    sanitized = text
-    for pattern, replacement in SENSITIVE_PATTERNS:
+    # Cap the portion that goes through the regex loop.  Text beyond the cap
+    # cannot contain sensitive data that wasn't already present in the head,
+    # and skipping the tail avoids any O(n²) degradation on large inputs.
+    if len(text) > _MAX_SANITIZE_LEN:
+        head = text[:_MAX_SANITIZE_LEN]
+        tail = text[_MAX_SANITIZE_LEN:]
+    else:
+        head = text
+        tail = ""
+
+    sanitized = head
+    for pattern, replacement, guard in SENSITIVE_PATTERNS:
+        if guard is not None and not guard(sanitized):
+            continue
         sanitized = pattern.sub(replacement, sanitized)
-    return sanitized
+
+    return sanitized + tail
 
 
 def extract_tech_tags(text: str) -> List[str]:
