@@ -297,7 +297,7 @@ class AssuranceRepository:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    select f.id, f.title, f.status, f.occurrence_count
+                    select f.id, f.title, f.status, f.occurrence_count, f.root_cause
                     from public.defect_families f
                     where f.id = %s
                       and (
@@ -343,6 +343,7 @@ class AssuranceRepository:
                     "title": fam["title"],
                     "status": fam["status"],
                     "occurrence_count": fam["occurrence_count"],
+                    "root_cause": fam["root_cause"],
                 },
                 "failures": failures,
             }

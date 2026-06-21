@@ -29,6 +29,7 @@ from src.multitenant_models import (
     JiraPullRequest,
     JoinOrgRequest,
     OrganizationResponse,
+    RootCauseResponse,
     ScopeSource,
     StructuredAnalysisPayload,
     UploadResponse,
@@ -45,6 +46,7 @@ _analyzer = None
 _assurance_repo = None
 _ingestion_service = None
 _narrator = None
+_root_cause_analyzer = None
 _integrations_repo = None
 _jira_service = None
 
@@ -90,6 +92,15 @@ def get_narrator() -> Narrator:
         from src.llm.factory import get_llm_provider
         _narrator = LLMNarrator(get_llm_provider())
     return _narrator
+
+
+def get_root_cause_analyzer():
+    global _root_cause_analyzer
+    if _root_cause_analyzer is None:
+        from src.assurance.root_cause import RootCauseAnalyzer
+        from src.llm.factory import get_llm_provider
+        _root_cause_analyzer = RootCauseAnalyzer(get_llm_provider())
+    return _root_cause_analyzer
 
 
 def get_integrations_repo() -> IntegrationsRepository:
@@ -374,6 +385,34 @@ def defect_lineage_v2(
         raise HTTPException(status_code=502, detail="Database error") from exc
     family = DefectFamilySummary(**data["family"]) if data["family"] else None
     return DefectLineageResponse(family=family, failures=[FailureRef(**f) for f in data["failures"]])
+
+
+@router.post("/defects/{defect_id}/root-cause", response_model=RootCauseResponse)
+def root_cause_v2(
+    defect_id: str,
+    regenerate: bool = False,
+    user: AuthenticatedUser = Depends(get_current_user),
+    repo: AssuranceRepository = Depends(get_assurance_repo),
+    analyzer=Depends(get_root_cause_analyzer),
+) -> RootCauseResponse:
+    try:
+        data = repo.get_family_with_failures(user_id=user.user_id, defect_id=defect_id)
+        if data is None:
+            raise HTTPException(status_code=404, detail="defecto no encontrado")
+        cached = data["family"].get("root_cause")
+        if cached and not regenerate:
+            return RootCauseResponse(defect_id=defect_id, root_cause=cached, cached=True)
+        text = analyzer.analyze(data["family"], data["failures"])
+        repo.save_root_cause(user_id=user.user_id, defect_id=defect_id, text=text)
+        return RootCauseResponse(defect_id=defect_id, root_cause=text, cached=False)
+    except HTTPException:
+        raise
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    except Exception as exc:  # noqa: BLE001 — fallo del LLM/proveedor
+        raise HTTPException(status_code=503, detail="el análisis IA no está disponible") from exc
 
 
 @router.get("/assurance/run/{run_id}", response_model=AssuranceVerdictResponse)
