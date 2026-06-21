@@ -1,5 +1,8 @@
 from typing import Any, Dict, List
 
+from src.llm.provider import LLMProvider
+from src.llm.reasoning import strip_reasoning
+
 _MAX_FAILURES = 6
 
 
@@ -31,3 +34,14 @@ def build_root_cause_prompt(family: Dict[str, Any], failures: List[Dict[str, Any
         "Responde en espanol, en markdown, con exactamente estas dos secciones:\n"
         "## Causa raíz\n(1-3 frases)\n## Pasos sugeridos\n(3-5 pasos numerados)"
     )
+
+
+class RootCauseAnalyzer:
+    """Genera causa raíz + pasos de fix para una familia, vía un LLMProvider."""
+
+    def __init__(self, provider: LLMProvider):
+        self._provider = provider
+
+    def analyze(self, family: Dict[str, Any], failures: List[Dict[str, Any]]) -> str:
+        prompt = build_root_cause_prompt(family, failures)
+        return strip_reasoning(self._provider.complete(prompt))
