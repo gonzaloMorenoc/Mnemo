@@ -89,6 +89,7 @@ class DefectFamilySummary(BaseModel):
     title: str
     status: str
     occurrence_count: int
+    root_cause: Optional[str] = None
 
 
 class DefectLineageResponse(BaseModel):
@@ -139,3 +140,9 @@ class JiraIngestResponse(BaseModel):
     known: int
     novel: int
     skipped: int
+
+
+class RootCauseResponse(BaseModel):
+    defect_id: str
+    root_cause: str
+    cached: bool
