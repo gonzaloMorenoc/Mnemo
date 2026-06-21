@@ -34,7 +34,15 @@ def _top_frame(trace: Optional[str]) -> str:
 
 
 def fingerprint(rec: FailureRecord) -> str:
-    """Firma sha1 determinista: tipo de error + mensaje normalizado + top frame."""
+    """Firma sha1 determinista: tipo de error + mensaje normalizado + top frame.
+
+    Para registros de fuente 'jira' se añade la clave del issue (test_name)
+    al basis sin normalizar, ya que la clave es el identificador único y no
+    debe colapsar issues distintos cuyo texto sea similar tras normalización.
+    """
     head = normalize(rec.message)[:200]
-    basis = "|".join([(rec.error_type or "").lower(), head, _top_frame(rec.trace)])
+    parts = [(rec.error_type or "").lower(), head, _top_frame(rec.trace)]
+    if getattr(rec, "source", "") == "jira":
+        parts.append(rec.test_name or "")   # issue key, unique, not normalized
+    basis = "|".join(parts)
     return hashlib.sha1(basis.encode("utf-8")).hexdigest()

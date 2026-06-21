@@ -39,7 +39,8 @@ class JiraApiClient:
                     if len(bugs) >= max_issues:
                         break
                 start += len(issues)
-                if start >= (result.get("total") or 0):
+                total = result.get("total")
+                if total is not None and start >= total:
                     break
         except Exception as exc:  # noqa: BLE001 — envolvemos cualquier fallo de la librería
             raise JiraApiError(str(exc)) from exc

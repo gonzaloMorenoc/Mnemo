@@ -42,7 +42,7 @@ def _from_csv(text: str) -> List[JiraBug]:
 def parse_jira_export(data: bytes) -> List[JiraBug]:
     """Parsea un export de Jira: JSON de /rest/api/3/search o CSV estándar. Solo Bugs."""
     try:
-        text = data.decode("utf-8")
+        text = data.decode("utf-8-sig")  # utf-8-sig strips the UTF-8 BOM (EF BB BF) if present
     except UnicodeDecodeError as exc:
         raise ValueError(f"Invalid Jira export encoding: {exc}") from exc
     stripped = text.lstrip()

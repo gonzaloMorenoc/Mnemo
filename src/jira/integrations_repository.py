@@ -2,6 +2,7 @@ from typing import Any, Dict, Optional
 
 import psycopg
 from psycopg.rows import dict_row
+from cryptography.fernet import InvalidToken
 
 from src.config import DATABASE_URL
 from src.jira.crypto import decrypt_token, encrypt_token
@@ -18,6 +19,20 @@ class IntegrationsRepository:
 
     def _connect(self) -> psycopg.Connection:
         return psycopg.connect(self.db_url, row_factory=dict_row)
+
+    def _decrypt(self, enc: str) -> str:
+        """Descifra un token cifrado con Fernet.
+
+        Convierte InvalidToken (clave rotada / cifrado corrupto) y RuntimeError
+        (clave ausente) en ValueError para que el endpoint pueda responder 400
+        en lugar de propagar un 500 con stacktrace.
+        """
+        try:
+            return decrypt_token(enc)
+        except (InvalidToken, RuntimeError) as exc:
+            raise ValueError(
+                "credenciales de Jira inválidas; reconfigura la integración"
+            ) from exc
 
     def _require_member(self, cur: psycopg.Cursor, org_id: str, user_id: str) -> None:
         cur.execute(
@@ -78,4 +93,4 @@ class IntegrationsRepository:
         if row is None:
             return None
         return {"base_url": row["base_url"], "email": row["email"],
-                "token": decrypt_token(row["api_token_enc"]), "jql": row["jql"]}
+                "token": self._decrypt(row["api_token_enc"]), "jql": row["jql"]}
