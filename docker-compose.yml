@@ -1,45 +1,119 @@
+name: mnemo
+
 services:
-  chroma:
-    image: chromadb/chroma:latest
+  db:
+    image: supabase/postgres:15.8.1.060
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    ports:
+      - "5432:5432"
+
+  auth:
+    image: supabase/gotrue:v2.151.0
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: http://localhost:8000
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgresql://supabase_auth_admin:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      GOTRUE_SITE_URL: http://localhost:3000
+      GOTRUE_URI_ALLOW_LIST: "*"
+      GOTRUE_DISABLE_SIGNUP: "false"
+      GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+
+  kong:
+    image: kong:2.8.1
+    restart: unless-stopped
+    depends_on:
+      - auth
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /home/kong/kong.yml
+      KONG_PLUGINS: request-transformer,cors
+    volumes:
+      - ./docker/kong.yml:/home/kong/kong.yml:ro
     ports:
       - "8000:8000"
-    volumes:
-      - chroma_data:/chroma/chroma
-    environment:
-      - ALLOW_RESET=TRUE
-      - PERSIST_DIRECTORY=/chroma/chroma
-    restart: always
 
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.5.7
+    restart: unless-stopped
+    volumes:
+      - ollama-models:/root/.ollama
     ports:
       - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    restart: always
 
-  # Helper service to ensure the model is pulled
-  ollama-pull:
-    image: curlimages/curl:latest
-    depends_on:
-      - ollama
-    entrypoint: [ "sh", "-c", "until curl -s http://ollama:11434/api/tags | grep -q 'deepseek-r1:8b'; do curl -X POST http://ollama:11434/api/pull -d '{\"name\": \"deepseek-r1:8b\"}'; sleep 10; done" ]
-
-  streamlit-app:
+  backend:
     build: .
-    ports:
-      - "8501:8501"
-    environment:
-      - CHROMA_HOST=chroma
-      - CHROMA_PORT=8000
-      - OLLAMA_BASE_URL=http://ollama:11434
+    restart: unless-stopped
     depends_on:
-      - chroma
-      - ollama
-    volumes:
-      - .:/app
-    restart: on-failure
+      db:
+        condition: service_healthy
+      kong:
+        condition: service_started
+      ollama:
+        condition: service_started
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_JWKS_URL: ${SUPABASE_JWKS_URL}
+      SUPABASE_JWT_SECRET: ${JWT_SECRET}
+      SUPABASE_JWT_AUDIENCE: authenticated
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
+      LLM_PROVIDER: ${LLM_PROVIDER}
+      LLM_MODEL: ${LLM_MODEL}
+      MNEMO_SECRET_KEY: ${MNEMO_SECRET_KEY}
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+
+  init:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+      auth:
+        condition: service_started
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      SUPABASE_URL: ${SUPABASE_URL}
+      SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+      DEMO_EMAIL: ${DEMO_EMAIL}
+      DEMO_PASSWORD: ${DEMO_PASSWORD}
+    command: ["python", "scripts/docker_init.py"]
+    restart: "no"
 
 volumes:
-  chroma_data:
-  ollama_data:
+  db-data:
+  ollama-models:
