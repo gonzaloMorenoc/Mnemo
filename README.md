@@ -9,7 +9,7 @@
 - **Ingesta** de reportes **Allure** (JSON) / **JUnit** (XML) → extrae fallos, los **sanitiza** y les calcula una huella (**fingerprint**).
 - **Defect DNA**: agrupa los fallos en **familias de defecto** y reconoce el mismo defecto **entre proyectos y en el tiempo** (linaje), aunque cambien líneas/UUIDs/timestamps.
 - **Assurance Autopilot**: por cada run, un **veredicto** — conocidos vs nuevos, señal de riesgo, familias recurrentes y narrativa LLM (que degrada con elegancia si el LLM no está).
-- **Privado por diseño**: LLM y embeddings **locales** (Ollama + HuggingFace). El dato del cliente **nunca sale**. Coste de API = 0 €.
+- **Privado por diseño**: LLM y embeddings **locales** (Ollama + HuggingFace). El dato del cliente **nunca sale** (con el proveedor LLM por defecto `ollama`; usar un proveedor comercial requiere `ALLOW_EXTERNAL_LLM=true` y envía datos a un tercero). Coste de API = 0 €.
 
 ## Stack
 

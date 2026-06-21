@@ -403,6 +403,7 @@ def root_cause_v2(
         if cached and not regenerate:
             return RootCauseResponse(defect_id=defect_id, root_cause=cached, cached=True)
         text = analyzer.analyze(data["family"], data["failures"])
+        text = (text or "")[:8000]
         repo.save_root_cause(user_id=user.user_id, defect_id=defect_id, text=text)
         return RootCauseResponse(defect_id=defect_id, root_cause=text, cached=False)
     except HTTPException:

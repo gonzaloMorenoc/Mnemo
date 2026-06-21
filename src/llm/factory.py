@@ -17,6 +17,11 @@ def get_llm_provider() -> LLMProvider:
     model = config.LLM_MODEL or _DEFAULT_MODELS.get(provider, "")
     if provider == "ollama":
         return OllamaProvider(model=model, base_url=config.OLLAMA_BASE_URL)
+    if provider in ("openai", "anthropic") and not config.ALLOW_EXTERNAL_LLM:
+        raise RuntimeError(
+            f"LLM_PROVIDER={provider} envía datos del cliente a un tercero. "
+            "Define ALLOW_EXTERNAL_LLM=true para confirmar el envío externo."
+        )
     if provider == "openai":
         if not config.OPENAI_API_KEY:
             raise RuntimeError("OPENAI_API_KEY requerida para LLM_PROVIDER=openai")

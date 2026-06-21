@@ -20,3 +20,11 @@ def test_prompt_truncates_to_six_failures():
     fam = {"title": "X", "occurrence_count": 99}
     prompt = build_root_cause_prompt(fam, _failures(20))
     assert prompt.count("- test=") == 6
+
+
+def test_prompt_marks_user_data_untrusted():
+    fam = {"title": "X", "occurrence_count": 1}
+    prompt = build_root_cause_prompt(fam, [{"test_name": "t", "error_type": "E",
+        "message": "boom", "trace": "at A.java:1", "project": "p"}])
+    assert "<<<DATA>>>" in prompt and "<<<END_DATA>>>" in prompt
+    assert "no confiables" in prompt.lower() or "no confiable" in prompt.lower()
