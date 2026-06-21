@@ -1,7 +1,10 @@
+import logging
 from typing import Any, Dict, List, Optional
 
 import psycopg
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+
+logger = logging.getLogger(__name__)
 
 from src.config import multi_tenant_enabled
 from src.defects.ingestion_service import IngestionService
@@ -402,8 +405,9 @@ def root_cause_v2(
         cached = data["family"].get("root_cause")
         if cached and not regenerate:
             return RootCauseResponse(defect_id=defect_id, root_cause=cached, cached=True)
-        text = analyzer.analyze(data["family"], data["failures"])
-        text = (text or "")[:8000]
+        text = (analyzer.analyze(data["family"], data["failures"]) or "")[:8000]
+        if not text.strip():
+            raise HTTPException(status_code=503, detail="el análisis IA no produjo resultado")
         repo.save_root_cause(user_id=user.user_id, defect_id=defect_id, text=text)
         return RootCauseResponse(defect_id=defect_id, root_cause=text, cached=False)
     except HTTPException:
@@ -413,6 +417,7 @@ def root_cause_v2(
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail="Database error") from exc
     except Exception as exc:  # noqa: BLE001 — fallo del LLM/proveedor
+        logger.exception("root-cause analysis failed for defect %s", defect_id)
         raise HTTPException(status_code=503, detail="el análisis IA no está disponible") from exc
 
 

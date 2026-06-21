@@ -5,20 +5,39 @@ from src.llm.reasoning import strip_reasoning
 
 _MAX_FAILURES = 6
 
+_INTERNAL_FRAME_HINTS = (
+    "org.testng", "org.junit", "junit.", "org.openqa.selenium", "org.hamcrest",
+    "sun.", "com.sun.", "java.", "jdk.", "org.gradle", "org.apache.maven",
+    "node:internal", "node_modules", "site-packages", "pytest", "_pytest", "unittest",
+)
+
 
 def _top_frame(trace: str) -> str:
+    candidates = []
     for line in (trace or "").splitlines():
         s = line.strip()
         if s.startswith("at ") or " line " in s or 'File "' in s:
+            candidates.append(s)
+    if not candidates:
+        return ""
+    for s in candidates:
+        if not any(h in s for h in _INTERNAL_FRAME_HINTS):
             return s
-    return ""
+    return candidates[0]
+
+
+def _sample(failures: List[Dict[str, Any]], n: int) -> List[Dict[str, Any]]:
+    if len(failures) <= n:
+        return failures
+    step = len(failures) / n
+    return [failures[int(i * step)] for i in range(n)]
 
 
 def build_root_cause_prompt(family: Dict[str, Any], failures: List[Dict[str, Any]]) -> str:
     """Construye el prompt de causa raíz (puro, sin LLM)."""
     projects = sorted({f.get("project") for f in failures if f.get("project")})
     lines = []
-    for f in failures[:_MAX_FAILURES]:
+    for f in _sample(failures, _MAX_FAILURES):
         lines.append(
             f"- test={f.get('test_name')} tipo={f.get('error_type')} "
             f"msg={(f.get('message') or '')[:300]} frame={_top_frame(f.get('trace'))}"

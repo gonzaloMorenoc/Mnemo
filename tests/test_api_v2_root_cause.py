@@ -75,3 +75,10 @@ def test_unknown_defect_404():
 def test_llm_down_503():
     r = _client(_Repo(cached=None), _Analyzer(out=None)).post("/v2/defects/d1/root-cause")
     assert r.status_code == 503
+
+
+def test_empty_analysis_returns_503_and_does_not_cache():
+    repo, analyzer = _Repo(cached=None), _Analyzer(out="   ")
+    r = _client(repo, analyzer).post("/v2/defects/d1/root-cause")
+    assert r.status_code == 503
+    assert repo.saved is None
