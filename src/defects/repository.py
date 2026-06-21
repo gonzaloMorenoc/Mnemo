@@ -347,6 +347,72 @@ class AssuranceRepository:
                 "failures": failures,
             }
 
+    def get_family_with_failures(self, *, user_id: str, defect_id: str):
+        """Familia (con root_cause) + sus fallos recientes (con message/trace) para análisis.
+
+        Devuelve None si la familia no existe o el usuario no es miembro del org.
+        """
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    select f.id, f.title, f.status, f.occurrence_count, f.root_cause
+                    from public.defect_families f
+                    where f.id = %s
+                      and (f.scope = 'global' or exists (
+                          select 1 from public.memberships m
+                          where m.org_id = f.org_id and m.user_id = %s))
+                    """,
+                    (defect_id, user_id),
+                )
+                fam = cur.fetchone()
+                if fam is None:
+                    return None
+                cur.execute(
+                    """
+                    select fl.test_name, fl.error_type, fl.message, fl.trace, r.project
+                    from public.failures fl
+                    join public.test_runs r on r.id = fl.run_id
+                    where fl.defect_family_id = %s
+                    order by fl.created_at desc
+                    limit 20
+                    """,
+                    (defect_id,),
+                )
+                failures = [
+                    {"test_name": r["test_name"], "error_type": r["error_type"],
+                     "message": r["message"], "trace": r["trace"], "project": r["project"]}
+                    for r in cur.fetchall()
+                ]
+            return {
+                "family": {
+                    "id": str(fam["id"]), "title": fam["title"], "status": fam["status"],
+                    "occurrence_count": fam["occurrence_count"], "root_cause": fam["root_cause"],
+                },
+                "failures": failures,
+            }
+
+    def save_root_cause(self, *, user_id: str, defect_id: str, text: str) -> bool:
+        """Persiste el análisis de causa raíz. Devuelve False si no es miembro / no existe."""
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    update public.defect_families
+                    set root_cause = %s
+                    where id = %s
+                      and (scope = 'global' or exists (
+                          select 1 from public.memberships m
+                          where m.org_id = public.defect_families.org_id and m.user_id = %s))
+                    """,
+                    (text, defect_id, user_id),
+                )
+                updated = cur.rowcount > 0
+            conn.commit()
+        return updated
+
     def get_run_assurance_data(self, *, user_id: str, run_id: str) -> Dict[str, Any]:
         """Return a test run's assurance data including its defect families.
 
