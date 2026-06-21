@@ -15,6 +15,8 @@ def parse_testng(data: bytes, *, project: str) -> List[FailureRecord]:
     for cls in root.iter("class"):
         classname = cls.get("name") or ""
         for tm in cls.findall("test-method"):
+            if (tm.get("is-config") or "").lower() == "true":
+                continue
             if (tm.get("status") or "").upper() != "FAIL":
                 continue
             name = tm.get("name") or "unknown"

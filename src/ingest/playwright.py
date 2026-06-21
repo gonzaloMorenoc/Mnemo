@@ -13,22 +13,25 @@ def _walk(suites, project, records: List[FailureRecord]) -> None:
             for test in spec.get("tests") or []:
                 pname = test.get("projectName")
                 name = f"{title} ({pname})" if pname else title
-                for result in test.get("results") or []:
-                    if (result.get("status") or "").lower() not in _FAILED:
-                        continue
-                    err = result.get("error") or {}
-                    message = strip_ansi((err.get("message") or "").strip())
-                    trace = strip_ansi((err.get("stack") or "").strip()) or None
-                    records.append(
-                        FailureRecord(
-                            test_name=name,
-                            error_type=parse_error_type(message),
-                            message=message,
-                            trace=trace,
-                            project=project,
-                            source="playwright",
-                        )
+                results = test.get("results") or []
+                if not results:
+                    continue
+                result = results[-1]
+                if (result.get("status") or "").lower() not in _FAILED:
+                    continue
+                err = result.get("error") or {}
+                message = strip_ansi((err.get("message") or "").strip())
+                trace = strip_ansi((err.get("stack") or "").strip()) or None
+                records.append(
+                    FailureRecord(
+                        test_name=name,
+                        error_type=parse_error_type(message),
+                        message=message,
+                        trace=trace,
+                        project=project,
+                        source="playwright",
                     )
+                )
         _walk(suite.get("suites"), project, records)
 
 

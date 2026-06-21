@@ -24,7 +24,7 @@ def parse_cypress(data: bytes, *, project: str) -> List[FailureRecord]:
     for test in tests:
         state = (test.get("state") or "").lower()
         err = test.get("err") or {}
-        if state != "failed" and not err:
+        if state != "failed":
             continue
         message = strip_ansi((err.get("message") or "").strip())
         trace = strip_ansi((err.get("estack") or "").strip()) or None
