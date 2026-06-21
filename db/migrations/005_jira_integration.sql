@@ -1,7 +1,7 @@
 -- db/migrations/005_jira_integration.sql
 -- Integra bugs de Jira en el Defect DNA: amplía source, añade trazabilidad y
 -- guarda las credenciales por org (token cifrado en capa de app).
-alter table public.test_runs drop constraint test_runs_source_check;
+alter table public.test_runs drop constraint if exists test_runs_source_check;
 alter table public.test_runs add constraint test_runs_source_check
     check (source in ('allure', 'junit', 'testng', 'cucumber', 'playwright', 'cypress', 'robot', 'jira'));
 
