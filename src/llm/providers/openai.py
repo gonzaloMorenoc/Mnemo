@@ -18,4 +18,6 @@ class OpenAIProvider:
             model=self._model,
             messages=[{"role": "user", "content": prompt}],
         )
+        if not resp.choices:
+            return ""
         return resp.choices[0].message.content or ""

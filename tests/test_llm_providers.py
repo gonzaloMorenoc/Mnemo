@@ -28,3 +28,27 @@ def test_anthropic_complete_joins_text_blocks():
     p._client = type("Cli", (), {"messages": type("M", (), {
         "create": staticmethod(lambda **kw: _Resp())})()})()
     assert p.complete("hola") == "respuesta anthropic"
+
+
+def test_openai_complete_empty_choices_returns_empty():
+    p = OpenAIProvider(model="gpt", api_key="k")
+    class _Resp:
+        choices = []
+    p._client = type("Cli", (), {"chat": type("Ch", (), {"completions": type("Co", (), {
+        "create": staticmethod(lambda **kw: _Resp())})()})()})()
+    assert p.complete("hola") == ""
+
+
+def test_anthropic_max_tokens_configurable():
+    p = AnthropicProvider(model="claude", api_key="k", max_tokens=2048)
+    captured = {}
+    class _Block:
+        type = "text"; text = "x"
+    class _Resp:
+        content = [_Block()]
+    def _create(**kw):
+        captured.update(kw)
+        return _Resp()
+    p._client = type("Cli", (), {"messages": type("M", (), {"create": staticmethod(_create)})()})()
+    p.complete("hola")
+    assert captured["max_tokens"] == 2048

@@ -15,3 +15,15 @@ def test_noop_without_think():
 
 def test_empty():
     assert strip_reasoning("") == ""
+
+
+def test_strips_unclosed_think():
+    assert strip_reasoning("<think>truncado a mitad sin cierre") == ""
+
+
+def test_strips_unclosed_think_keeps_prefix():
+    assert strip_reasoning("respuesta\n<think>colita sin cerrar") == "respuesta"
+
+
+def test_strips_nested_then_open():
+    assert strip_reasoning("<think>a<think>b</think>c answer") == ""
