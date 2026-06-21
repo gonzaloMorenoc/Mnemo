@@ -1,11 +1,12 @@
 import xml.etree.ElementTree as ET
 from typing import List
 
-from src.ingest.models import FailureRecord, parse_error_type
+from src.ingest.models import FailureRecord, parse_error_type, strip_ansi, strip_ansi_bytes
 
 
 def parse_testng(data: bytes, *, project: str) -> List[FailureRecord]:
     """Parsea un testng-results.xml; devuelve los test-method con status FAIL."""
+    data = strip_ansi_bytes(data)
     try:
         root = ET.fromstring(data)
     except ET.ParseError as exc:
@@ -25,10 +26,10 @@ def parse_testng(data: bytes, *, project: str) -> List[FailureRecord]:
             if exc_node is not None:
                 msg_node = exc_node.find("message")
                 if msg_node is not None and msg_node.text:
-                    message = msg_node.text.strip()
+                    message = strip_ansi(msg_node.text.strip())
                 st_node = exc_node.find("full-stacktrace")
                 if st_node is not None and st_node.text:
-                    trace = st_node.text.strip() or None
+                    trace = strip_ansi(st_node.text.strip()) or None
             if not error_type:
                 error_type = parse_error_type(message)
             records.append(

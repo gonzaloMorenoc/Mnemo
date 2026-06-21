@@ -1,11 +1,12 @@
 import xml.etree.ElementTree as ET
 from typing import List
 
-from src.ingest.models import FailureRecord, parse_error_type
+from src.ingest.models import FailureRecord, parse_error_type, strip_ansi, strip_ansi_bytes
 
 
 def parse_robot(data: bytes, *, project: str) -> List[FailureRecord]:
     """Parsea un output.xml de Robot Framework; devuelve los tests con status FAIL."""
+    data = strip_ansi_bytes(data)
     try:
         root = ET.fromstring(data)
     except ET.ParseError as exc:
@@ -15,9 +16,9 @@ def parse_robot(data: bytes, *, project: str) -> List[FailureRecord]:
         status = test.find("status")
         if status is None or (status.get("status") or "").upper() != "FAIL":
             continue
-        message = (status.text or "").strip()
+        message = strip_ansi((status.text or "").strip())
         fail_msgs = [
-            m.text.strip()
+            strip_ansi(m.text.strip())
             for m in test.iter("msg")
             if (m.get("level") or "").upper() == "FAIL" and m.text
         ]
