@@ -10,6 +10,7 @@ import type {
   JiraConfigResponse,
   JiraIngestResponse,
   OrganizationResponse,
+  RootCauseResponse,
   UploadResponse,
 } from "@/lib/api/types";
 
@@ -86,4 +87,16 @@ export function pullJiraBugs(token: string, body: Record<string, unknown>) {
 
 export function ingestJiraFile(token: string, form: FormData) {
   return apiRequest<JiraIngestResponse>("/api/v2/ingest/jira/file", "POST", { token, body: form });
+}
+
+export function analyzeRootCause(
+  token: string,
+  defectId: string,
+  regenerate = false,
+): Promise<RootCauseResponse> {
+  return apiRequest<RootCauseResponse>(
+    `/api/v2/defects/${encodeURIComponent(defectId)}/root-cause?regenerate=${regenerate}`,
+    "POST",
+    { token },
+  );
 }

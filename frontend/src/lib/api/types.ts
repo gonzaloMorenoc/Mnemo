@@ -111,3 +111,9 @@ export interface JiraIngestResponse {
   novel: number;
   skipped: number;
 }
+
+export interface RootCauseResponse {
+  defect_id: string;
+  root_cause: string;
+  cached: boolean;
+}

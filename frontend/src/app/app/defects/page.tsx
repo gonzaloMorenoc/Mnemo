@@ -4,10 +4,46 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { useAuth } from "@/components/providers/auth-provider";
-import { getDefects, getDefectLineage, getOrganizations } from "@/lib/api/endpoints";
+import { getDefects, getDefectLineage, getOrganizations, analyzeRootCause } from "@/lib/api/endpoints";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+
+function RootCausePanel({ token, defectId }: { token: string; defectId: string }) {
+  const [text, setText] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function run(regenerate = false) {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await analyzeRootCause(token, defectId, regenerate);
+      setText(r.root_cause);
+    } catch {
+      setError("No se pudo generar el análisis (¿LLM disponible?).");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-3 space-y-2 border-t border-zinc-100 pt-3">
+      <Button onClick={() => run(false)} disabled={busy} className="text-xs">
+        {busy ? "Analizando…" : "Analizar causa raíz"}
+      </Button>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      {text && (
+        <div className="space-y-2">
+          <p className="text-xs text-zinc-400">Sugerencia generada por IA — revísala.</p>
+          <pre className="whitespace-pre-wrap rounded-lg bg-zinc-50 p-3 text-sm text-zinc-700">{text}</pre>
+          <Button onClick={() => run(true)} disabled={busy} className="text-xs">Regenerar</Button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function DefectsPage() {
   const { accessToken } = useAuth();
@@ -99,6 +135,13 @@ export default function DefectsPage() {
                   </li>
                 ))}
               </ul>
+              {lineageQuery.data?.family && (
+                <RootCausePanel
+                  key={lineageQuery.data.family.id}
+                  token={accessToken!}
+                  defectId={lineageQuery.data.family.id}
+                />
+              )}
             </div>
           )}
         </Card>
