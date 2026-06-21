@@ -8,6 +8,10 @@ from src.defects.ingestion_service import IngestionService
 from src.defects.repository import AssuranceRepository
 from src.assurance.narrator import LocalNarrator, Narrator
 from src.assurance.verdict import build_verdict
+from src.jira.client import JiraApiError
+from src.jira.integrations_repository import IntegrationsRepository
+from src.jira.ingestion_service import JiraIngestionService
+from src.jira.safe_url import validate_base_url
 from src.multitenant_models import (
     AnalyzeV2Request,
     AnalyzeV2Response,
@@ -19,6 +23,10 @@ from src.multitenant_models import (
     FailureRef,
     FamilyVerdict,
     IngestReportResponse,
+    JiraConfigRequest,
+    JiraConfigResponse,
+    JiraIngestResponse,
+    JiraPullRequest,
     JoinOrgRequest,
     OrganizationResponse,
     ScopeSource,
@@ -37,6 +45,8 @@ _analyzer = None
 _assurance_repo = None
 _ingestion_service = None
 _narrator = None
+_integrations_repo = None
+_jira_service = None
 
 
 def get_repo() -> TenantKBRepository:
@@ -79,6 +89,24 @@ def get_narrator() -> Narrator:
     if _narrator is None:
         _narrator = LocalNarrator()
     return _narrator
+
+
+def get_integrations_repo() -> IntegrationsRepository:
+    global _integrations_repo
+    if _integrations_repo is None:
+        _integrations_repo = IntegrationsRepository()
+    return _integrations_repo
+
+
+def get_jira_ingestion_service() -> JiraIngestionService:
+    global _jira_service
+    if _jira_service is None:
+        from src.defects.embedder import LocalEmbedder
+        _jira_service = JiraIngestionService(
+            repo=get_assurance_repo(), embedder=LocalEmbedder(),
+            integrations=get_integrations_repo(),
+        )
+    return _jira_service
 
 
 def _unique_scopes(contexts: List[Dict[str, Any]]) -> List[str]:
@@ -224,7 +252,7 @@ def health_v2() -> Dict[str, Any]:
 def ingest_report_v2(
     file: UploadFile = File(...),
     project: str = Form(...),
-    source: str = Form(...),
+    source: str = Form("auto"),
     org_id: str = Form(...),
     user: AuthenticatedUser = Depends(get_current_user),
     service: IngestionService = Depends(get_ingestion_service),
@@ -241,6 +269,83 @@ def ingest_report_v2(
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail="Database error") from exc
     return IngestReportResponse(**result)
+
+
+@router.post("/integrations/jira", response_model=JiraConfigResponse)
+def set_jira_integration(
+    body: JiraConfigRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+    integrations: IntegrationsRepository = Depends(get_integrations_repo),
+) -> JiraConfigResponse:
+    try:
+        base = validate_base_url(body.base_url)
+        integrations.upsert_jira_config(
+            user_id=user.user_id, org_id=body.org_id, base_url=base,
+            email=body.email, token=body.token, jql=body.jql,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    return JiraConfigResponse(configured=True, base_url=base, email=body.email, jql=body.jql)
+
+
+@router.get("/integrations/jira", response_model=JiraConfigResponse)
+def get_jira_integration(
+    org_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+    integrations: IntegrationsRepository = Depends(get_integrations_repo),
+) -> JiraConfigResponse:
+    try:
+        cfg = integrations.get_jira_config(user_id=user.user_id, org_id=org_id)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    return JiraConfigResponse(**cfg)
+
+
+@router.post("/ingest/jira/file", response_model=JiraIngestResponse)
+def ingest_jira_file(
+    file: UploadFile = File(...),
+    project: str = Form(...),
+    org_id: str = Form(...),
+    user: AuthenticatedUser = Depends(get_current_user),
+    service: JiraIngestionService = Depends(get_jira_ingestion_service),
+) -> JiraIngestResponse:
+    try:
+        data = file.file.read()
+        result = service.ingest_from_export(
+            user_id=user.user_id, org_id=org_id, project=project, data=data)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except (ValueError, OSError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    return JiraIngestResponse(**result)
+
+
+@router.post("/ingest/jira/pull", response_model=JiraIngestResponse)
+def ingest_jira_pull(
+    body: JiraPullRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+    service: JiraIngestionService = Depends(get_jira_ingestion_service),
+) -> JiraIngestResponse:
+    try:
+        result = service.ingest_from_pull(
+            user_id=user.user_id, org_id=body.org_id, project=body.project)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except JiraApiError as exc:
+        raise HTTPException(status_code=502, detail=f"Jira API error: {exc}") from exc
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    return JiraIngestResponse(**result)
 
 
 @router.get("/defects", response_model=List[DefectFamilyResponse])

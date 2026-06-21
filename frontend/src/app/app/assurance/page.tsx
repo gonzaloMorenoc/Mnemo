@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 export default function AssurancePage() {
   const { accessToken } = useAuth();
   const [project, setProject] = useState("");
-  const [source, setSource] = useState("allure");
+  const [source, setSource] = useState("auto");
   const [file, setFile] = useState<File | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -80,8 +80,14 @@ export default function AssurancePage() {
               value={source}
               onChange={(e) => setSource(e.target.value)}
             >
+              <option value="auto">Auto-detectar</option>
               <option value="allure">Allure (JSON)</option>
               <option value="junit">JUnit (XML)</option>
+              <option value="testng">TestNG (XML)</option>
+              <option value="cucumber">Cucumber (JSON)</option>
+              <option value="playwright">Playwright (JSON)</option>
+              <option value="cypress">Cypress / Mochawesome (JSON)</option>
+              <option value="robot">Robot Framework (XML)</option>
             </select>
           </div>
           <div className="space-y-1">

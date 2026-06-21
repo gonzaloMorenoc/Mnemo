@@ -7,6 +7,8 @@ import type {
   DefectLineageResponse,
   HealthResponse,
   IngestReportResponse,
+  JiraConfigResponse,
+  JiraIngestResponse,
   OrganizationResponse,
   UploadResponse,
 } from "@/lib/api/types";
@@ -64,4 +66,24 @@ export function getAssuranceVerdict(token: string, runId: string) {
     "GET",
     { token },
   );
+}
+
+export function getJiraConfig(token: string, orgId: string) {
+  return apiRequest<JiraConfigResponse>(
+    `/api/v2/integrations/jira?org_id=${encodeURIComponent(orgId)}`,
+    "GET",
+    { token },
+  );
+}
+
+export function saveJiraConfig(token: string, body: Record<string, unknown>) {
+  return apiRequest<JiraConfigResponse>("/api/v2/integrations/jira", "POST", { token, body });
+}
+
+export function pullJiraBugs(token: string, body: Record<string, unknown>) {
+  return apiRequest<JiraIngestResponse>("/api/v2/ingest/jira/pull", "POST", { token, body });
+}
+
+export function ingestJiraFile(token: string, form: FormData) {
+  return apiRequest<JiraIngestResponse>("/api/v2/ingest/jira/file", "POST", { token, body: form });
 }

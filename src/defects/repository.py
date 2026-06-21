@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Dict, List, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 import psycopg
 from pgvector import Vector
@@ -18,6 +18,8 @@ class IngestItem:
     rec: FailureRecord
     fingerprint: str
     embedding: Sequence[float]
+    external_ref: Optional[str] = None
+    external_url: Optional[str] = None
 
 
 class AssuranceRepository:
@@ -190,8 +192,9 @@ class AssuranceRepository:
                         """
                         insert into public.failures
                             (run_id, org_id, test_name, error_type, message, trace,
-                             fingerprint, embedding, sanitized, defect_family_id)
-                        values (%s, %s, %s, %s, %s, %s, %s, %s, true, %s)
+                             fingerprint, embedding, sanitized, defect_family_id,
+                             external_ref, external_url)
+                        values (%s, %s, %s, %s, %s, %s, %s, %s, true, %s, %s, %s)
                         """,
                         (
                             run_id,
@@ -203,6 +206,8 @@ class AssuranceRepository:
                             item.fingerprint,
                             Vector(list(item.embedding)),
                             family_id,
+                            item.external_ref,
+                            item.external_url,
                         ),
                     )
 
@@ -220,6 +225,20 @@ class AssuranceRepository:
             "known": known,
             "novel": novel,
         }
+
+    def existing_external_refs(self, *, user_id: str, org_id: str) -> List[str]:
+        """Return the external_ref values already present for the org's failures."""
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "select distinct external_ref from public.failures"
+                    " where org_id = %s and external_ref is not null"
+                    " and exists (select 1 from public.memberships m"
+                    "             where m.org_id = %s and m.user_id = %s)",
+                    (org_id, org_id, user_id),
+                )
+                return [r["external_ref"] for r in cur.fetchall()]
 
     def list_defects(self, *, user_id: str, org_id: str) -> List[Dict[str, Any]]:
         """Return all defect families for the org, filtered to members only."""

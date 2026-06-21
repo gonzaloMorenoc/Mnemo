@@ -96,3 +96,18 @@ export interface AssuranceVerdictResponse {
   top_families: FamilyVerdict[];
   narrative: string | null;
 }
+
+export interface JiraConfigResponse {
+  configured: boolean;
+  base_url: string | null;
+  email: string | null;
+  jql: string | null;
+}
+
+export interface JiraIngestResponse {
+  run_id: string | null;
+  ingested: number;
+  known: number;
+  novel: number;
+  skipped: number;
+}
