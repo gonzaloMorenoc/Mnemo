@@ -58,3 +58,24 @@ def test_pull_returns_counts():
     r = client.post("/v2/ingest/jira/pull", json={"org_id": "o1", "project": "p"})
     assert r.status_code == 200
     assert r.json()["skipped"] == 1
+
+
+def test_ingest_file_returns_counts():
+    class _SvcFile:
+        def ingest_from_export(self, *, user_id, org_id, project, data):
+            assert b"Issue key" in data or b"issues" in data
+            return {"run_id": "r", "ingested": 1, "known": 0, "novel": 1, "skipped": 0}
+
+    app = FastAPI()
+    app.include_router(router)
+    app.dependency_overrides[get_current_user] = lambda: _User()
+    app.dependency_overrides[get_jira_ingestion_service] = lambda: _SvcFile()
+    client = TestClient(app)
+    csv = b"Issue key,Summary,Description,Issue Type,Status\r\nP-1,boom,d,Bug,Open\r\n"
+    r = client.post(
+        "/v2/ingest/jira/file",
+        files={"file": ("export.csv", csv, "text/csv")},
+        data={"project": "p", "org_id": "o1"},
+    )
+    assert r.status_code == 200
+    assert r.json()["ingested"] == 1

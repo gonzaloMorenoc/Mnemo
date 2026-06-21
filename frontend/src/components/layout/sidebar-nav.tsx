@@ -7,6 +7,7 @@ import {
   Dna,
   FileSearch,
   Home,
+  Plug,
   Settings,
   ShieldCheck,
   Upload,
@@ -21,6 +22,7 @@ const navItems = [
   { href: "/app/assurance", label: "Assurance", icon: ShieldCheck },
   { href: "/app/defects", label: "Defect DNA", icon: Dna },
   { href: "/app/knowledge", label: "Knowledge", icon: Upload },
+  { href: "/app/integrations", label: "Integrations", icon: Plug },
   { href: "/app/org", label: "Organization", icon: Building2 },
   { href: "/app/settings", label: "Settings", icon: Settings },
 ];
