@@ -1,0 +1,6 @@
+[
+  {"name": "test_pago", "status": "failed",
+   "statusDetails": {"message": "AssertionError: esperado 200 pero fue 500", "trace": "at Payment.java:21"}},
+  {"name": "test_busqueda", "status": "failed",
+   "statusDetails": {"message": "StaleElementReferenceException en SearchPage", "trace": "at Search.java:7"}}
+]

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="suite-demo" tests="2" failures="1" errors="0">
+    <testcase classname="com.demo.LoginTest" name="testTimeout">
+      <failure message="TimeoutException: waited 30000ms" type="org.openqa.selenium.TimeoutException">at com.demo.LoginTest.testTimeout(LoginTest.java:42)</failure>
+    </testcase>
+    <testcase classname="com.demo.LoginTest" name="testOk"/>
+  </testsuite>
+</testsuites>
