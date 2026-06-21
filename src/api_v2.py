@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from src.config import multi_tenant_enabled
 from src.defects.ingestion_service import IngestionService
 from src.defects.repository import AssuranceRepository
-from src.assurance.narrator import LocalNarrator, Narrator
+from src.assurance.narrator import LLMNarrator, Narrator
 from src.assurance.verdict import build_verdict
 from src.jira.client import JiraApiError
 from src.jira.integrations_repository import IntegrationsRepository
@@ -87,7 +87,8 @@ def get_ingestion_service() -> IngestionService:
 def get_narrator() -> Narrator:
     global _narrator
     if _narrator is None:
-        _narrator = LocalNarrator()
+        from src.llm.factory import get_llm_provider
+        _narrator = LLMNarrator(get_llm_provider())
     return _narrator
 
 

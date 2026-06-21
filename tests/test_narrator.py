@@ -1,18 +1,23 @@
-from src.assurance.narrator import Narrator, LocalNarrator
+from src.assurance.narrator import LLMNarrator, Narrator
 
 
-def test_local_narrator_lazy():
-    n = LocalNarrator()
-    assert hasattr(n, "summarize")
-    assert n._llm is None
+class _FakeProvider:
+    def __init__(self, out):
+        self.out = out
+        self.prompt = None
+
+    def complete(self, prompt: str) -> str:
+        self.prompt = prompt
+        return self.out
 
 
-def test_fake_narrator_satisfies_protocol():
-    class Fake:
-        def summarize(self, verdict: dict) -> str:
-            return "ok"
+def test_llmnarrator_is_narrator():
+    assert isinstance(LLMNarrator(_FakeProvider("x")), Narrator)
 
-    def use(n: Narrator) -> str:
-        return n.summarize({})
 
-    assert use(Fake()) == "ok"
+def test_summarize_uses_provider_and_strips_think():
+    p = _FakeProvider("<think>...</think>Run estable, 0 nuevos.")
+    n = LLMNarrator(p)
+    out = n.summarize({"known": 3, "novel": 0, "risk": "ok", "top_families": []})
+    assert out == "Run estable, 0 nuevos."
+    assert "3 fallos conocidos" in p.prompt and "0 nuevos" in p.prompt
