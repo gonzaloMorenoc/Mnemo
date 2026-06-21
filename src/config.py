@@ -9,6 +9,13 @@ MODEL_NAME = "deepseek-r1:8b"
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 
+# LLM provider intercambiable (ollama local | openai-compatible | anthropic)
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama")
+LLM_MODEL = os.getenv("LLM_MODEL", MODEL_NAME)
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+
 # Paths
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_PATH = os.path.join(BASE_DIR, "data", "logs")
