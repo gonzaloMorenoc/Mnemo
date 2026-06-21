@@ -111,3 +111,31 @@ class AssuranceVerdictResponse(BaseModel):
     risk: str
     top_families: List[FamilyVerdict] = Field(default_factory=list)
     narrative: Optional[str] = None
+
+
+class JiraConfigRequest(BaseModel):
+    org_id: str
+    base_url: str
+    email: str
+    token: str
+    jql: str = "issuetype = Bug"
+
+
+class JiraConfigResponse(BaseModel):
+    configured: bool
+    base_url: Optional[str] = None
+    email: Optional[str] = None
+    jql: Optional[str] = None
+
+
+class JiraPullRequest(BaseModel):
+    org_id: str
+    project: str
+
+
+class JiraIngestResponse(BaseModel):
+    run_id: Optional[str] = None
+    ingested: int
+    known: int
+    novel: int
+    skipped: int
