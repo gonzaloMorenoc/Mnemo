@@ -108,3 +108,16 @@ def test_webhook_service_account_unconfigured_is_503(monkeypatch):
     resp = client.post("/v2/ci/webhook", content=body,
                        headers={"X-Hub-Signature-256": _sign(body)})
     assert resp.status_code == 503
+
+
+def test_webhook_multitenant_unconfigured_is_503(monkeypatch):
+    monkeypatch.setattr(api_v2, "CI_WEBHOOK_SECRET", SECRET)
+    monkeypatch.setattr(api_v2, "CI_SERVICE_USER_ID", "svc-user")
+    monkeypatch.setattr(api_v2, "multi_tenant_enabled", lambda: False)
+    app = FastAPI()
+    app.include_router(api_v2.router)
+    client = TestClient(app)
+    body = _body()
+    resp = client.post("/v2/ci/webhook", content=body,
+                       headers={"X-Hub-Signature-256": _sign(body)})
+    assert resp.status_code == 503

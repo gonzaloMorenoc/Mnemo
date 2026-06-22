@@ -18,6 +18,14 @@ class CiIngestionService:
         self.embedder = embedder
 
     def ingest_artifact(self, *, user_id: str, artifact: CiRunArtifact) -> Dict[str, Any]:
+        """Ingiere un artefacto de CI: fallos→Defect DNA + resultados por test + snapshots DOM.
+
+        NO es atómico: ingest_run, record_test_results y save_dom_snapshots corren
+        en transacciones separadas. Un fallo parcial (p.ej. la BD cae tras crear el
+        run) deja el run sin todos sus test_results; el webhook es por tanto
+        "at-least-once" y un reintento del CI puede crear un run duplicado. La
+        ingesta atómica + clave de idempotencia por run quedan para F2.
+        """
         items = []
         for rec in to_failure_records(artifact):
             message = sanitize_text(rec.message)
@@ -37,13 +45,14 @@ class CiIngestionService:
             {"test_name": t.test_name, "status": t.status, "retried": t.retried}
             for t in artifact.tests
         ]
-        self.repo.record_test_results(
+        results_recorded = self.repo.record_test_results(
             user_id=user_id, org_id=artifact.org_id, run_id=run_id, results=results,
         )
 
         snapshots = [
             {
                 "test_name": t.test_name,
+                # pass → baseline "último verde"; cualquier otro estado con DOM → "failure"
                 "kind": "last_green" if t.status == "pass" else "failure",
                 "content": t.dom,
                 "commit_sha": artifact.commit_sha,
@@ -60,6 +69,6 @@ class CiIngestionService:
 
         return {
             **result,
-            "results_recorded": len(results),
+            "results_recorded": results_recorded,
             "snapshots_saved": snapshots_saved,
         }
