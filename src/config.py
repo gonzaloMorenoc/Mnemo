@@ -54,6 +54,12 @@ SUPABASE_JWT_AUDIENCE = os.getenv("SUPABASE_JWT_AUDIENCE", "")
 # HS256 shared secret for self-hosted GoTrue (docker demo). Empty = cloud RS256 path.
 SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
 
+# CI webhook (Mnemo Autopilot) — ingesta viva desde el CI del cliente.
+# Secreto compartido para verificar la firma HMAC-SHA256 del webhook.
+CI_WEBHOOK_SECRET = os.getenv("CI_WEBHOOK_SECRET", "")
+# Cuenta de servicio (miembro del org) a la que se atribuye la ingesta del CI.
+CI_SERVICE_USER_ID = os.getenv("CI_SERVICE_USER_ID", "")
+
 
 def multi_tenant_enabled() -> bool:
     """True solo si hay BD Postgres y Supabase configurados."""

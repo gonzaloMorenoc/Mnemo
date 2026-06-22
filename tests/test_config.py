@@ -32,3 +32,11 @@ def test_multi_tenant_enabled_true_when_set(monkeypatch):
     monkeypatch.setattr(config, "DATABASE_URL", "postgresql://x")
     monkeypatch.setattr(config, "SUPABASE_URL", "https://x.supabase.co")
     assert config.multi_tenant_enabled() is True
+
+
+def test_ci_webhook_config_present():
+    import src.config as config
+    assert hasattr(config, "CI_WEBHOOK_SECRET")
+    assert hasattr(config, "CI_SERVICE_USER_ID")
+    assert isinstance(config.CI_WEBHOOK_SECRET, str)
+    assert isinstance(config.CI_SERVICE_USER_ID, str)
