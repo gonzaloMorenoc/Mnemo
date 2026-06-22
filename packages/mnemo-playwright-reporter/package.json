@@ -1,0 +1,26 @@
+{
+  "name": "mnemo-playwright-reporter",
+  "version": "0.1.0",
+  "description": "Playwright reporter + fixture que envía resultados y DOM a Mnemo (/v2/ci/webhook).",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "peerDependencies": {
+    "@playwright/test": ">=1.40.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "@types/node": "^26.0.0",
+    "typescript": "^5",
+    "vitest": "^4.0.18"
+  }
+}
