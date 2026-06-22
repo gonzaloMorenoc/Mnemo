@@ -221,8 +221,8 @@ Sobre el esquema actual (`organizations`, `memberships`, `test_runs`, `failures`
 
 | Tabla (nueva salvo nota) | Campos clave | Supabase que aprovecha |
 |---|---|---|
-| `test_results` | id, run_id, org_id, test_name, commit_sha, status(`pass`/`fail`/`flaky`/`skipped`), retried bool, created_at | Postgres + RLS |
-| `dom_snapshots` | id, org_id, project, test_name, kind(`last_green`/`failure`), storage_ref, commit_sha, created_at | **Storage** + ref en DB |
+| `test_results` | id, run_id, org_id, test_name, status(`pass`/`fail`/`flaky`/`skipped`), retried bool, created_at | Postgres + RLS |
+| `dom_snapshots` | id, org_id, project, test_name, kind(`last_green`/`failure`), content, commit_sha, created_at | F1: `content` inline; **Storage**+ref a escala |
 | `triage_verdicts` | id, failure_id, org_id, categoria, confianza, regla_aplicada, evidence_bundle jsonb, requiere_aprobacion bool, llm_assisted bool, created_at | Postgres (JSONB) |
 | `actions` | id, triage_verdict_id, org_id, tipo(`self_heal`/`quarantine`/`ticket`), artefacto_ref(PR/Issue url), estado(`proposed`/`approved`/`rejected`/`merged`), created_at | Postgres |
 | `certificates` (append-only) | id, run_id, org_id, canonical_json jsonb, signature, verdict, risk_score, sign_offs jsonb, pdf_ref, mnemo_version, model_version, created_at | Postgres + **Storage** |
@@ -231,6 +231,8 @@ Sobre el esquema actual (`organizations`, `memberships`, `test_runs`, `failures`
 
 - **Aislamiento:** RLS por org + filtros de membership en la capa de aplicación (coherente con el ADR — el pooler hace BYPASS de RLS).
 - `certificates` es **append-only** (sin UPDATE/DELETE) por integridad de auditoría.
+- **F1 (implementado):** `commit_sha` se normaliza en `test_runs` (no se duplica en `test_results`; alcanzable por `run_id`). Los snapshots DOM se guardan inline (`content`) en F1; el blob en Storage es optimización a escala.
+- **Pendiente F2:** la ingesta del webhook **no es atómica** (run/results/snapshots en transacciones separadas → "at-least-once"). F2 añade ingesta atómica en una transacción + **clave de idempotencia por run** (`commit_sha`+`project`) para deduplicar reintentos del CI.
 
 ## 10. Endpoints nuevos (`/v2`, con `Depends(get_current_user)` salvo el webhook)
 
