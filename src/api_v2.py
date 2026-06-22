@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 from src.ci.ingestion_service import CiIngestionService
 from src.ci.models import CiRunArtifact
 from src.ci.webhook_auth import verify_signature
-from src.config import CI_SERVICE_USER_ID, CI_WEBHOOK_SECRET, multi_tenant_enabled
+from src.config import CI_MAX_BODY_BYTES, CI_SERVICE_ORG_ID, CI_SERVICE_USER_ID, CI_WEBHOOK_SECRET, multi_tenant_enabled
 from src.defects.ingestion_service import IngestionService
 from src.defects.repository import AssuranceRepository
 from src.assurance.narrator import LLMNarrator, Narrator
@@ -306,7 +306,12 @@ def ingest_report_v2(
 
 @router.post("/ci/webhook", response_model=CiWebhookResponse)
 async def ci_webhook(request: Request) -> CiWebhookResponse:
+    declared = request.headers.get("content-length")
+    if declared is not None and declared.isdigit() and int(declared) > CI_MAX_BODY_BYTES:
+        raise HTTPException(status_code=413, detail="payload too large")
     body = await request.body()
+    if len(body) > CI_MAX_BODY_BYTES:
+        raise HTTPException(status_code=413, detail="payload too large")
     signature = request.headers.get("X-Hub-Signature-256", "")
     if not verify_signature(body, signature, CI_WEBHOOK_SECRET):
         raise HTTPException(status_code=401, detail="invalid signature")
@@ -316,6 +321,8 @@ async def ci_webhook(request: Request) -> CiWebhookResponse:
         artifact = CiRunArtifact.model_validate_json(body)
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail="invalid artifact") from exc
+    if CI_SERVICE_ORG_ID and artifact.org_id != CI_SERVICE_ORG_ID:
+        raise HTTPException(status_code=403, detail="org_id not allowed for this CI account")
     service = get_ci_ingestion_service()
     try:
         result = service.ingest_artifact(user_id=CI_SERVICE_USER_ID, artifact=artifact)

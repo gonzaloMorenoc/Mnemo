@@ -475,9 +475,17 @@ class AssuranceRepository:
                 )
                 if not cur.fetchone()["ok"]:
                     raise PermissionError("user is not a member of the organization")
+                cur.execute(
+                    "select 1 from public.test_runs where id = %s and org_id = %s",
+                    (run_id, org_id),
+                )
+                if cur.fetchone() is None:
+                    raise ValueError("run does not belong to the organization")
                 for r in results:
                     if "test_name" not in r or "status" not in r:
                         raise ValueError("each result requires 'test_name' and 'status'")
+                    if r["status"] not in ("pass", "fail", "flaky", "skipped"):
+                        raise ValueError(f"invalid status: {r['status']!r}")
                     cur.execute(
                         "insert into public.test_results"
                         " (run_id, org_id, test_name, status, retried)"
@@ -507,6 +515,8 @@ class AssuranceRepository:
                 for s in snapshots:
                     if "test_name" not in s or "kind" not in s or "content" not in s:
                         raise ValueError("each snapshot requires 'test_name', 'kind' and 'content'")
+                    if s["kind"] not in ("last_green", "failure"):
+                        raise ValueError(f"invalid kind: {s['kind']!r}")
                     cur.execute(
                         "insert into public.dom_snapshots"
                         " (org_id, project, test_name, kind, content, commit_sha)"

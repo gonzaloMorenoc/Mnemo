@@ -40,3 +40,11 @@ def test_ci_webhook_config_present():
     assert hasattr(config, "CI_SERVICE_USER_ID")
     assert isinstance(config.CI_WEBHOOK_SECRET, str)
     assert isinstance(config.CI_SERVICE_USER_ID, str)
+
+
+def test_ci_dos_protection_config_present():
+    import src.config as config
+    assert hasattr(config, "CI_MAX_BODY_BYTES")
+    assert hasattr(config, "CI_SERVICE_ORG_ID")
+    assert isinstance(config.CI_MAX_BODY_BYTES, int)
+    assert isinstance(config.CI_SERVICE_ORG_ID, str)

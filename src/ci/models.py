@@ -1,23 +1,23 @@
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class CiTestResult(BaseModel):
-    test_name: str
+    test_name: str = Field(max_length=2000)
     status: Literal["pass", "fail", "flaky", "skipped"]
     retried: bool = False
-    error_type: Optional[str] = None
-    message: Optional[str] = None
-    trace: Optional[str] = None
-    file: Optional[str] = None
+    error_type: Optional[str] = Field(default=None, max_length=500)
+    message: Optional[str] = Field(default=None, max_length=100_000)
+    trace: Optional[str] = Field(default=None, max_length=200_000)
+    file: Optional[str] = Field(default=None, max_length=2000)
     line: Optional[int] = None
-    dom: Optional[str] = None
+    dom: Optional[str] = Field(default=None, max_length=5_000_000)
 
 
 class CiRunArtifact(BaseModel):
-    project: str
-    org_id: str
-    commit_sha: str
+    project: str = Field(max_length=500)
+    org_id: str = Field(max_length=200)
+    commit_sha: str = Field(max_length=200)
     source: str = "playwright"
-    tests: List[CiTestResult]
+    tests: List[CiTestResult] = Field(max_length=10_000)

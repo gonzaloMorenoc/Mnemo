@@ -121,3 +121,25 @@ def test_webhook_multitenant_unconfigured_is_503(monkeypatch):
     resp = client.post("/v2/ci/webhook", content=body,
                        headers={"X-Hub-Signature-256": _sign(body)})
     assert resp.status_code == 503
+
+
+def test_webhook_payload_too_large_is_413(monkeypatch):
+    service = _ok_service()
+    monkeypatch.setattr(api_v2, "CI_MAX_BODY_BYTES", 10)
+    client = make_client(service, monkeypatch)
+    body = _body()  # larger than 10 bytes
+    resp = client.post("/v2/ci/webhook", content=body,
+                       headers={"X-Hub-Signature-256": _sign(body)})
+    assert resp.status_code == 413
+    service.ingest_artifact.assert_not_called()
+
+
+def test_webhook_wrong_org_is_403(monkeypatch):
+    service = _ok_service()
+    monkeypatch.setattr(api_v2, "CI_SERVICE_ORG_ID", "other-org")
+    client = make_client(service, monkeypatch)
+    body = _body()  # org_id "org-1"
+    resp = client.post("/v2/ci/webhook", content=body,
+                       headers={"X-Hub-Signature-256": _sign(body)})
+    assert resp.status_code == 403
+    service.ingest_artifact.assert_not_called()

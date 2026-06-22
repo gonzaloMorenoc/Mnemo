@@ -37,3 +37,8 @@ def test_rejects_bad_status():
 def test_rejects_missing_required():
     with pytest.raises(ValidationError):
         CiRunArtifact.model_validate({"project": "p", "tests": []})
+
+
+def test_rejects_oversized_field():
+    with pytest.raises(ValidationError):
+        CiTestResult.model_validate({"test_name": "t", "status": "fail", "error_type": "x" * 501})

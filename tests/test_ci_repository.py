@@ -133,3 +133,27 @@ def test_save_dom_snapshots_validates_keys(repo, org):
     with pytest.raises(ValueError):
         repo.save_dom_snapshots(user_id=org["user_id"], org_id=org["org_id"], project="p",
                                 snapshots=[{"test_name": "t"}])
+
+
+def test_record_test_results_rejects_foreign_run(repo, org):
+    # un run_id que no pertenece al org -> ValueError
+    with pytest.raises(ValueError):
+        repo.record_test_results(user_id=org["user_id"], org_id=org["org_id"],
+                                 run_id=str(uuid.uuid4()),
+                                 results=[{"test_name": "t", "status": "pass"}])
+
+
+def test_record_test_results_rejects_bad_status(repo, org):
+    out = repo.ingest_run(user_id=org["user_id"], org_id=org["org_id"], project="p",
+                          source="playwright",
+                          items=[_failure_item("p", "TimeoutError x", 1.0)], commit_sha="s")
+    with pytest.raises(ValueError):
+        repo.record_test_results(user_id=org["user_id"], org_id=org["org_id"],
+                                 run_id=out["run_id"],
+                                 results=[{"test_name": "t", "status": "exploded"}])
+
+
+def test_save_dom_snapshots_rejects_bad_kind(repo, org):
+    with pytest.raises(ValueError):
+        repo.save_dom_snapshots(user_id=org["user_id"], org_id=org["org_id"], project="p",
+                                snapshots=[{"test_name": "t", "kind": "bogus", "content": "<html></html>"}])
