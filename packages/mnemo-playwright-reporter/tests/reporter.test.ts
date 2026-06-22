@@ -43,6 +43,14 @@ describe("toTestResultInput", () => {
     expect(r.line).toBe(10);
     expect(r.dom).toBe("<html></html>");
   });
+  it("interrupted -> fail", () => {
+    expect(toTestResultInput(tcase() as any, { status: "interrupted", retry: 0 } as any).status).toBe("fail");
+  });
+  it("failed con retry>0 -> fail + retried (no flaky)", () => {
+    const r = toTestResultInput(tcase() as any, { status: "failed", retry: 1 } as any);
+    expect(r.status).toBe("fail");
+    expect(r.retried).toBe(true);
+  });
 });
 
 describe("MnemoReporter", () => {
