@@ -100,6 +100,7 @@ class AssuranceRepository:
         project: str,
         source: str,
         items: List[IngestItem],
+        commit_sha: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Ingest a test run and classify each failure into a defect family.
 
@@ -125,9 +126,9 @@ class AssuranceRepository:
                     raise PermissionError("user is not a member of the organization")
 
                 cur.execute(
-                    "insert into public.test_runs (org_id, project, source)"
-                    " values (%s, %s, %s) returning id",
-                    (org_id, project, source),
+                    "insert into public.test_runs (org_id, project, source, commit_sha)"
+                    " values (%s, %s, %s, %s) returning id",
+                    (org_id, project, source, commit_sha),
                 )
                 run_id = cur.fetchone()["id"]
 
@@ -456,3 +457,58 @@ class AssuranceRepository:
                 "summary": run["summary"] or {},
                 "families": families,
             }
+
+    def record_test_results(
+        self, *, user_id: str, org_id: str, run_id: str, results: List[Dict[str, Any]]
+    ) -> int:
+        """Persiste el resultado por test de un run (incluye pass). Devuelve el nº insertado.
+
+        Lanza PermissionError si el usuario no es miembro del org.
+        """
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "select exists(select 1 from public.memberships"
+                    " where org_id = %s and user_id = %s) as ok",
+                    (org_id, user_id),
+                )
+                if not cur.fetchone()["ok"]:
+                    raise PermissionError("user is not a member of the organization")
+                for r in results:
+                    cur.execute(
+                        "insert into public.test_results"
+                        " (run_id, org_id, test_name, status, retried)"
+                        " values (%s, %s, %s, %s, %s)",
+                        (run_id, org_id, r["test_name"], r["status"], r.get("retried", False)),
+                    )
+            conn.commit()
+        return len(results)
+
+    def save_dom_snapshots(
+        self, *, user_id: str, org_id: str, project: str, snapshots: List[Dict[str, Any]]
+    ) -> int:
+        """Persiste snapshots DOM (kind last_green|failure). Devuelve el nº insertado.
+
+        Lanza PermissionError si el usuario no es miembro del org.
+        """
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "select exists(select 1 from public.memberships"
+                    " where org_id = %s and user_id = %s) as ok",
+                    (org_id, user_id),
+                )
+                if not cur.fetchone()["ok"]:
+                    raise PermissionError("user is not a member of the organization")
+                for s in snapshots:
+                    cur.execute(
+                        "insert into public.dom_snapshots"
+                        " (org_id, project, test_name, kind, content, commit_sha)"
+                        " values (%s, %s, %s, %s, %s, %s)",
+                        (org_id, project, s["test_name"], s["kind"], s["content"],
+                         s.get("commit_sha")),
+                    )
+            conn.commit()
+        return len(snapshots)
