@@ -215,7 +215,7 @@ Vive en la bandeja de aprobación (Vercel). Cada confirmación/corrección human
 
 **Por qué es el foso:** la calibración es **por cliente y privada**. A los meses, el agente está afinado a la realidad de ese cliente → **IP irreemplazable que MTP posee y no pierde con la rotación**. Cierra el problema del ADR original (el conocimiento tribal se evapora).
 
-## 9. Modelo de datos (migración `db/migrations/004_autopilot.sql`)
+## 9. Modelo de datos (migración `db/migrations/007_autopilot_ingestion.sql` y siguientes)
 
 Sobre el esquema actual (`organizations`, `memberships`, `test_runs`, `failures`, `defect_families`, patrón RLS + filtros de membership). Embeddings `vector(384)`.
 
