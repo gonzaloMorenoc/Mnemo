@@ -29,10 +29,14 @@ def test_missing_header_fails():
 
 def test_header_without_prefix_fails():
     body = b"{}"
-    digest = hmac.new(b"s3cr3t", body, hashlib.sha256).hexdigest()
+    digest = hmac.new("s3cr3t".encode(), body, hashlib.sha256).hexdigest()
     assert verify_signature(body, digest, "s3cr3t") is False
 
 
 def test_empty_secret_fails_closed():
     body = b"{}"
     assert verify_signature(body, _sign(body, ""), "") is False
+
+
+def test_malformed_non_ascii_header_fails_closed():
+    assert verify_signature(b"{}", "sha256=ñoño", "s3cr3t") is False
