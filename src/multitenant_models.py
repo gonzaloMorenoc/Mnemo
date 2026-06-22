@@ -146,3 +146,12 @@ class RootCauseResponse(BaseModel):
     defect_id: str
     root_cause: str
     cached: bool
+
+
+class CiWebhookResponse(BaseModel):
+    run_id: str
+    ingested: int
+    known: int
+    novel: int
+    results_recorded: int
+    snapshots_saved: int

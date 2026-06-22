@@ -2,11 +2,15 @@ import logging
 from typing import Any, Dict, List, Optional
 
 import psycopg
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
 
-from src.config import multi_tenant_enabled
+from src.ci.ingestion_service import CiIngestionService
+from src.ci.models import CiRunArtifact
+from src.ci.webhook_auth import verify_signature
+from src.config import CI_SERVICE_USER_ID, CI_WEBHOOK_SECRET, multi_tenant_enabled
 from src.defects.ingestion_service import IngestionService
 from src.defects.repository import AssuranceRepository
 from src.assurance.narrator import LLMNarrator, Narrator
@@ -19,6 +23,7 @@ from src.multitenant_models import (
     AnalyzeV2Request,
     AnalyzeV2Response,
     AssuranceVerdictResponse,
+    CiWebhookResponse,
     CreateOrgRequest,
     DefectFamilyResponse,
     DefectFamilySummary,
@@ -52,6 +57,7 @@ _narrator = None
 _root_cause_analyzer = None
 _integrations_repo = None
 _jira_service = None
+_ci_ingestion_service = None
 
 
 def get_repo() -> TenantKBRepository:
@@ -122,6 +128,18 @@ def get_jira_ingestion_service() -> JiraIngestionService:
             integrations=get_integrations_repo(),
         )
     return _jira_service
+
+
+def get_ci_ingestion_service() -> CiIngestionService:
+    if not multi_tenant_enabled():
+        raise HTTPException(status_code=503, detail="Multi-tenant KB not configured")
+    global _ci_ingestion_service
+    if _ci_ingestion_service is None:
+        from src.defects.embedder import LocalEmbedder
+        _ci_ingestion_service = CiIngestionService(
+            repo=get_assurance_repo(), embedder=LocalEmbedder()
+        )
+    return _ci_ingestion_service
 
 
 def _unique_scopes(contexts: List[Dict[str, Any]]) -> List[str]:
@@ -284,6 +302,32 @@ def ingest_report_v2(
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail="Database error") from exc
     return IngestReportResponse(**result)
+
+
+@router.post("/ci/webhook", response_model=CiWebhookResponse)
+async def ci_webhook(
+    request: Request,
+    service: CiIngestionService = Depends(get_ci_ingestion_service),
+) -> CiWebhookResponse:
+    body = await request.body()
+    signature = request.headers.get("X-Hub-Signature-256", "")
+    if not verify_signature(body, signature, CI_WEBHOOK_SECRET):
+        raise HTTPException(status_code=401, detail="invalid signature")
+    if not CI_SERVICE_USER_ID:
+        raise HTTPException(status_code=503, detail="CI service account not configured")
+    try:
+        artifact = CiRunArtifact.model_validate_json(body)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail="invalid artifact") from exc
+    try:
+        result = service.ingest_artifact(user_id=CI_SERVICE_USER_ID, artifact=artifact)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    return CiWebhookResponse(**result)
 
 
 @router.post("/integrations/jira", response_model=JiraConfigResponse)
