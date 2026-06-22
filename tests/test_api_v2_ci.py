@@ -19,9 +19,9 @@ def _sign(body: bytes) -> str:
 def make_client(service, monkeypatch):
     monkeypatch.setattr(api_v2, "CI_WEBHOOK_SECRET", SECRET)
     monkeypatch.setattr(api_v2, "CI_SERVICE_USER_ID", "svc-user")
+    monkeypatch.setattr(api_v2, "get_ci_ingestion_service", lambda: service)
     app = FastAPI()
     app.include_router(api_v2.router)
-    app.dependency_overrides[api_v2.get_ci_ingestion_service] = lambda: service
     return TestClient(app)
 
 
@@ -52,7 +52,10 @@ def test_webhook_valid_signature(monkeypatch):
     resp = client.post("/v2/ci/webhook", content=body,
                        headers={"X-Hub-Signature-256": _sign(body)})
     assert resp.status_code == 200
-    assert resp.json()["run_id"] == "r1"
+    assert resp.json() == {
+        "run_id": "r1", "ingested": 1, "known": 0, "novel": 1,
+        "results_recorded": 2, "snapshots_saved": 2,
+    }
     service.ingest_artifact.assert_called_once()
 
 
@@ -93,3 +96,15 @@ def test_webhook_db_error_is_502(monkeypatch):
     resp = client.post("/v2/ci/webhook", content=body,
                        headers={"X-Hub-Signature-256": _sign(body)})
     assert resp.status_code == 502
+
+
+def test_webhook_service_account_unconfigured_is_503(monkeypatch):
+    monkeypatch.setattr(api_v2, "CI_WEBHOOK_SECRET", SECRET)
+    monkeypatch.setattr(api_v2, "CI_SERVICE_USER_ID", "")
+    app = FastAPI()
+    app.include_router(api_v2.router)
+    client = TestClient(app)
+    body = _body()
+    resp = client.post("/v2/ci/webhook", content=body,
+                       headers={"X-Hub-Signature-256": _sign(body)})
+    assert resp.status_code == 503

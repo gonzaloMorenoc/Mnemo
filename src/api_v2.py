@@ -305,10 +305,7 @@ def ingest_report_v2(
 
 
 @router.post("/ci/webhook", response_model=CiWebhookResponse)
-async def ci_webhook(
-    request: Request,
-    service: CiIngestionService = Depends(get_ci_ingestion_service),
-) -> CiWebhookResponse:
+async def ci_webhook(request: Request) -> CiWebhookResponse:
     body = await request.body()
     signature = request.headers.get("X-Hub-Signature-256", "")
     if not verify_signature(body, signature, CI_WEBHOOK_SECRET):
@@ -319,6 +316,7 @@ async def ci_webhook(
         artifact = CiRunArtifact.model_validate_json(body)
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail="invalid artifact") from exc
+    service = get_ci_ingestion_service()
     try:
         result = service.ingest_artifact(user_id=CI_SERVICE_USER_ID, artifact=artifact)
     except PermissionError as exc:
