@@ -302,7 +302,6 @@ def test_source_defaults_to_playwright():
 
 
 def test_rejects_bad_status():
-    bad = CiTestResult.__fields__  # noqa: F841 — fuerza import del modelo
     with pytest.raises(ValidationError):
         CiTestResult.model_validate({"test_name": "x", "status": "exploded"})
 
