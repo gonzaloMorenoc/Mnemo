@@ -26,7 +26,7 @@ describe("postArtifact", () => {
     const fetchImpl = vi.fn().mockRejectedValue(new Error("network down"));
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     await expect(postArtifact(config, artifact, fetchImpl)).resolves.toBeUndefined();
-    expect(warn).toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("[mnemo]"));
     warn.mockRestore();
   });
 
@@ -34,7 +34,7 @@ describe("postArtifact", () => {
     const fetchImpl = vi.fn().mockResolvedValue({ ok: false, status: 401 });
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     await expect(postArtifact(config, artifact, fetchImpl)).resolves.toBeUndefined();
-    expect(warn).toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("[mnemo]"));
     warn.mockRestore();
   });
 });

@@ -24,6 +24,7 @@ export async function postArtifact(
       console.warn(`[mnemo] webhook respondió ${res.status}; artefacto no ingerido`);
     }
   } catch (err) {
-    console.warn(`[mnemo] no se pudo enviar el artefacto: ${(err as Error).message}`);
+    const reason = err instanceof Error ? err.message : String(err);
+    console.warn(`[mnemo] no se pudo enviar el artefacto: ${reason}`);
   }
 }
