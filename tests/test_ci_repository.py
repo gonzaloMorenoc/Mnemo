@@ -84,6 +84,9 @@ def test_record_test_results_stores_pass_and_fail(repo, org):
             cur.execute("select count(*) from public.test_results where run_id = %s"
                         " and status = 'pass'", (out["run_id"],))
             assert cur.fetchone()[0] == 1
+            cur.execute("select count(*) from public.test_results where run_id = %s"
+                        " and status = 'fail'", (out["run_id"],))
+            assert cur.fetchone()[0] == 1
 
 
 def test_record_test_results_rejects_non_member(repo, org):
@@ -93,6 +96,14 @@ def test_record_test_results_rejects_non_member(repo, org):
     with pytest.raises(PermissionError):
         repo.record_test_results(user_id=str(uuid.uuid4()), org_id=org["org_id"],
                                  run_id=out["run_id"], results=[{"test_name": "t", "status": "pass"}])
+
+
+def test_save_dom_snapshots_rejects_non_member(repo, org):
+    with pytest.raises(PermissionError):
+        repo.save_dom_snapshots(
+            user_id=str(uuid.uuid4()), org_id=org["org_id"], project="p",
+            snapshots=[{"test_name": "t", "kind": "failure", "content": "<html></html>"}],
+        )
 
 
 def test_save_dom_snapshots_stores_kind(repo, org):
