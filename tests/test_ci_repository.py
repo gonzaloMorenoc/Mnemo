@@ -118,3 +118,18 @@ def test_save_dom_snapshots_stores_kind(repo, org):
             cur.execute("select count(*) from public.dom_snapshots where org_id = %s"
                         " and kind = 'last_green'", (o,))
             assert cur.fetchone()[0] == 1
+
+
+def test_record_test_results_validates_keys(repo, org):
+    out = repo.ingest_run(user_id=org["user_id"], org_id=org["org_id"], project="p",
+                          source="playwright",
+                          items=[_failure_item("p", "TimeoutError x", 1.0)], commit_sha="s")
+    with pytest.raises(ValueError):
+        repo.record_test_results(user_id=org["user_id"], org_id=org["org_id"],
+                                 run_id=out["run_id"], results=[{"test_name": "t"}])
+
+
+def test_save_dom_snapshots_validates_keys(repo, org):
+    with pytest.raises(ValueError):
+        repo.save_dom_snapshots(user_id=org["user_id"], org_id=org["org_id"], project="p",
+                                snapshots=[{"test_name": "t"}])
