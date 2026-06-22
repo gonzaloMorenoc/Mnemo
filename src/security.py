@@ -48,6 +48,20 @@ class SupabaseJWTVerifier:
         return self._jwks
 
     def verify(self, token: str) -> AuthenticatedUser:
+        from src import config as _cfg
+        if _cfg.SUPABASE_JWT_SECRET:
+            try:
+                payload = jwt.decode(
+                    token, _cfg.SUPABASE_JWT_SECRET, algorithms=["HS256"],
+                    options={"verify_aud": False},
+                )
+            except jwt.PyJWTError as exc:
+                raise HTTPException(status_code=401, detail="Invalid or expired auth token") from exc
+            user_id = payload.get("sub")
+            if not user_id:
+                raise HTTPException(status_code=401, detail="Invalid auth token payload")
+            return AuthenticatedUser(user_id=user_id, email=payload.get("email"), claims=payload)
+
         try:
             header = jwt.get_unverified_header(token)
         except jwt.PyJWTError as exc:

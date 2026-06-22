@@ -51,6 +51,8 @@ except ValueError as exc:
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_JWKS_URL = os.getenv("SUPABASE_JWKS_URL", "")
 SUPABASE_JWT_AUDIENCE = os.getenv("SUPABASE_JWT_AUDIENCE", "")
+# HS256 shared secret for self-hosted GoTrue (docker demo). Empty = cloud RS256 path.
+SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
 
 
 def multi_tenant_enabled() -> bool:
