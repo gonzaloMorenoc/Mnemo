@@ -233,6 +233,7 @@ Sobre el esquema actual (`organizations`, `memberships`, `test_runs`, `failures`
 - `certificates` es **append-only** (sin UPDATE/DELETE) por integridad de auditoría.
 - **F1 (implementado):** `commit_sha` se normaliza en `test_runs` (no se duplica en `test_results`; alcanzable por `run_id`). Los snapshots DOM se guardan inline (`content`) en F1; el blob en Storage es optimización a escala.
 - **Pendiente F2:** la ingesta del webhook **no es atómica** (run/results/snapshots en transacciones separadas → "at-least-once"). F2 añade ingesta atómica en una transacción + **clave de idempotencia por run** (`commit_sha`+`project`) para deduplicar reintentos del CI.
+- **Endurecimiento F1 (tras revisión):** el webhook acota el tamaño del cuerpo (`CI_MAX_BODY_BYTES`, 413) y los campos del artefacto (`max_length` en `dom`/`message`/`trace` + nº de tests) contra DoS por memoria; **enforce mono-org** vía `CI_SERVICE_ORG_ID` (403 si `artifact.org_id` no coincide), de modo que el secreto del CI queda ligado a un único org sin necesidad de secretos por-org (eso queda como evolución). El repositorio valida que `run_id` pertenezca al `org_id` y que `status`/`kind` sean válidos (→ 400, no 502).
 
 ## 10. Endpoints nuevos (`/v2`, con `Depends(get_current_user)` salvo el webhook)
 
