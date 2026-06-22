@@ -7,8 +7,9 @@ firmados con HMAC. Convierte la ingesta de QA en "viva desde el CI".
 ## Instalación
 
 ```bash
-npm install -D mnemo-playwright-reporter
-npm run build   # genera dist/ (el paquete se consume compilado)
+# El paquete se consume compilado desde el monorepo; ejecuta npm run build
+# una vez para generar dist/ (no se publica en un registro público).
+npm run build
 ```
 
 ## Uso

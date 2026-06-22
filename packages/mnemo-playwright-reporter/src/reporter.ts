@@ -4,7 +4,7 @@ import { MnemoOptions, resolveConfig } from "./config";
 import { postArtifact } from "./post";
 import { ArtifactMeta, TestResultInput } from "./types";
 
-const ERR_RE = /([A-Za-z_][A-Za-z0-9_.]*(?:Error|Exception|Failure|Timeout))/;
+const ERR_RE = /((?:[A-Za-z_][A-Za-z0-9_]*\.)*[A-Za-z_][A-Za-z0-9_]*(?:Error|Exception|Failure|Timeout))/;
 
 /** Best-effort: primer token tipo XxxError del mensaje (espejo de parse_error_type del backend). */
 export function parseErrorType(message?: string | null): string | null {
