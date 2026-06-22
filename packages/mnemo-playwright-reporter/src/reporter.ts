@@ -35,9 +35,9 @@ export function toTestResultInput(test: PwTestLike, result: PwResultLike): TestR
   const base = mapStatus(result.status);
   const status = base === "pass" && result.retry > 0 ? "flaky" : base;
   const dom =
-    result.attachments?.find((a) => a.name === "mnemo-dom")?.body?.toString("utf8") ?? null;
+    result.attachments?.find((a) => a.name === "__mnemo_dom__")?.body?.toString("utf8") ?? null;
   return {
-    testName: test.titlePath().join(" > "),
+    testName: test.titlePath().filter(Boolean).join(" > "),
     status,
     retried: result.retry > 0,
     errorType: parseErrorType(result.error?.message),
@@ -59,14 +59,19 @@ export class MnemoReporter implements Reporter {
   }
 
   onTestEnd(test: TestCase, result: TestResult): void {
-    const id = test.id;
-    const prev = this.seenRetry.get(id);
-    if (prev !== undefined && result.retry < prev) return; // conserva el intento final
-    this.seenRetry.set(id, result.retry);
-    this.results.set(
-      id,
-      toTestResultInput(test as unknown as PwTestLike, result as unknown as PwResultLike),
-    );
+    try {
+      const id = test.id;
+      const prev = this.seenRetry.get(id);
+      if (prev !== undefined && result.retry < prev) return; // conserva el intento final
+      this.seenRetry.set(id, result.retry);
+      this.results.set(
+        id,
+        toTestResultInput(test as unknown as PwTestLike, result as unknown as PwResultLike),
+      );
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      console.warn(`[mnemo] no se pudo procesar un resultado de test: ${reason}`);
+    }
   }
 
   async onEnd(): Promise<void> {

@@ -34,7 +34,7 @@ describe("toTestResultInput", () => {
       status: "failed",
       retry: 0,
       error: { message: "AssertionError: nope", stack: "at a.spec.ts:10" },
-      attachments: [{ name: "mnemo-dom", body: Buffer.from("<html></html>"), contentType: "text/html" }],
+      attachments: [{ name: "__mnemo_dom__", body: Buffer.from("<html></html>"), contentType: "text/html" }],
     } as any);
     expect(r.errorType).toBe("AssertionError");
     expect(r.message).toBe("AssertionError: nope");
@@ -50,6 +50,11 @@ describe("toTestResultInput", () => {
     const r = toTestResultInput(tcase() as any, { status: "failed", retry: 1 } as any);
     expect(r.status).toBe("fail");
     expect(r.retried).toBe(true);
+  });
+  it("test_name descarta segmentos vacíos (raíz/proyecto)", () => {
+    const t = { titlePath: () => ["", "chromium", "f.spec.ts", "name"], location: {} };
+    expect(toTestResultInput(t as any, { status: "passed", retry: 0 } as any).testName)
+      .toBe("chromium > f.spec.ts > name");
   });
 });
 
@@ -71,6 +76,15 @@ describe("MnemoReporter", () => {
     expect(body.tests).toHaveLength(1);
     expect(body.tests[0].status).toBe("flaky");
     expect(body.tests[0].retried).toBe(true);
+  });
+
+  it("onTestEnd no propaga si el mapeo lanza", () => {
+    const reporter = new MnemoReporter({});
+    const bad: any = { id: "x", titlePath: () => { throw new Error("boom"); }, location: {} };
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(() => reporter.onTestEnd(bad, { status: "passed", retry: 0 } as any)).not.toThrow();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("[mnemo]"));
+    warn.mockRestore();
   });
 
   it("no-opera (sin POST) si la config está incompleta", async () => {
