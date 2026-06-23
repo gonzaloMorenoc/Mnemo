@@ -222,3 +222,26 @@ def test_ingest_ci_run_rejects_non_member(repo, org):
     with pytest.raises(PermissionError):
         repo.ingest_ci_run(user_id=str(uuid.uuid4()), org_id=org["org_id"], project="p",
                            source="playwright", run_uid="x", items=[], results=[], snapshots=[])
+
+
+def test_ingest_ci_run_dedup_does_not_duplicate_or_bump_dna(repo, org):
+    u, o = org["user_id"], org["org_id"]
+    kw = dict(user_id=u, org_id=o, project="p", source="playwright", commit_sha="sha",
+              run_uid="nodup-1",
+              items=[_failure_item("p", "TimeoutError x", 1.0)],
+              results=[{"test_name": "t", "status": "fail"}],
+              snapshots=[{"test_name": "t", "kind": "failure", "content": "<html></html>"}])
+    first = repo.ingest_ci_run(**kw)
+    second = repo.ingest_ci_run(**kw)  # dedup no-op
+    assert second["deduplicated"] is True and second["run_id"] == first["run_id"]
+    with psycopg.connect(DBURL) as conn:
+        with conn.cursor() as cur:
+            cur.execute("select count(*) from public.failures where run_id = %s", (first["run_id"],))
+            assert cur.fetchone()[0] == 1
+            cur.execute("select count(*) from public.test_results where run_id = %s", (first["run_id"],))
+            assert cur.fetchone()[0] == 1
+            cur.execute("select count(*) from public.dom_snapshots"
+                        " where org_id = %s and test_name = 't'", (o,))
+            assert cur.fetchone()[0] == 1
+            cur.execute("select max(occurrence_count) from public.defect_families where org_id = %s", (o,))
+            assert cur.fetchone()[0] == 1

@@ -40,7 +40,7 @@ def _ok_service():
     service = MagicMock()
     service.ingest_artifact.return_value = {
         "run_id": "r1", "ingested": 1, "known": 0, "novel": 1,
-        "results_recorded": 2, "snapshots_saved": 2,
+        "results_recorded": 2, "snapshots_saved": 2, "deduplicated": False,
     }
     return service
 
@@ -54,7 +54,7 @@ def test_webhook_valid_signature(monkeypatch):
     assert resp.status_code == 200
     assert resp.json() == {
         "run_id": "r1", "ingested": 1, "known": 0, "novel": 1,
-        "results_recorded": 2, "snapshots_saved": 2,
+        "results_recorded": 2, "snapshots_saved": 2, "deduplicated": False,
     }
     service.ingest_artifact.assert_called_once()
 

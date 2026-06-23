@@ -155,3 +155,4 @@ class CiWebhookResponse(BaseModel):
     novel: int
     results_recorded: int
     snapshots_saved: int
+    deduplicated: bool = False

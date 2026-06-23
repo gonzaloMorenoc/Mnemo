@@ -19,7 +19,9 @@ class CiIngestionService:
 
     def ingest_artifact(self, *, user_id: str, artifact: CiRunArtifact) -> Dict[str, Any]:
         """Ingesta atómica e idempotente de un artefacto de CI: fallos→Defect DNA +
-        resultados por test + snapshots DOM, en una sola transacción. Idempotente por run_uid."""
+        resultados por test + snapshots DOM, en una sola transacción. Idempotente por run_uid.
+        Nota: la idempotencia (dedup por run_uid) solo se activa si el reporter emite run_uid;
+        si es None, solo aplica atomicidad (retrocompatible)."""
         items = []
         for rec in to_failure_records(artifact):
             message = sanitize_text(rec.message)
