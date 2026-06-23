@@ -157,3 +157,69 @@ def test_save_dom_snapshots_rejects_bad_kind(repo, org):
     with pytest.raises(ValueError):
         repo.save_dom_snapshots(user_id=org["user_id"], org_id=org["org_id"], project="p",
                                 snapshots=[{"test_name": "t", "kind": "bogus", "content": "<html></html>"}])
+
+
+def test_ingest_ci_run_atomic_and_counts(repo, org):
+    u, o = org["user_id"], org["org_id"]
+    out = repo.ingest_ci_run(
+        user_id=u, org_id=o, project="p", source="playwright",
+        commit_sha="sha", run_uid="run-1",
+        items=[_failure_item("p", "TimeoutError x", 1.0)],
+        results=[{"test_name": "login", "status": "fail", "retried": False},
+                 {"test_name": "home", "status": "pass", "retried": False}],
+        snapshots=[{"test_name": "home", "kind": "last_green", "content": "<html>ok</html>",
+                    "commit_sha": "sha"}],
+    )
+    assert out["deduplicated"] is False
+    assert out["ingested"] == 1 and out["novel"] == 1
+    assert out["results_recorded"] == 2 and out["snapshots_saved"] == 1
+    import psycopg
+    with psycopg.connect(DBURL) as conn:
+        with conn.cursor() as cur:
+            cur.execute("select count(*) from public.test_results where run_id = %s", (out["run_id"],))
+            assert cur.fetchone()[0] == 2
+
+
+def test_ingest_ci_run_idempotent_by_run_uid(repo, org):
+    u, o = org["user_id"], org["org_id"]
+    kw = dict(user_id=u, org_id=o, project="p", source="playwright", commit_sha="sha",
+              run_uid="dup-1",
+              items=[_failure_item("p", "TimeoutError x", 1.0)],
+              results=[{"test_name": "t", "status": "fail"}],
+              snapshots=[])
+    first = repo.ingest_ci_run(**kw)
+    second = repo.ingest_ci_run(**kw)
+    assert first["deduplicated"] is False
+    assert second["deduplicated"] is True
+    assert second["run_id"] == first["run_id"]
+    import psycopg
+    with psycopg.connect(DBURL) as conn:
+        with conn.cursor() as cur:
+            cur.execute("select count(*) from public.test_runs where org_id = %s and run_uid = %s",
+                        (o, "dup-1"))
+            assert cur.fetchone()[0] == 1
+
+
+def test_ingest_ci_run_rolls_back_on_bad_snapshot(repo, org):
+    u, o = org["user_id"], org["org_id"]
+    with pytest.raises(ValueError):
+        repo.ingest_ci_run(
+            user_id=u, org_id=o, project="p", source="playwright", commit_sha="sha",
+            run_uid="rollback-1",
+            items=[_failure_item("p", "TimeoutError x", 1.0)],
+            results=[{"test_name": "t", "status": "fail"}],
+            snapshots=[{"test_name": "t", "kind": "bogus", "content": "<html></html>"}],
+        )
+    # Atomicidad: el run NO debe haberse creado.
+    import psycopg
+    with psycopg.connect(DBURL) as conn:
+        with conn.cursor() as cur:
+            cur.execute("select count(*) from public.test_runs where org_id = %s and run_uid = %s",
+                        (o, "rollback-1"))
+            assert cur.fetchone()[0] == 0
+
+
+def test_ingest_ci_run_rejects_non_member(repo, org):
+    with pytest.raises(PermissionError):
+        repo.ingest_ci_run(user_id=str(uuid.uuid4()), org_id=org["org_id"], project="p",
+                           source="playwright", run_uid="x", items=[], results=[], snapshots=[])

@@ -211,6 +211,113 @@ class AssuranceRepository:
             "novel": novel,
         }
 
+    def ingest_ci_run(
+        self,
+        *,
+        user_id: str,
+        org_id: str,
+        project: str,
+        source: str,
+        commit_sha: Optional[str] = None,
+        run_uid: Optional[str] = None,
+        items: List[IngestItem],
+        results: List[Dict[str, Any]],
+        snapshots: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Ingesta atómica de un run de CI: run + failures + familias + test_results +
+        dom_snapshots en UNA transacción. Idempotente por (org_id, run_uid): si run_uid
+        viene y ya existe, no-op devolviendo el run existente con deduplicated=True.
+
+        Lanza PermissionError si no es miembro; ValueError ante status/kind inválido.
+        """
+        _STATUS = ("pass", "fail", "flaky", "skipped")
+        _KINDS = ("last_green", "failure")
+        known = 0
+        novel = 0
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "select exists(select 1 from public.memberships"
+                    " where org_id = %s and user_id = %s) as ok",
+                    (org_id, user_id),
+                )
+                if not cur.fetchone()["ok"]:
+                    raise PermissionError("user is not a member of the organization")
+
+                if run_uid is not None:
+                    cur.execute(
+                        "select id, summary from public.test_runs"
+                        " where org_id = %s and run_uid = %s",
+                        (org_id, run_uid),
+                    )
+                    existing = cur.fetchone()
+                    if existing is not None:
+                        summary = existing["summary"] or {}
+                        return {
+                            "run_id": str(existing["id"]),
+                            "ingested": summary.get("ingested", 0),
+                            "known": summary.get("known", 0),
+                            "novel": summary.get("novel", 0),
+                            "results_recorded": 0,
+                            "snapshots_saved": 0,
+                            "deduplicated": True,
+                        }
+
+                cur.execute(
+                    "insert into public.test_runs (org_id, project, source, commit_sha, run_uid)"
+                    " values (%s, %s, %s, %s, %s) returning id",
+                    (org_id, project, source, commit_sha, run_uid),
+                )
+                run_id = cur.fetchone()["id"]
+
+                for item in items:
+                    if self._match_and_insert_failure(cur, org_id=org_id, run_id=run_id, item=item):
+                        novel += 1
+                    else:
+                        known += 1
+
+                for r in results:
+                    if "test_name" not in r or "status" not in r:
+                        raise ValueError("each result requires 'test_name' and 'status'")
+                    if r["status"] not in _STATUS:
+                        raise ValueError(f"invalid status: {r['status']!r}")
+                    cur.execute(
+                        "insert into public.test_results"
+                        " (run_id, org_id, test_name, status, retried)"
+                        " values (%s, %s, %s, %s, %s)",
+                        (run_id, org_id, r["test_name"], r["status"], r.get("retried", False)),
+                    )
+
+                for s in snapshots:
+                    if "test_name" not in s or "kind" not in s or "content" not in s:
+                        raise ValueError("each snapshot requires 'test_name', 'kind' and 'content'")
+                    if s["kind"] not in _KINDS:
+                        raise ValueError(f"invalid kind: {s['kind']!r}")
+                    cur.execute(
+                        "insert into public.dom_snapshots"
+                        " (org_id, project, test_name, kind, content, commit_sha)"
+                        " values (%s, %s, %s, %s, %s, %s)",
+                        (org_id, project, s["test_name"], s["kind"], s["content"],
+                         s.get("commit_sha")),
+                    )
+
+                summary = {"ingested": len(items), "known": known, "novel": novel}
+                cur.execute(
+                    "update public.test_runs set summary = %s where id = %s",
+                    (Json(summary), run_id),
+                )
+            conn.commit()
+        return {
+            "run_id": str(run_id),
+            "ingested": len(items),
+            "known": known,
+            "novel": novel,
+            "results_recorded": len(results),
+            "snapshots_saved": len(snapshots),
+            "deduplicated": False,
+        }
+
     def existing_external_refs(self, *, user_id: str, org_id: str) -> List[str]:
         """Return the external_ref values already present for the org's failures."""
         with self._connect() as conn:
