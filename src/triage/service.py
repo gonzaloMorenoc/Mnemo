@@ -79,7 +79,7 @@ class TriageService:
             category, reason = result
             bundle = dict(v["evidence_bundle"] or {})
             bundle.update({
-                "tiebreak_category": category, "tiebreak_reason": reason,
+                "llm_assisted": True, "tiebreak_category": category, "tiebreak_reason": reason,
             })
             self.repo.update_triage_verdict(
                 user_id=user_id, verdict_id=v["id"], category=category, confidence=0.70,

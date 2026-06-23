@@ -96,6 +96,7 @@ def test_resolve_tiebreaks_resolves_only_pending():
     assert kw["llm_assisted"] is True and kw["requires_approval"] is True and kw["status"] == "resolved"
     assert kw["evidence_bundle"]["tiebreak_reason"] == "intermitente"
     assert kw["evidence_bundle"]["tiebreak_category"] == "flaky"
+    assert kw["evidence_bundle"]["llm_assisted"] is True
 
 
 def test_resolve_tiebreaks_leaves_pending_when_undecided():
