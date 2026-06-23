@@ -33,3 +33,25 @@ def test_assertion_mentioning_locator_is_not_locator_error():
     cats = classify_error(None, "expect(page.locator('x')).toHaveText('foo'): Expected: foo Received: bar")
     assert "assertion" in cats
     assert "locator" not in cats
+
+
+def test_modern_playwright_locator_phrasings():
+    assert "locator" in classify_error(None, "waiting for getByRole('button')")
+    assert "locator" in classify_error("Error", "Locator expected to be visible")
+    assert "locator" in classify_error(None, "getByTestId('submit') resolved to 0 elements")
+
+
+def test_long_message_keeps_trailing_signal():
+    # la frase que clasifica puede ir tras un preámbulo largo (cap de 50k)
+    assert "infra" in classify_error(None, "x" * 6000 + " ECONNREFUSED")
+
+
+def test_narrative_expected_received_not_assertion():
+    # "received:"/"expected:" en medio de una frase NO es aserción (anclado a inicio de línea)
+    assert "assertion" not in classify_error(None, "the prize received: a gift card")
+    # pero al inicio de línea sí
+    assert "assertion" in classify_error(None, "Expected: 5\nReceived: 4")
+
+
+def test_trace_is_classified():
+    assert "locator" in classify_error(None, "Test failed", "Call log: waiting for getByRole('btn')")

@@ -33,3 +33,8 @@ def test_facts_passed_through():
                             mass_cofailure=True, has_green_baseline=True, dom_changed=True))
     assert s.retry_passed_in_run and s.intermittent_same_sha and s.mass_cofailure
     assert s.has_green_baseline and s.dom_changed
+
+
+def test_trace_feeds_classification():
+    s = compute_signals(_fi(message="test failed", trace="waiting for getByRole('btn')"))
+    assert s.locator_error is True

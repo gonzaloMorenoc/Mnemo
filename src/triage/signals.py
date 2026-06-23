@@ -18,6 +18,7 @@ class FailureInput:
     mass_cofailure: bool            # el run tiene >= umbral de fallos con firma de infra
     has_green_baseline: bool        # existe snapshot last_green del test
     dom_changed: bool               # DOM de fallo != last_green (normalizado)
+    trace: Optional[str] = None     # Playwright call log / stack trace completo
 
 
 @dataclass
@@ -36,7 +37,7 @@ class Signals:
 
 
 def compute_signals(failure: FailureInput) -> Signals:
-    cats = classify_error(failure.error_type, failure.message)
+    cats = classify_error(failure.error_type, failure.message, failure.trace)
     return Signals(
         infra_error="infra" in cats,
         locator_error="locator" in cats,
