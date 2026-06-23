@@ -748,7 +748,16 @@ class AssuranceRepository:
                 )
                 if not cur.fetchone()["ok"]:
                     raise PermissionError("user is not a member of the organization")
-                cur.execute("delete from public.triage_verdicts where run_id = %s", (run_id,))
+                cur.execute(
+                    "select 1 from public.test_runs where id = %s and org_id = %s",
+                    (run_id, org_id),
+                )
+                if cur.fetchone() is None:
+                    raise ValueError("run does not belong to the organization")
+                cur.execute(
+                    "delete from public.triage_verdicts where run_id = %s and org_id = %s",
+                    (run_id, org_id),
+                )
                 for v in verdicts:
                     cur.execute(
                         "insert into public.triage_verdicts"

@@ -13,14 +13,14 @@ _INFRA = re.compile(
 )
 _LOCATOR = re.compile(
     r"waiting for selector|waiting for locator|waiting for get_?by|get_?by[a-z_]*\(|"
-    r"strict mode violation|not visible|element is not|resolved to 0 elements|"
-    r"no element|no node found|locator not found|"
+    r"strict mode violation|resolved to 0 elements|no node found|locator not found|"
+    r"element is not (visible|attached|enabled|editable|stable)|"
     r"expected to be (visible|attached|enabled|checked|editable|in viewport)",
     re.IGNORECASE,
 )
 _ASSERTION = re.compile(
-    r"expect\(|assertionerror|^\s*expected:|^\s*received:",
-    re.IGNORECASE | re.MULTILINE,
+    r"expect\(|assertionerror|(?:^|\n)[ \t]*expected:|(?:^|\n)[ \t]*received:",
+    re.IGNORECASE,
 )
 
 

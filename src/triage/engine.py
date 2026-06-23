@@ -22,7 +22,8 @@ def triage(signals: Signals) -> TriageVerdict:
         return _verdict("flaky", 0.90, "R1_flaky")
     if signals.mass_cofailure and signals.infra_error:
         return _verdict("infra", 0.90, "R2_infra")
-    if signals.locator_error and signals.has_green_baseline and signals.dom_changed:
+    if (signals.locator_error and not signals.assertion_failure
+            and signals.has_green_baseline and signals.dom_changed):
         return _verdict("maintenance", 0.80, "R3_maintenance")
     if signals.assertion_failure and signals.recurrent:
         return _verdict("real", 0.85, "R4_real_recurrent")

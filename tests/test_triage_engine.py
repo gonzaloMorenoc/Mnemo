@@ -66,3 +66,16 @@ def test_priority_infra_over_maintenance():
     v = triage(_sig(mass_cofailure=True, infra_error=True,
                     locator_error=True, has_green_baseline=True, dom_changed=True))
     assert v.category == "infra" and v.rule_applied == "R2_infra"
+
+
+def test_assertion_with_locator_and_dom_change_is_real_not_maintenance():
+    # un defecto real (aserción) con baseline verde + DOM cambiado NO es mantenimiento
+    v = triage(_sig(locator_error=True, has_green_baseline=True, dom_changed=True,
+                    assertion_failure=True, recurrent=True))
+    assert v.category == "real" and v.rule_applied == "R4_real_recurrent"
+
+
+def test_assertion_novel_with_locator_and_dom_change_is_real():
+    v = triage(_sig(locator_error=True, has_green_baseline=True, dom_changed=True,
+                    assertion_failure=True, novel=True))
+    assert v.category == "real" and v.rule_applied == "R5_real_novel"

@@ -284,3 +284,81 @@ def test_update_triage_verdict_rejects_non_member(repo, org):
         user_id=str(uuid.uuid4()), verdict_id=vid, category="real", confidence=0.70,
         requires_approval=True, llm_assisted=True, status="resolved",
         evidence_bundle={}) is False
+
+
+def test_save_triage_verdicts_rejects_foreign_run(repo, org):
+    """Un miembro del org A no puede guardar veredictos usando un run_id de org B."""
+    if not DBURL:
+        pytest.skip("DATABASE_URL not configured")
+    u_a, o_a = org["user_id"], org["org_id"]
+
+    # Crear un segundo org con su propio usuario
+    u_b = str(uuid.uuid4())
+    email_b = f"test-{u_b[:8]}@test.internal"
+    with psycopg.connect(DBURL) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "insert into auth.users (id, email, role, aud, created_at, updated_at)"
+                " values (%s, %s, 'authenticated', 'authenticated', now(), now())",
+                (u_b, email_b),
+            )
+            cur.execute(
+                "insert into public.organizations (name, created_by) values (%s, %s) returning id",
+                ("test-org-b-" + u_b[:8], u_b),
+            )
+            o_b = str(cur.fetchone()[0])
+        conn.commit()
+
+    try:
+        # Ingestar un run en org B
+        r_b = repo.ingest_ci_run(user_id=u_b, org_id=o_b, project="p", source="playwright",
+                                 run_uid="frn-b", items=[_item("t1", "x", 1.0)],
+                                 results=[{"test_name": "t1", "status": "fail"}], snapshots=[])
+        # Usuario A (miembro de org A) intenta guardar veredictos sobre el run de org B → ValueError
+        with pytest.raises(ValueError, match="run does not belong"):
+            repo.save_triage_verdicts(user_id=u_a, org_id=o_a, run_id=r_b["run_id"], verdicts=[])
+    finally:
+        with psycopg.connect(DBURL) as conn:
+            with conn.cursor() as cur:
+                cur.execute("delete from public.organizations where id = %s", (o_b,))
+                cur.execute("delete from auth.users where id = %s", (u_b,))
+            conn.commit()
+
+
+def test_get_triage_inputs_wrong_org_isolation(repo, org):
+    """Un miembro del org B no puede ver los inputs de triaje de un run del org A."""
+    if not DBURL:
+        pytest.skip("DATABASE_URL not configured")
+    u_a, o_a = org["user_id"], org["org_id"]
+
+    # Crear segundo org B
+    u_b = str(uuid.uuid4())
+    email_b = f"test-{u_b[:8]}@test.internal"
+    with psycopg.connect(DBURL) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "insert into auth.users (id, email, role, aud, created_at, updated_at)"
+                " values (%s, %s, 'authenticated', 'authenticated', now(), now())",
+                (u_b, email_b),
+            )
+            cur.execute(
+                "insert into public.organizations (name, created_by) values (%s, %s) returning id",
+                ("test-org-b2-" + u_b[:8], u_b),
+            )
+            o_b = str(cur.fetchone()[0])
+        conn.commit()
+
+    try:
+        # Run pertenece a org A
+        r_a = repo.ingest_ci_run(user_id=u_a, org_id=o_a, project="p", source="playwright",
+                                 run_uid="iso-a", items=[_item("t1", "x", 1.0)],
+                                 results=[{"test_name": "t1", "status": "fail"}], snapshots=[])
+        # Usuario B (miembro de org B) consulta el run de org A → run: None
+        out = repo.get_triage_inputs(user_id=u_b, run_id=r_a["run_id"])
+        assert out["run"] is None
+    finally:
+        with psycopg.connect(DBURL) as conn:
+            with conn.cursor() as cur:
+                cur.execute("delete from public.organizations where id = %s", (o_b,))
+                cur.execute("delete from auth.users where id = %s", (u_b,))
+            conn.commit()
