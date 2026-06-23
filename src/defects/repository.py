@@ -92,6 +92,64 @@ class AssuranceRepository:
             for r in rows
         ]
 
+    def _match_and_insert_failure(self, cur, *, org_id: str, run_id, item: IngestItem) -> bool:
+        """Empareja un fallo con su familia (crea o actualiza centroide/contador) e inserta
+        la fila de `failures`. Devuelve True si la familia es nueva (novel), False si conocida.
+        Debe ejecutarse dentro de una transacción abierta (recibe el cursor)."""
+        cands = self._query_candidates(
+            cur, org_id=org_id, fingerprint=item.fingerprint, embedding=item.embedding
+        )
+        decision = decide_match(
+            fingerprint=item.fingerprint, embedding=item.embedding, candidates=cands,
+        )
+        if decision.is_new:
+            title = item.rec.error_type or item.rec.message[:80] or "unknown"
+            cur.execute(
+                """
+                insert into public.defect_families
+                    (scope, org_id, signature, title, occurrence_count, centroid)
+                values ('org', %s, %s, %s, 1, %s)
+                returning id
+                """,
+                (org_id, item.fingerprint, title, Vector(list(item.embedding))),
+            )
+            family_id = cur.fetchone()["id"]
+            is_new = True
+        else:
+            family_id = decision.family_id
+            cur.execute(
+                "select occurrence_count, centroid"
+                " from public.defect_families where id = %s for update",
+                (family_id,),
+            )
+            fam = cur.fetchone()
+            new_centroid = update_centroid(
+                list(fam["centroid"]) if fam["centroid"] is not None else None,
+                fam["occurrence_count"], list(item.embedding),
+            )
+            cur.execute(
+                """
+                update public.defect_families
+                set occurrence_count = occurrence_count + 1, last_seen = now(), centroid = %s
+                where id = %s
+                """,
+                (Vector(new_centroid), family_id),
+            )
+            is_new = False
+        cur.execute(
+            """
+            insert into public.failures
+                (run_id, org_id, test_name, error_type, message, trace,
+                 fingerprint, embedding, sanitized, defect_family_id,
+                 external_ref, external_url)
+            values (%s, %s, %s, %s, %s, %s, %s, %s, true, %s, %s, %s)
+            """,
+            (run_id, org_id, item.rec.test_name, item.rec.error_type, item.rec.message,
+             item.rec.trace, item.fingerprint, Vector(list(item.embedding)), family_id,
+             item.external_ref, item.external_url),
+        )
+        return is_new
+
     def ingest_run(
         self,
         *,
@@ -133,84 +191,10 @@ class AssuranceRepository:
                 run_id = cur.fetchone()["id"]
 
                 for item in items:
-                    cands = self._query_candidates(
-                        cur, org_id=org_id, fingerprint=item.fingerprint, embedding=item.embedding
-                    )
-                    decision = decide_match(
-                        fingerprint=item.fingerprint,
-                        embedding=item.embedding,
-                        candidates=cands,
-                    )
-
-                    if decision.is_new:
+                    if self._match_and_insert_failure(cur, org_id=org_id, run_id=run_id, item=item):
                         novel += 1
-                        title = (
-                            item.rec.error_type
-                            or item.rec.message[:80]
-                            or "unknown"
-                        )
-                        cur.execute(
-                            """
-                            insert into public.defect_families
-                                (scope, org_id, signature, title, occurrence_count, centroid)
-                            values ('org', %s, %s, %s, 1, %s)
-                            returning id
-                            """,
-                            (
-                                org_id,
-                                item.fingerprint,
-                                title,
-                                Vector(list(item.embedding)),
-                            ),
-                        )
-                        family_id = cur.fetchone()["id"]
                     else:
                         known += 1
-                        family_id = decision.family_id
-                        cur.execute(
-                            "select occurrence_count, centroid"
-                            " from public.defect_families where id = %s for update",
-                            (family_id,),
-                        )
-                        fam = cur.fetchone()
-                        new_centroid = update_centroid(
-                            list(fam["centroid"]) if fam["centroid"] is not None else None,
-                            fam["occurrence_count"],
-                            list(item.embedding),
-                        )
-                        cur.execute(
-                            """
-                            update public.defect_families
-                            set occurrence_count = occurrence_count + 1,
-                                last_seen = now(),
-                                centroid = %s
-                            where id = %s
-                            """,
-                            (Vector(new_centroid), family_id),
-                        )
-
-                    cur.execute(
-                        """
-                        insert into public.failures
-                            (run_id, org_id, test_name, error_type, message, trace,
-                             fingerprint, embedding, sanitized, defect_family_id,
-                             external_ref, external_url)
-                        values (%s, %s, %s, %s, %s, %s, %s, %s, true, %s, %s, %s)
-                        """,
-                        (
-                            run_id,
-                            org_id,
-                            item.rec.test_name,
-                            item.rec.error_type,
-                            item.rec.message,
-                            item.rec.trace,
-                            item.fingerprint,
-                            Vector(list(item.embedding)),
-                            family_id,
-                            item.external_ref,
-                            item.external_url,
-                        ),
-                    )
 
                 summary = {"ingested": len(items), "known": known, "novel": novel}
                 cur.execute(
