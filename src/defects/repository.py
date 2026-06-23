@@ -658,16 +658,17 @@ class AssuranceRepository:
                 if family_ids:
                     cur.execute(
                         "select distinct defect_family_id from public.failures"
-                        " where defect_family_id = any(%s) and run_id <> %s",
-                        (family_ids, run_id),
+                        " where defect_family_id = any(%s) and org_id = %s and run_id <> %s",
+                        (family_ids, org_id, run_id),
                     )
                     recurrent = {r["defect_family_id"] for r in cur.fetchall()}
                     cur.execute(
                         "select fl.defect_family_id as fid,"
                         "       array_agg(distinct r2.project) as projects"
                         " from public.failures fl join public.test_runs r2 on r2.id = fl.run_id"
-                        " where fl.defect_family_id = any(%s) group by fl.defect_family_id",
-                        (family_ids,),
+                        " where fl.defect_family_id = any(%s) and fl.org_id = %s"
+                        " group by fl.defect_family_id",
+                        (family_ids, org_id),
                     )
                     lineage = {r["fid"]: list(r["projects"]) for r in cur.fetchall()}
 
