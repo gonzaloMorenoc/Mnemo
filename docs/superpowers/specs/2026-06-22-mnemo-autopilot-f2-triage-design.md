@@ -39,7 +39,7 @@ Por cada fallo, dado su contexto de run y el histórico:
 | `assertion_failure` | casa patrones de aserción (`expect(`, `AssertionError`) |
 | `dom_changed` | `normalize(dom_fallo) != normalize(dom_último_verde)` |
 | `has_green_baseline` | existe un snapshot `last_green` para el test |
-| `novel` / `recurrent` | la familia es nueva / conocida (`occurrence_count`) |
+| `novel` / `recurrent` | la familia **no tiene fallos en runs anteriores** (primera vez que se ve) / ya apareció antes. *Nota F2d:* se calcula por "sin fallos en otros runs", no por `occurrence_count` (así 2 fallos de una familia nueva en el mismo run siguen siendo `novel` → requieren aprobación). |
 
 `normalize` (DOM): colapsa espacios en blanco; coarse pero suficiente para la señal a confianza calibrada. El diff a nivel de elemento es F3.
 
