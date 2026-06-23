@@ -65,6 +65,10 @@ CI_MAX_BODY_BYTES = int(os.getenv("CI_MAX_BODY_BYTES", str(10 * 1024 * 1024)))
 # rechaza (403) cualquier artefacto con otro org_id (aislamiento mono-org).
 CI_SERVICE_ORG_ID = os.getenv("CI_SERVICE_ORG_ID", "")
 
+# Triaje (Mnemo Autopilot F2): nº mínimo de fallos con firma de infra en un run
+# para considerarlo "co-fallo masivo" (señal de problema de entorno, no de producto).
+TRIAGE_MASS_COFAILURE_MIN = int(os.getenv("TRIAGE_MASS_COFAILURE_MIN", "3"))
+
 
 def multi_tenant_enabled() -> bool:
     """True solo si hay BD Postgres y Supabase configurados."""

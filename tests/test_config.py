@@ -48,3 +48,10 @@ def test_ci_dos_protection_config_present():
     assert hasattr(config, "CI_SERVICE_ORG_ID")
     assert isinstance(config.CI_MAX_BODY_BYTES, int)
     assert isinstance(config.CI_SERVICE_ORG_ID, str)
+
+
+def test_triage_mass_cofailure_min_present():
+    import src.config as config
+    assert hasattr(config, "TRIAGE_MASS_COFAILURE_MIN")
+    assert isinstance(config.TRIAGE_MASS_COFAILURE_MIN, int)
+    assert config.TRIAGE_MASS_COFAILURE_MIN >= 1
