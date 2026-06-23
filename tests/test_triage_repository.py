@@ -181,6 +181,15 @@ def test_set_family_label(repo, org):
     assert out["failures"][0]["family_label"] == "flaky"
 
 
+def test_set_family_label_rejects_non_member(repo, org):
+    u, o = org["user_id"], org["org_id"]
+    r = repo.ingest_ci_run(user_id=u, org_id=o, project="p", source="playwright", run_uid="nm-lbl",
+                           items=[_item("t1", "TimeoutError x", 1.0)],
+                           results=[{"test_name": "t1", "status": "fail"}], snapshots=[])
+    fam = repo.get_triage_inputs(user_id=u, run_id=r["run_id"])["failures"][0]["family_id"]
+    assert repo.set_family_label(user_id=str(uuid.uuid4()), family_id=fam, label="flaky") is False
+
+
 def test_set_family_label_rejects_invalid(repo, org):
     with pytest.raises(ValueError):
         repo.set_family_label(user_id=org["user_id"], family_id=str(uuid.uuid4()), label="bogus")
