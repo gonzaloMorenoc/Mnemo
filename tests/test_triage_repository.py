@@ -240,3 +240,47 @@ def test_dom_changed_false_when_identical(repo, org):
     out = repo.get_triage_inputs(user_id=u, run_id=rf["run_id"])
     assert out["failures"][0]["has_green_baseline"] is True
     assert out["failures"][0]["dom_changed"] is False
+
+
+# ---------------------------------------------------------------------------
+# Task 2: update_triage_verdict
+# ---------------------------------------------------------------------------
+
+def test_update_triage_verdict_roundtrip(repo, org):
+    u, o = org["user_id"], org["org_id"]
+    r = repo.ingest_ci_run(user_id=u, org_id=o, project="p", source="playwright", run_uid="upd",
+                           items=[_item("t1", "TimeoutError x", 1.0)],
+                           results=[{"test_name": "t1", "status": "fail"}], snapshots=[])
+    out = repo.get_triage_inputs(user_id=u, run_id=r["run_id"])
+    fid = out["failures"][0]["failure_id"]
+    repo.save_triage_verdicts(user_id=u, org_id=o, run_id=r["run_id"], verdicts=[{
+        "failure_id": fid, "category": "unknown", "confidence": 0.0,
+        "rule_applied": "R6_unknown", "evidence_bundle": {"k": "v"},
+        "requires_approval": True, "llm_assisted": False, "status": "needs_tiebreak"}])
+    vid = repo.get_triage_for_run(user_id=u, run_id=r["run_id"])[0]["id"]
+    ok = repo.update_triage_verdict(
+        user_id=u, verdict_id=vid, category="real", confidence=0.70,
+        requires_approval=True, llm_assisted=True, status="resolved",
+        evidence_bundle={"k": "v", "tiebreak_reason": "porque sí"})
+    assert ok is True
+    got = repo.get_triage_for_run(user_id=u, run_id=r["run_id"])[0]
+    assert got["category"] == "real" and got["confidence"] == 0.70
+    assert got["llm_assisted"] is True and got["status"] == "resolved"
+    assert got["evidence_bundle"]["tiebreak_reason"] == "porque sí"
+
+
+def test_update_triage_verdict_rejects_non_member(repo, org):
+    u, o = org["user_id"], org["org_id"]
+    r = repo.ingest_ci_run(user_id=u, org_id=o, project="p", source="playwright", run_uid="updnm",
+                           items=[_item("t1", "x", 1.0)],
+                           results=[{"test_name": "t1", "status": "fail"}], snapshots=[])
+    repo.save_triage_verdicts(user_id=u, org_id=o, run_id=r["run_id"], verdicts=[{
+        "failure_id": repo.get_triage_inputs(user_id=u, run_id=r["run_id"])["failures"][0]["failure_id"],
+        "category": "unknown", "confidence": 0.0, "rule_applied": "R6_unknown",
+        "evidence_bundle": None, "requires_approval": True, "llm_assisted": False,
+        "status": "needs_tiebreak"}])
+    vid = repo.get_triage_for_run(user_id=u, run_id=r["run_id"])[0]["id"]
+    assert repo.update_triage_verdict(
+        user_id=str(uuid.uuid4()), verdict_id=vid, category="real", confidence=0.70,
+        requires_approval=True, llm_assisted=True, status="resolved",
+        evidence_bundle={}) is False

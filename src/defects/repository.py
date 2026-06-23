@@ -788,6 +788,28 @@ class AssuranceRepository:
                     for r in cur.fetchall()
                 ]
 
+    def update_triage_verdict(
+        self, *, user_id: str, verdict_id: str, category: str, confidence: float,
+        requires_approval: bool, llm_assisted: bool, status: str,
+        evidence_bundle: Any,
+    ) -> bool:
+        """Actualiza un veredicto (resolución de tiebreak). Membership-gated vía el
+        org del veredicto. Devuelve False si no es miembro / no existe."""
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "update public.triage_verdicts tv set category = %s, confidence = %s,"
+                    "  requires_approval = %s, llm_assisted = %s, status = %s, evidence_bundle = %s"
+                    " where tv.id = %s and exists (select 1 from public.memberships m"
+                    "   where m.org_id = tv.org_id and m.user_id = %s)",
+                    (category, confidence, requires_approval, llm_assisted, status,
+                     Json(evidence_bundle), verdict_id, user_id),
+                )
+                updated = cur.rowcount > 0
+            conn.commit()
+        return updated
+
     def set_family_label(self, *, user_id: str, family_id: str, label: str) -> bool:
         """Etiqueta una familia (lazo de aprendizaje / triaje). Devuelve False si no
         es miembro / no existe. Lanza ValueError si el label no es válido."""
