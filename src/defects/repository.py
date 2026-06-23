@@ -732,3 +732,76 @@ class AssuranceRepository:
                     "project": project, "commit_sha": commit_sha},
             "failures": out,
         }
+
+    def save_triage_verdicts(
+        self, *, user_id: str, org_id: str, run_id: str, verdicts: List[Dict[str, Any]]
+    ) -> int:
+        """Reemplaza (delete+insert) los veredictos del run → idempotente. Lanza
+        PermissionError si el usuario no es miembro del org."""
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "select exists(select 1 from public.memberships"
+                    " where org_id = %s and user_id = %s) as ok",
+                    (org_id, user_id),
+                )
+                if not cur.fetchone()["ok"]:
+                    raise PermissionError("user is not a member of the organization")
+                cur.execute("delete from public.triage_verdicts where run_id = %s", (run_id,))
+                for v in verdicts:
+                    cur.execute(
+                        "insert into public.triage_verdicts"
+                        " (failure_id, run_id, org_id, category, confidence, rule_applied,"
+                        "  evidence_bundle, requires_approval, llm_assisted, status)"
+                        " values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                        (v["failure_id"], run_id, org_id, v["category"], v["confidence"],
+                         v["rule_applied"], Json(v.get("evidence_bundle")),
+                         v["requires_approval"], v["llm_assisted"], v.get("status", "resolved")),
+                    )
+            conn.commit()
+        return len(verdicts)
+
+    def get_triage_for_run(self, *, user_id: str, run_id: str) -> List[Dict[str, Any]]:
+        """Veredictos persistidos de un run (vacío si no es miembro / no existe)."""
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "select tv.id, tv.failure_id, tv.category, tv.confidence, tv.rule_applied,"
+                    "       tv.evidence_bundle, tv.requires_approval, tv.llm_assisted, tv.status"
+                    " from public.triage_verdicts tv"
+                    " join public.test_runs r on r.id = tv.run_id"
+                    " where tv.run_id = %s and exists (select 1 from public.memberships m"
+                    "   where m.org_id = r.org_id and m.user_id = %s)"
+                    " order by tv.created_at",
+                    (run_id, user_id),
+                )
+                return [
+                    {
+                        "id": str(r["id"]), "failure_id": str(r["failure_id"]),
+                        "category": r["category"], "confidence": r["confidence"],
+                        "rule_applied": r["rule_applied"], "evidence_bundle": r["evidence_bundle"],
+                        "requires_approval": r["requires_approval"],
+                        "llm_assisted": r["llm_assisted"], "status": r["status"],
+                    }
+                    for r in cur.fetchall()
+                ]
+
+    def set_family_label(self, *, user_id: str, family_id: str, label: str) -> bool:
+        """Etiqueta una familia (lazo de aprendizaje / triaje). Devuelve False si no
+        es miembro / no existe. Lanza ValueError si el label no es válido."""
+        if label not in ("flaky", "real", "maintenance", "infra", "unknown"):
+            raise ValueError(f"invalid label: {label!r}")
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "update public.defect_families set label = %s"
+                    " where id = %s and (scope = 'global' or exists (select 1 from public.memberships m"
+                    "   where m.org_id = public.defect_families.org_id and m.user_id = %s))",
+                    (label, family_id, user_id),
+                )
+                updated = cur.rowcount > 0
+            conn.commit()
+        return updated

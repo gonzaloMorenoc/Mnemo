@@ -127,3 +127,60 @@ def test_has_green_baseline_and_dom_changed(repo, org):
     f = out["failures"][0]
     assert f["has_green_baseline"] is True
     assert f["dom_changed"] is True
+
+
+# ---------------------------------------------------------------------------
+# Task 4: save_triage_verdicts / get_triage_for_run / set_family_label
+# ---------------------------------------------------------------------------
+
+def _verdict(failure_id, category="real", conf=0.85):
+    return {"failure_id": failure_id, "category": category, "confidence": conf,
+            "rule_applied": "R4_real_recurrent", "evidence_bundle": {"k": "v"},
+            "requires_approval": False, "llm_assisted": False, "status": "resolved"}
+
+
+def test_save_and_get_triage_verdicts_idempotent(repo, org):
+    u, o = org["user_id"], org["org_id"]
+    r = repo.ingest_ci_run(user_id=u, org_id=o, project="p", source="playwright", run_uid="v",
+                           items=[_item("t1", "TimeoutError x", 1.0)],
+                           results=[{"test_name": "t1", "status": "fail"}], snapshots=[])
+    out = repo.get_triage_inputs(user_id=u, run_id=r["run_id"])
+    fid = out["failures"][0]["failure_id"]
+    n = repo.save_triage_verdicts(user_id=u, org_id=o, run_id=r["run_id"], verdicts=[_verdict(fid)])
+    assert n == 1
+    # re-guardar (idempotente) → sigue habiendo 1, no 2
+    repo.save_triage_verdicts(user_id=u, org_id=o, run_id=r["run_id"], verdicts=[_verdict(fid, conf=0.9)])
+    got = repo.get_triage_for_run(user_id=u, run_id=r["run_id"])
+    assert len(got) == 1
+    assert got[0]["category"] == "real" and got[0]["confidence"] == 0.9
+    assert got[0]["evidence_bundle"] == {"k": "v"}
+
+
+def test_save_triage_verdicts_rejects_non_member(repo, org):
+    with pytest.raises(PermissionError):
+        repo.save_triage_verdicts(user_id=str(uuid.uuid4()), org_id=org["org_id"],
+                                  run_id=str(uuid.uuid4()), verdicts=[])
+
+
+def test_get_triage_for_run_non_member(repo, org):
+    u, o = org["user_id"], org["org_id"]
+    r = repo.ingest_ci_run(user_id=u, org_id=o, project="p", source="playwright", run_uid="g2",
+                           items=[_item("t1", "x", 1.0)],
+                           results=[{"test_name": "t1", "status": "fail"}], snapshots=[])
+    assert repo.get_triage_for_run(user_id=str(uuid.uuid4()), run_id=r["run_id"]) == []
+
+
+def test_set_family_label(repo, org):
+    u, o = org["user_id"], org["org_id"]
+    r = repo.ingest_ci_run(user_id=u, org_id=o, project="p", source="playwright", run_uid="lbl",
+                           items=[_item("t1", "TimeoutError x", 1.0)],
+                           results=[{"test_name": "t1", "status": "fail"}], snapshots=[])
+    fam = repo.get_triage_inputs(user_id=u, run_id=r["run_id"])["failures"][0]["family_id"]
+    assert repo.set_family_label(user_id=u, family_id=fam, label="flaky") is True
+    out = repo.get_triage_inputs(user_id=u, run_id=r["run_id"])
+    assert out["failures"][0]["family_label"] == "flaky"
+
+
+def test_set_family_label_rejects_invalid(repo, org):
+    with pytest.raises(ValueError):
+        repo.set_family_label(user_id=org["user_id"], family_id=str(uuid.uuid4()), label="bogus")
