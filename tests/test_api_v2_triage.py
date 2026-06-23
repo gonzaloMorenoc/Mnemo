@@ -34,6 +34,9 @@ def test_triage_run_returns_verdicts():
     body = resp.json()
     assert body[0]["category"] == "real" and body[0]["status"] == "resolved"
     assert body[0]["evidence_bundle"] == {"k": "v"}
+    assert body[0]["failure_id"] == "f1" and body[0]["confidence"] == 0.85
+    assert body[0]["rule_applied"] == "R4_real_recurrent"
+    assert body[0]["requires_approval"] is False and body[0]["llm_assisted"] is False
 
 
 def test_triage_run_requires_auth():

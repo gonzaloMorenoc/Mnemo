@@ -62,3 +62,13 @@ def test_ambiguous_marked_needs_tiebreak():
     v = repo.save_triage_verdicts.call_args.kwargs["verdicts"][0]
     assert v["category"] == "unknown" and v["status"] == "needs_tiebreak"
     assert v["requires_approval"] is True and v["llm_assisted"] is False
+
+
+def test_real_recurrent_verdict_fields_persisted():
+    # aserción + recurrente (no novel) → real @ 0.85, sin aprobación
+    svc, repo = _svc([_failure("t1", "AssertionError", "expect(x).toBe(y)", is_novel=False)])
+    svc.triage_run(user_id="u", run_id="r1")
+    v = repo.save_triage_verdicts.call_args.kwargs["verdicts"][0]
+    assert v["category"] == "real" and v["confidence"] == 0.85
+    assert v["rule_applied"] == "R4_real_recurrent" and v["requires_approval"] is False
+    assert v["llm_assisted"] is False and v["status"] == "resolved"

@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Dict
 
 from src.config import TRIAGE_MASS_COFAILURE_MIN
 from src.triage.engine import triage
@@ -57,7 +57,7 @@ class TriageService:
                 "llm_assisted": verdict.llm_assisted,
                 "status": "needs_tiebreak" if verdict.ambiguous else "resolved",
             })
-            counts[verdict.category] = counts.get(verdict.category, 0) + 1
+            counts[verdict.category] += 1
 
         self.repo.save_triage_verdicts(
             user_id=user_id, org_id=data["run"]["org_id"], run_id=run_id, verdicts=verdicts,

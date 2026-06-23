@@ -64,6 +64,7 @@ def test_webhook_valid_signature(monkeypatch):
     assert data["results_recorded"] == 2
     assert data["snapshots_saved"] == 2
     assert data["deduplicated"] is False
+    assert resp.json()["triage"] == {"flaky": 0, "infra": 0, "maintenance": 0, "real": 0, "unknown": 0}
     service.ingest_artifact.assert_called_once()
 
 
