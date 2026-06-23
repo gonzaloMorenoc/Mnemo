@@ -49,3 +49,36 @@ def test_triage_run_db_error_is_502():
     repo.get_triage_for_run.side_effect = psycopg.OperationalError("db down")
     client = make_client(repo)
     assert client.get("/v2/triage/run/r1").status_code == 502
+
+
+def test_resolve_endpoint_returns_summary():
+    svc = MagicMock()
+    svc.resolve_tiebreaks.return_value = {"resolved": 2, "pending": 1}
+    app = FastAPI()
+    app.include_router(api_v2.router)
+    app.dependency_overrides[api_v2.get_triage_service] = lambda: svc
+    app.dependency_overrides[api_v2.get_current_user] = _user
+    client = TestClient(app)
+    resp = client.post("/v2/triage/run/r1/resolve")
+    assert resp.status_code == 200
+    assert resp.json() == {"resolved": 2, "pending": 1}
+    svc.resolve_tiebreaks.assert_called_once_with(user_id="user-1", run_id="r1")
+
+
+def test_resolve_endpoint_requires_auth():
+    app = FastAPI()
+    app.include_router(api_v2.router)
+    app.dependency_overrides[api_v2.get_triage_service] = lambda: MagicMock()
+    client = TestClient(app)  # sin override de usuario → 401
+    assert client.post("/v2/triage/run/r1/resolve").status_code == 401
+
+
+def test_resolve_endpoint_db_error_is_502():
+    svc = MagicMock()
+    svc.resolve_tiebreaks.side_effect = psycopg.OperationalError("db down")
+    app = FastAPI()
+    app.include_router(api_v2.router)
+    app.dependency_overrides[api_v2.get_triage_service] = lambda: svc
+    app.dependency_overrides[api_v2.get_current_user] = _user
+    client = TestClient(app)
+    assert client.post("/v2/triage/run/r1/resolve").status_code == 502

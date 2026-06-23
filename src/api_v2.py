@@ -368,6 +368,18 @@ def triage_run_v2(
     return [TriageVerdictResponse(**v) for v in verdicts]
 
 
+@router.post("/triage/run/{run_id}/resolve")
+def resolve_triage_run_v2(
+    run_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+    service: TriageService = Depends(get_triage_service),
+) -> Dict[str, int]:
+    try:
+        return service.resolve_tiebreaks(user_id=user.user_id, run_id=run_id)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+
+
 @router.post("/integrations/jira", response_model=JiraConfigResponse)
 def set_jira_integration(
     body: JiraConfigRequest,
