@@ -18,14 +18,8 @@ class CiIngestionService:
         self.embedder = embedder
 
     def ingest_artifact(self, *, user_id: str, artifact: CiRunArtifact) -> Dict[str, Any]:
-        """Ingiere un artefacto de CI: fallos→Defect DNA + resultados por test + snapshots DOM.
-
-        NO es atómico: ingest_run, record_test_results y save_dom_snapshots corren
-        en transacciones separadas. Un fallo parcial (p.ej. la BD cae tras crear el
-        run) deja el run sin todos sus test_results; el webhook es por tanto
-        "at-least-once" y un reintento del CI puede crear un run duplicado. La
-        ingesta atómica + clave de idempotencia por run quedan para F2.
-        """
+        """Ingesta atómica e idempotente de un artefacto de CI: fallos→Defect DNA +
+        resultados por test + snapshots DOM, en una sola transacción. Idempotente por run_uid."""
         items = []
         for rec in to_failure_records(artifact):
             message = sanitize_text(rec.message)
@@ -35,24 +29,13 @@ class CiIngestionService:
             embedding = self.embedder.embed(f"{clean.error_type or ''} {message}".strip())
             items.append(IngestItem(rec=clean, fingerprint=fp, embedding=embedding))
 
-        result = self.repo.ingest_run(
-            user_id=user_id, org_id=artifact.org_id, project=artifact.project,
-            source=artifact.source, items=items, commit_sha=artifact.commit_sha,
-        )
-        run_id = result["run_id"]
-
         results = [
             {"test_name": t.test_name, "status": t.status, "retried": t.retried}
             for t in artifact.tests
         ]
-        results_recorded = self.repo.record_test_results(
-            user_id=user_id, org_id=artifact.org_id, run_id=run_id, results=results,
-        )
-
         snapshots = [
             {
                 "test_name": t.test_name,
-                # pass → baseline "último verde"; cualquier otro estado con DOM → "failure"
                 "kind": "last_green" if t.status == "pass" else "failure",
                 "content": t.dom,
                 "commit_sha": artifact.commit_sha,
@@ -60,15 +43,9 @@ class CiIngestionService:
             for t in artifact.tests
             if t.dom
         ]
-        snapshots_saved = 0
-        if snapshots:
-            snapshots_saved = self.repo.save_dom_snapshots(
-                user_id=user_id, org_id=artifact.org_id, project=artifact.project,
-                snapshots=snapshots,
-            )
 
-        return {
-            **result,
-            "results_recorded": results_recorded,
-            "snapshots_saved": snapshots_saved,
-        }
+        return self.repo.ingest_ci_run(
+            user_id=user_id, org_id=artifact.org_id, project=artifact.project,
+            source=artifact.source, commit_sha=artifact.commit_sha, run_uid=artifact.run_uid,
+            items=items, results=results, snapshots=snapshots,
+        )
