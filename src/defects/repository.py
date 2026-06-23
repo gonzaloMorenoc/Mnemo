@@ -12,6 +12,9 @@ from src.defects.centroid import update_centroid
 from src.defects.match import FamilyCandidate, decide_match
 from src.ingest.models import FailureRecord
 
+_CI_STATUSES = ("pass", "fail", "flaky", "skipped")
+_CI_KINDS = ("last_green", "failure")
+
 
 @dataclass
 class IngestItem:
@@ -230,8 +233,6 @@ class AssuranceRepository:
 
         Lanza PermissionError si no es miembro; ValueError ante status/kind inválido.
         """
-        _STATUS = ("pass", "fail", "flaky", "skipped")
-        _KINDS = ("last_green", "failure")
         known = 0
         novel = 0
         with self._connect() as conn:
@@ -259,8 +260,8 @@ class AssuranceRepository:
                             "ingested": summary.get("ingested", 0),
                             "known": summary.get("known", 0),
                             "novel": summary.get("novel", 0),
-                            "results_recorded": 0,
-                            "snapshots_saved": 0,
+                            "results_recorded": summary.get("results_recorded", 0),
+                            "snapshots_saved": summary.get("snapshots_saved", 0),
                             "deduplicated": True,
                         }
 
@@ -280,7 +281,7 @@ class AssuranceRepository:
                 for r in results:
                     if "test_name" not in r or "status" not in r:
                         raise ValueError("each result requires 'test_name' and 'status'")
-                    if r["status"] not in _STATUS:
+                    if r["status"] not in _CI_STATUSES:
                         raise ValueError(f"invalid status: {r['status']!r}")
                     cur.execute(
                         "insert into public.test_results"
@@ -292,7 +293,7 @@ class AssuranceRepository:
                 for s in snapshots:
                     if "test_name" not in s or "kind" not in s or "content" not in s:
                         raise ValueError("each snapshot requires 'test_name', 'kind' and 'content'")
-                    if s["kind"] not in _KINDS:
+                    if s["kind"] not in _CI_KINDS:
                         raise ValueError(f"invalid kind: {s['kind']!r}")
                     cur.execute(
                         "insert into public.dom_snapshots"
@@ -302,7 +303,10 @@ class AssuranceRepository:
                          s.get("commit_sha")),
                     )
 
-                summary = {"ingested": len(items), "known": known, "novel": novel}
+                summary = {
+                    "ingested": len(items), "known": known, "novel": novel,
+                    "results_recorded": len(results), "snapshots_saved": len(snapshots),
+                }
                 cur.execute(
                     "update public.test_runs set summary = %s where id = %s",
                     (Json(summary), run_id),

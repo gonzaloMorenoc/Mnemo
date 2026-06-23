@@ -173,7 +173,6 @@ def test_ingest_ci_run_atomic_and_counts(repo, org):
     assert out["deduplicated"] is False
     assert out["ingested"] == 1 and out["novel"] == 1
     assert out["results_recorded"] == 2 and out["snapshots_saved"] == 1
-    import psycopg
     with psycopg.connect(DBURL) as conn:
         with conn.cursor() as cur:
             cur.execute("select count(*) from public.test_results where run_id = %s", (out["run_id"],))
@@ -192,7 +191,8 @@ def test_ingest_ci_run_idempotent_by_run_uid(repo, org):
     assert first["deduplicated"] is False
     assert second["deduplicated"] is True
     assert second["run_id"] == first["run_id"]
-    import psycopg
+    assert second["results_recorded"] == first["results_recorded"] == 1
+    assert second["snapshots_saved"] == first["snapshots_saved"] == 0
     with psycopg.connect(DBURL) as conn:
         with conn.cursor() as cur:
             cur.execute("select count(*) from public.test_runs where org_id = %s and run_uid = %s",
@@ -211,7 +211,6 @@ def test_ingest_ci_run_rolls_back_on_bad_snapshot(repo, org):
             snapshots=[{"test_name": "t", "kind": "bogus", "content": "<html></html>"}],
         )
     # Atomicidad: el run NO debe haberse creado.
-    import psycopg
     with psycopg.connect(DBURL) as conn:
         with conn.cursor() as cur:
             cur.execute("select count(*) from public.test_runs where org_id = %s and run_uid = %s",
