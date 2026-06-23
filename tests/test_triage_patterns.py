@@ -25,3 +25,11 @@ def test_no_match_returns_empty():
 def test_multiple_categories():
     cats = classify_error("TimeoutError", "expect(locator).toBeVisible() failed waiting for locator")
     assert "locator" in cats and "assertion" in cats
+
+
+def test_assertion_mentioning_locator_is_not_locator_error():
+    # Una aserción de texto que menciona "locator" pero sin frase de fallo de locator
+    # NO debe clasificarse como locator (evita misclasificar defectos reales como mantenimiento).
+    cats = classify_error(None, "expect(page.locator('x')).toHaveText('foo'): Expected: foo Received: bar")
+    assert "assertion" in cats
+    assert "locator" not in cats

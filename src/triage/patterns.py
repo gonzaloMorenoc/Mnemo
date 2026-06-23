@@ -12,7 +12,7 @@ _INFRA = re.compile(
     re.IGNORECASE,
 )
 _LOCATOR = re.compile(
-    r"locator|waiting for selector|waiting for locator|strict mode violation|"
+    r"waiting for selector|waiting for locator|strict mode violation|"
     r"not visible|element is not|resolved to 0 elements|no element|no node found",
     re.IGNORECASE,
 )
