@@ -11,7 +11,7 @@ class FailureInput:
     aquí la lógica es PURA."""
     error_type: Optional[str]
     message: str
-    is_novel: bool                  # familia recién creada (occurrence_count == 1)
+    is_novel: bool                  # la familia no tiene fallos en runs ANTERIORES (primera vez que se ve)
     family_label: str               # 'flaky'|'real'|'maintenance'|'infra'|'unknown'
     retry_passed_in_run: bool       # pasó al reintentar en el MISMO run
     intermittent_same_sha: bool     # mismo test+commit con mezcla pass+fail entre runs

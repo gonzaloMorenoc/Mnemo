@@ -193,3 +193,50 @@ def test_set_family_label_rejects_non_member(repo, org):
 def test_set_family_label_rejects_invalid(repo, org):
     with pytest.raises(ValueError):
         repo.set_family_label(user_id=org["user_id"], family_id=str(uuid.uuid4()), label="bogus")
+
+
+def test_is_novel_two_failures_same_family_one_run(repo, org):
+    u, o = org["user_id"], org["org_id"]
+    # dos fallos con el MISMO error → misma familia (occurrence_count=2 en este run),
+    # pero sin fallos en otros runs → ambos siguen siendo novel
+    r = repo.ingest_ci_run(user_id=u, org_id=o, project="p", source="playwright", run_uid="nov2",
+                           items=[_item("t1", "TimeoutError boom", 1.0),
+                                  _item("t2", "TimeoutError boom", 1.0)],
+                           results=[{"test_name": "t1", "status": "fail"},
+                                    {"test_name": "t2", "status": "fail"}], snapshots=[])
+    out = repo.get_triage_inputs(user_id=u, run_id=r["run_id"])
+    assert all(f["is_novel"] is True for f in out["failures"])
+
+
+def test_intermittent_not_cross_project(repo, org):
+    u, o = org["user_id"], org["org_id"]
+    repo.ingest_ci_run(user_id=u, org_id=o, project="projA", source="playwright", run_uid="ipa",
+                       commit_sha="shX", items=[], results=[{"test_name": "t1", "status": "pass"}], snapshots=[])
+    rb = repo.ingest_ci_run(user_id=u, org_id=o, project="projB", source="playwright", run_uid="ipb",
+                            commit_sha="shX", items=[_item("t1", "TimeoutError x", 1.0)],
+                            results=[{"test_name": "t1", "status": "fail"}], snapshots=[])
+    out = repo.get_triage_inputs(user_id=u, run_id=rb["run_id"])
+    assert out["failures"][0]["intermittent_same_sha"] is False  # distinto proyecto
+
+
+def test_intermittent_false_when_only_fails(repo, org):
+    u, o = org["user_id"], org["org_id"]
+    r = repo.ingest_ci_run(user_id=u, org_id=o, project="p", source="playwright", run_uid="onlyfail",
+                           commit_sha="sf", items=[_item("t1", "TimeoutError x", 1.0)],
+                           results=[{"test_name": "t1", "status": "fail"}], snapshots=[])
+    out = repo.get_triage_inputs(user_id=u, run_id=r["run_id"])
+    assert out["failures"][0]["intermittent_same_sha"] is False
+
+
+def test_dom_changed_false_when_identical(repo, org):
+    u, o = org["user_id"], org["org_id"]
+    repo.ingest_ci_run(user_id=u, org_id=o, project="p", source="playwright", run_uid="dgi",
+                       commit_sha="s1", items=[], results=[{"test_name": "t1", "status": "pass"}],
+                       snapshots=[{"test_name": "t1", "kind": "last_green", "content": "<html>same</html>", "commit_sha": "s1"}])
+    rf = repo.ingest_ci_run(user_id=u, org_id=o, project="p", source="playwright", run_uid="dgi2",
+                            commit_sha="s2", items=[_item("t1", "TimeoutError x", 1.0)],
+                            results=[{"test_name": "t1", "status": "fail"}],
+                            snapshots=[{"test_name": "t1", "kind": "failure", "content": "<html>same</html>", "commit_sha": "s2"}])
+    out = repo.get_triage_inputs(user_id=u, run_id=rf["run_id"])
+    assert out["failures"][0]["has_green_baseline"] is True
+    assert out["failures"][0]["dom_changed"] is False

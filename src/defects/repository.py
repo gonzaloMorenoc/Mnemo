@@ -684,11 +684,11 @@ class AssuranceRepository:
                     cur.execute(
                         "select tr.test_name from public.test_results tr"
                         " join public.test_runs r2 on r2.id = tr.run_id"
-                        " where r2.org_id = %s and r2.commit_sha = %s"
+                        " where r2.org_id = %s and r2.project = %s and r2.commit_sha = %s"
                         " group by tr.test_name"
                         " having bool_or(tr.status = 'pass')"
                         "    and bool_or(tr.status in ('fail', 'flaky'))",
-                        (org_id, commit_sha),
+                        (org_id, project, commit_sha),
                     )
                     intermittent = {r["test_name"] for r in cur.fetchall()}
 

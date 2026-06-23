@@ -11,7 +11,7 @@ create table if not exists public.triage_verdicts (
     run_id uuid not null references public.test_runs (id) on delete cascade,
     org_id uuid not null references public.organizations (id) on delete cascade,
     category text not null check (category in ('flaky', 'infra', 'maintenance', 'real', 'unknown')),
-    confidence real not null,
+    confidence double precision not null,
     rule_applied text not null,
     evidence_bundle jsonb,
     requires_approval boolean not null default false,
@@ -29,3 +29,5 @@ drop policy if exists triage_verdicts_member on public.triage_verdicts;
 create policy triage_verdicts_member on public.triage_verdicts for all
     using (public.is_org_member(org_id)) with check (public.is_org_member(org_id));
 grant select, insert, update, delete on public.triage_verdicts to authenticated;
+
+alter table public.triage_verdicts alter column confidence type double precision;
