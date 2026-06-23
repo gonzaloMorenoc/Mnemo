@@ -11,6 +11,7 @@ from src.config import DATABASE_URL
 from src.defects.centroid import update_centroid
 from src.defects.match import FamilyCandidate, decide_match
 from src.ingest.models import FailureRecord
+from src.triage.dom import dom_changed
 
 _CI_STATUSES = ("pass", "fail", "flaky", "skipped")
 _CI_KINDS = ("last_green", "failure")
@@ -621,3 +622,112 @@ class AssuranceRepository:
                     )
             conn.commit()
         return len(snapshots)
+
+    def get_triage_inputs(self, *, user_id: str, run_id: str) -> Dict[str, Any]:
+        """Recupera, por cada fallo de un run, los hechos para el triaje (is_novel,
+        family_label, retry_passed_in_run, intermittent_same_sha, has_green_baseline,
+        dom_changed) + el contexto del run. mass_cofailure NO se calcula aquí (depende
+        de classify_error → lo hace el servicio en F2e). None si no es miembro/no existe."""
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "select r.id, r.org_id, r.project, r.commit_sha from public.test_runs r"
+                    " where r.id = %s and exists (select 1 from public.memberships m"
+                    "   where m.org_id = r.org_id and m.user_id = %s)",
+                    (run_id, user_id),
+                )
+                run = cur.fetchone()
+                if run is None:
+                    return {"run": None, "failures": []}
+                org_id, project, commit_sha = run["org_id"], run["project"], run["commit_sha"]
+
+                cur.execute(
+                    "select f.id as failure_id, f.test_name, f.error_type, f.message, f.trace,"
+                    "       f.fingerprint, f.defect_family_id, df.label as family_label"
+                    " from public.failures f"
+                    " left join public.defect_families df on df.id = f.defect_family_id"
+                    " where f.run_id = %s",
+                    (run_id,),
+                )
+                failures = cur.fetchall()
+                family_ids = [f["defect_family_id"] for f in failures if f["defect_family_id"]]
+
+                recurrent: set = set()
+                lineage: Dict[Any, list] = {}
+                if family_ids:
+                    cur.execute(
+                        "select distinct defect_family_id from public.failures"
+                        " where defect_family_id = any(%s) and run_id <> %s",
+                        (family_ids, run_id),
+                    )
+                    recurrent = {r["defect_family_id"] for r in cur.fetchall()}
+                    cur.execute(
+                        "select fl.defect_family_id as fid,"
+                        "       array_agg(distinct r2.project) as projects"
+                        " from public.failures fl join public.test_runs r2 on r2.id = fl.run_id"
+                        " where fl.defect_family_id = any(%s) group by fl.defect_family_id",
+                        (family_ids,),
+                    )
+                    lineage = {r["fid"]: list(r["projects"]) for r in cur.fetchall()}
+
+                cur.execute(
+                    "select distinct test_name from public.test_results"
+                    " where run_id = %s and (status = 'flaky' or (status = 'pass' and retried))",
+                    (run_id,),
+                )
+                retry_passed = {r["test_name"] for r in cur.fetchall()}
+
+                intermittent: set = set()
+                if commit_sha:
+                    cur.execute(
+                        "select tr.test_name from public.test_results tr"
+                        " join public.test_runs r2 on r2.id = tr.run_id"
+                        " where r2.org_id = %s and r2.commit_sha = %s"
+                        " group by tr.test_name"
+                        " having bool_or(tr.status = 'pass')"
+                        "    and bool_or(tr.status in ('fail', 'flaky'))",
+                        (org_id, commit_sha),
+                    )
+                    intermittent = {r["test_name"] for r in cur.fetchall()}
+
+                cur.execute(
+                    "select distinct on (test_name) test_name, content from public.dom_snapshots"
+                    " where org_id = %s and project = %s and kind = 'last_green'"
+                    " order by test_name, created_at desc",
+                    (org_id, project),
+                )
+                green = {r["test_name"]: r["content"] for r in cur.fetchall()}
+                cur.execute(
+                    "select distinct on (test_name) test_name, content from public.dom_snapshots"
+                    " where org_id = %s and project = %s and kind = 'failure'"
+                    "   and commit_sha is not distinct from %s"
+                    " order by test_name, created_at desc",
+                    (org_id, project, commit_sha),
+                )
+                fail_dom = {r["test_name"]: r["content"] for r in cur.fetchall()}
+
+            out = []
+            for f in failures:
+                fam = f["defect_family_id"]
+                tn = f["test_name"]
+                out.append({
+                    "failure_id": str(f["failure_id"]),
+                    "fingerprint": f["fingerprint"],
+                    "family_id": str(fam) if fam else None,
+                    "lineage_projects": lineage.get(fam, []),
+                    "error_type": f["error_type"],
+                    "message": f["message"],
+                    "trace": f["trace"],
+                    "is_novel": (fam not in recurrent) if fam else True,
+                    "family_label": f["family_label"] or "unknown",
+                    "retry_passed_in_run": tn in retry_passed,
+                    "intermittent_same_sha": tn in intermittent,
+                    "has_green_baseline": tn in green,
+                    "dom_changed": dom_changed(fail_dom.get(tn), green.get(tn)),
+                })
+        return {
+            "run": {"id": str(run["id"]), "org_id": str(org_id),
+                    "project": project, "commit_sha": commit_sha},
+            "failures": out,
+        }
