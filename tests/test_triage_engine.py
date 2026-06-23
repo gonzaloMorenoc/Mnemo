@@ -40,19 +40,29 @@ def test_r3_maintenance_requires_locator_baseline_dom_changed():
 def test_r4_real_recurrent():
     v = triage(_sig(assertion_failure=True, recurrent=True))
     assert v.category == "real" and v.confidence == 0.85 and v.requires_approval is False
+    assert v.rule_applied == "R4_real_recurrent" and v.llm_assisted is False and v.ambiguous is False
 
 
 def test_r5_real_novel_requires_approval():
     v = triage(_sig(assertion_failure=True, novel=True))
     assert v.category == "real" and v.confidence == 0.75 and v.requires_approval is True
+    assert v.rule_applied == "R5_real_novel" and v.llm_assisted is False and v.ambiguous is False
 
 
 def test_r6_ambiguous_unknown():
     v = triage(_sig(locator_error=True))  # locator sin baseline/dom_changed
     assert v.category == "unknown" and v.confidence == 0.0
     assert v.ambiguous is True and v.requires_approval is True
+    assert v.rule_applied == "R6_ambiguous" and v.llm_assisted is False
 
 
 def test_priority_flaky_over_infra():
     v = triage(_sig(known_flaky_family=True, mass_cofailure=True, infra_error=True))
     assert v.category == "flaky"  # R1 antes que R2
+
+
+def test_priority_infra_over_maintenance():
+    # mass_cofailure+infra_error (R2) y locator+baseline+dom_changed (R3) a la vez → infra (R2 antes que R3)
+    v = triage(_sig(mass_cofailure=True, infra_error=True,
+                    locator_error=True, has_green_baseline=True, dom_changed=True))
+    assert v.category == "infra" and v.rule_applied == "R2_infra"
