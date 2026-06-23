@@ -11,6 +11,10 @@ from src.config import DATABASE_URL
 from src.defects.centroid import update_centroid
 from src.defects.match import FamilyCandidate, decide_match
 from src.ingest.models import FailureRecord
+from src.triage.dom import dom_changed
+
+_CI_STATUSES = ("pass", "fail", "flaky", "skipped")
+_CI_KINDS = ("last_green", "failure")
 
 
 @dataclass
@@ -92,6 +96,64 @@ class AssuranceRepository:
             for r in rows
         ]
 
+    def _match_and_insert_failure(self, cur, *, org_id: str, run_id, item: IngestItem) -> bool:
+        """Empareja un fallo con su familia (crea o actualiza centroide/contador) e inserta
+        la fila de `failures`. Devuelve True si la familia es nueva (novel), False si conocida.
+        Debe ejecutarse dentro de una transacción abierta (recibe el cursor)."""
+        cands = self._query_candidates(
+            cur, org_id=org_id, fingerprint=item.fingerprint, embedding=item.embedding
+        )
+        decision = decide_match(
+            fingerprint=item.fingerprint, embedding=item.embedding, candidates=cands,
+        )
+        if decision.is_new:
+            title = item.rec.error_type or item.rec.message[:80] or "unknown"
+            cur.execute(
+                """
+                insert into public.defect_families
+                    (scope, org_id, signature, title, occurrence_count, centroid)
+                values ('org', %s, %s, %s, 1, %s)
+                returning id
+                """,
+                (org_id, item.fingerprint, title, Vector(list(item.embedding))),
+            )
+            family_id = cur.fetchone()["id"]
+            is_new = True
+        else:
+            family_id = decision.family_id
+            cur.execute(
+                "select occurrence_count, centroid"
+                " from public.defect_families where id = %s for update",
+                (family_id,),
+            )
+            fam = cur.fetchone()
+            new_centroid = update_centroid(
+                list(fam["centroid"]) if fam["centroid"] is not None else None,
+                fam["occurrence_count"], list(item.embedding),
+            )
+            cur.execute(
+                """
+                update public.defect_families
+                set occurrence_count = occurrence_count + 1, last_seen = now(), centroid = %s
+                where id = %s
+                """,
+                (Vector(new_centroid), family_id),
+            )
+            is_new = False
+        cur.execute(
+            """
+            insert into public.failures
+                (run_id, org_id, test_name, error_type, message, trace,
+                 fingerprint, embedding, sanitized, defect_family_id,
+                 external_ref, external_url)
+            values (%s, %s, %s, %s, %s, %s, %s, %s, true, %s, %s, %s)
+            """,
+            (run_id, org_id, item.rec.test_name, item.rec.error_type, item.rec.message,
+             item.rec.trace, item.fingerprint, Vector(list(item.embedding)), family_id,
+             item.external_ref, item.external_url),
+        )
+        return is_new
+
     def ingest_run(
         self,
         *,
@@ -133,84 +195,10 @@ class AssuranceRepository:
                 run_id = cur.fetchone()["id"]
 
                 for item in items:
-                    cands = self._query_candidates(
-                        cur, org_id=org_id, fingerprint=item.fingerprint, embedding=item.embedding
-                    )
-                    decision = decide_match(
-                        fingerprint=item.fingerprint,
-                        embedding=item.embedding,
-                        candidates=cands,
-                    )
-
-                    if decision.is_new:
+                    if self._match_and_insert_failure(cur, org_id=org_id, run_id=run_id, item=item):
                         novel += 1
-                        title = (
-                            item.rec.error_type
-                            or item.rec.message[:80]
-                            or "unknown"
-                        )
-                        cur.execute(
-                            """
-                            insert into public.defect_families
-                                (scope, org_id, signature, title, occurrence_count, centroid)
-                            values ('org', %s, %s, %s, 1, %s)
-                            returning id
-                            """,
-                            (
-                                org_id,
-                                item.fingerprint,
-                                title,
-                                Vector(list(item.embedding)),
-                            ),
-                        )
-                        family_id = cur.fetchone()["id"]
                     else:
                         known += 1
-                        family_id = decision.family_id
-                        cur.execute(
-                            "select occurrence_count, centroid"
-                            " from public.defect_families where id = %s for update",
-                            (family_id,),
-                        )
-                        fam = cur.fetchone()
-                        new_centroid = update_centroid(
-                            list(fam["centroid"]) if fam["centroid"] is not None else None,
-                            fam["occurrence_count"],
-                            list(item.embedding),
-                        )
-                        cur.execute(
-                            """
-                            update public.defect_families
-                            set occurrence_count = occurrence_count + 1,
-                                last_seen = now(),
-                                centroid = %s
-                            where id = %s
-                            """,
-                            (Vector(new_centroid), family_id),
-                        )
-
-                    cur.execute(
-                        """
-                        insert into public.failures
-                            (run_id, org_id, test_name, error_type, message, trace,
-                             fingerprint, embedding, sanitized, defect_family_id,
-                             external_ref, external_url)
-                        values (%s, %s, %s, %s, %s, %s, %s, %s, true, %s, %s, %s)
-                        """,
-                        (
-                            run_id,
-                            org_id,
-                            item.rec.test_name,
-                            item.rec.error_type,
-                            item.rec.message,
-                            item.rec.trace,
-                            item.fingerprint,
-                            Vector(list(item.embedding)),
-                            family_id,
-                            item.external_ref,
-                            item.external_url,
-                        ),
-                    )
 
                 summary = {"ingested": len(items), "known": known, "novel": novel}
                 cur.execute(
@@ -225,6 +213,114 @@ class AssuranceRepository:
             "ingested": len(items),
             "known": known,
             "novel": novel,
+        }
+
+    def ingest_ci_run(
+        self,
+        *,
+        user_id: str,
+        org_id: str,
+        project: str,
+        source: str,
+        commit_sha: Optional[str] = None,
+        run_uid: Optional[str] = None,
+        items: List[IngestItem],
+        results: List[Dict[str, Any]],
+        snapshots: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Ingesta atómica de un run de CI: run + failures + familias + test_results +
+        dom_snapshots en UNA transacción. Idempotente por (org_id, run_uid): si run_uid
+        viene y ya existe, no-op devolviendo el run existente con deduplicated=True.
+
+        Lanza PermissionError si no es miembro; ValueError ante status/kind inválido.
+        """
+        known = 0
+        novel = 0
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "select exists(select 1 from public.memberships"
+                    " where org_id = %s and user_id = %s) as ok",
+                    (org_id, user_id),
+                )
+                if not cur.fetchone()["ok"]:
+                    raise PermissionError("user is not a member of the organization")
+
+                if run_uid is not None:
+                    cur.execute(
+                        "select id, summary from public.test_runs"
+                        " where org_id = %s and run_uid = %s",
+                        (org_id, run_uid),
+                    )
+                    existing = cur.fetchone()
+                    if existing is not None:
+                        summary = existing["summary"] or {}
+                        return {
+                            "run_id": str(existing["id"]),
+                            "ingested": summary.get("ingested", 0),
+                            "known": summary.get("known", 0),
+                            "novel": summary.get("novel", 0),
+                            "results_recorded": summary.get("results_recorded", 0),
+                            "snapshots_saved": summary.get("snapshots_saved", 0),
+                            "deduplicated": True,
+                        }
+
+                cur.execute(
+                    "insert into public.test_runs (org_id, project, source, commit_sha, run_uid)"
+                    " values (%s, %s, %s, %s, %s) returning id",
+                    (org_id, project, source, commit_sha, run_uid),
+                )
+                run_id = cur.fetchone()["id"]
+
+                for item in items:
+                    if self._match_and_insert_failure(cur, org_id=org_id, run_id=run_id, item=item):
+                        novel += 1
+                    else:
+                        known += 1
+
+                for r in results:
+                    if "test_name" not in r or "status" not in r:
+                        raise ValueError("each result requires 'test_name' and 'status'")
+                    if r["status"] not in _CI_STATUSES:
+                        raise ValueError(f"invalid status: {r['status']!r}")
+                    cur.execute(
+                        "insert into public.test_results"
+                        " (run_id, org_id, test_name, status, retried)"
+                        " values (%s, %s, %s, %s, %s)",
+                        (run_id, org_id, r["test_name"], r["status"], r.get("retried", False)),
+                    )
+
+                for s in snapshots:
+                    if "test_name" not in s or "kind" not in s or "content" not in s:
+                        raise ValueError("each snapshot requires 'test_name', 'kind' and 'content'")
+                    if s["kind"] not in _CI_KINDS:
+                        raise ValueError(f"invalid kind: {s['kind']!r}")
+                    cur.execute(
+                        "insert into public.dom_snapshots"
+                        " (org_id, project, test_name, kind, content, commit_sha)"
+                        " values (%s, %s, %s, %s, %s, %s)",
+                        (org_id, project, s["test_name"], s["kind"], s["content"],
+                         s.get("commit_sha")),
+                    )
+
+                summary = {
+                    "ingested": len(items), "known": known, "novel": novel,
+                    "results_recorded": len(results), "snapshots_saved": len(snapshots),
+                }
+                cur.execute(
+                    "update public.test_runs set summary = %s where id = %s",
+                    (Json(summary), run_id),
+                )
+            conn.commit()
+        return {
+            "run_id": str(run_id),
+            "ingested": len(items),
+            "known": known,
+            "novel": novel,
+            "results_recorded": len(results),
+            "snapshots_saved": len(snapshots),
+            "deduplicated": False,
         }
 
     def existing_external_refs(self, *, user_id: str, org_id: str) -> List[str]:
@@ -526,3 +622,217 @@ class AssuranceRepository:
                     )
             conn.commit()
         return len(snapshots)
+
+    def get_triage_inputs(self, *, user_id: str, run_id: str) -> Dict[str, Any]:
+        """Recupera, por cada fallo de un run, los hechos para el triaje (is_novel,
+        family_label, retry_passed_in_run, intermittent_same_sha, has_green_baseline,
+        dom_changed) + el contexto del run. mass_cofailure NO se calcula aquí (depende
+        de classify_error → lo hace el servicio en F2e). None si no es miembro/no existe."""
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "select r.id, r.org_id, r.project, r.commit_sha from public.test_runs r"
+                    " where r.id = %s and exists (select 1 from public.memberships m"
+                    "   where m.org_id = r.org_id and m.user_id = %s)",
+                    (run_id, user_id),
+                )
+                run = cur.fetchone()
+                if run is None:
+                    return {"run": None, "failures": []}
+                org_id, project, commit_sha = run["org_id"], run["project"], run["commit_sha"]
+
+                cur.execute(
+                    "select f.id as failure_id, f.test_name, f.error_type, f.message, f.trace,"
+                    "       f.fingerprint, f.defect_family_id, df.label as family_label"
+                    " from public.failures f"
+                    " left join public.defect_families df on df.id = f.defect_family_id"
+                    " where f.run_id = %s",
+                    (run_id,),
+                )
+                failures = cur.fetchall()
+                family_ids = [f["defect_family_id"] for f in failures if f["defect_family_id"]]
+
+                recurrent: set = set()
+                lineage: Dict[Any, list] = {}
+                if family_ids:
+                    cur.execute(
+                        "select distinct defect_family_id from public.failures"
+                        " where defect_family_id = any(%s) and org_id = %s and run_id <> %s",
+                        (family_ids, org_id, run_id),
+                    )
+                    recurrent = {r["defect_family_id"] for r in cur.fetchall()}
+                    cur.execute(
+                        "select fl.defect_family_id as fid,"
+                        "       array_agg(distinct r2.project) as projects"
+                        " from public.failures fl join public.test_runs r2 on r2.id = fl.run_id"
+                        " where fl.defect_family_id = any(%s) and fl.org_id = %s"
+                        " group by fl.defect_family_id",
+                        (family_ids, org_id),
+                    )
+                    lineage = {r["fid"]: list(r["projects"]) for r in cur.fetchall()}
+
+                cur.execute(
+                    "select distinct test_name from public.test_results"
+                    " where run_id = %s and (status = 'flaky' or (status = 'pass' and retried))",
+                    (run_id,),
+                )
+                retry_passed = {r["test_name"] for r in cur.fetchall()}
+
+                intermittent: set = set()
+                if commit_sha:
+                    cur.execute(
+                        "select tr.test_name from public.test_results tr"
+                        " join public.test_runs r2 on r2.id = tr.run_id"
+                        " where r2.org_id = %s and r2.project = %s and r2.commit_sha = %s"
+                        " group by tr.test_name"
+                        " having bool_or(tr.status = 'pass')"
+                        "    and bool_or(tr.status in ('fail', 'flaky'))",
+                        (org_id, project, commit_sha),
+                    )
+                    intermittent = {r["test_name"] for r in cur.fetchall()}
+
+                cur.execute(
+                    "select distinct on (test_name) test_name, content from public.dom_snapshots"
+                    " where org_id = %s and project = %s and kind = 'last_green'"
+                    " order by test_name, created_at desc",
+                    (org_id, project),
+                )
+                green = {r["test_name"]: r["content"] for r in cur.fetchall()}
+                cur.execute(
+                    "select distinct on (test_name) test_name, content from public.dom_snapshots"
+                    " where org_id = %s and project = %s and kind = 'failure'"
+                    "   and commit_sha is not distinct from %s"
+                    " order by test_name, created_at desc",
+                    (org_id, project, commit_sha),
+                )
+                fail_dom = {r["test_name"]: r["content"] for r in cur.fetchall()}
+
+            out = []
+            for f in failures:
+                fam = f["defect_family_id"]
+                tn = f["test_name"]
+                out.append({
+                    "failure_id": str(f["failure_id"]),
+                    "fingerprint": f["fingerprint"],
+                    "family_id": str(fam) if fam else None,
+                    "lineage_projects": lineage.get(fam, []),
+                    "error_type": f["error_type"],
+                    "message": f["message"],
+                    "trace": f["trace"],
+                    "is_novel": (fam not in recurrent) if fam else True,
+                    "family_label": f["family_label"] or "unknown",
+                    "retry_passed_in_run": tn in retry_passed,
+                    "intermittent_same_sha": tn in intermittent,
+                    "has_green_baseline": tn in green,
+                    "dom_changed": dom_changed(fail_dom.get(tn), green.get(tn)),
+                })
+        return {
+            "run": {"id": str(run["id"]), "org_id": str(org_id),
+                    "project": project, "commit_sha": commit_sha},
+            "failures": out,
+        }
+
+    def save_triage_verdicts(
+        self, *, user_id: str, org_id: str, run_id: str, verdicts: List[Dict[str, Any]]
+    ) -> int:
+        """Reemplaza (delete+insert) los veredictos del run → idempotente. Lanza
+        PermissionError si el usuario no es miembro del org."""
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "select exists(select 1 from public.memberships"
+                    " where org_id = %s and user_id = %s) as ok",
+                    (org_id, user_id),
+                )
+                if not cur.fetchone()["ok"]:
+                    raise PermissionError("user is not a member of the organization")
+                cur.execute(
+                    "select 1 from public.test_runs where id = %s and org_id = %s",
+                    (run_id, org_id),
+                )
+                if cur.fetchone() is None:
+                    raise ValueError("run does not belong to the organization")
+                cur.execute(
+                    "delete from public.triage_verdicts where run_id = %s and org_id = %s",
+                    (run_id, org_id),
+                )
+                for v in verdicts:
+                    cur.execute(
+                        "insert into public.triage_verdicts"
+                        " (failure_id, run_id, org_id, category, confidence, rule_applied,"
+                        "  evidence_bundle, requires_approval, llm_assisted, status)"
+                        " values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                        (v["failure_id"], run_id, org_id, v["category"], v["confidence"],
+                         v["rule_applied"], Json(v.get("evidence_bundle")),
+                         v["requires_approval"], v["llm_assisted"], v.get("status", "resolved")),
+                    )
+            conn.commit()
+        return len(verdicts)
+
+    def get_triage_for_run(self, *, user_id: str, run_id: str) -> List[Dict[str, Any]]:
+        """Veredictos persistidos de un run (vacío si no es miembro / no existe)."""
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "select tv.id, tv.failure_id, tv.category, tv.confidence, tv.rule_applied,"
+                    "       tv.evidence_bundle, tv.requires_approval, tv.llm_assisted, tv.status"
+                    " from public.triage_verdicts tv"
+                    " join public.test_runs r on r.id = tv.run_id"
+                    " where tv.run_id = %s and exists (select 1 from public.memberships m"
+                    "   where m.org_id = r.org_id and m.user_id = %s)"
+                    " order by tv.created_at",
+                    (run_id, user_id),
+                )
+                return [
+                    {
+                        "id": str(r["id"]), "failure_id": str(r["failure_id"]),
+                        "category": r["category"], "confidence": r["confidence"],
+                        "rule_applied": r["rule_applied"], "evidence_bundle": r["evidence_bundle"],
+                        "requires_approval": r["requires_approval"],
+                        "llm_assisted": r["llm_assisted"], "status": r["status"],
+                    }
+                    for r in cur.fetchall()
+                ]
+
+    def update_triage_verdict(
+        self, *, user_id: str, verdict_id: str, category: str, confidence: float,
+        requires_approval: bool, llm_assisted: bool, status: str,
+        evidence_bundle: Any,
+    ) -> bool:
+        """Actualiza un veredicto (resolución de tiebreak). Membership-gated vía el
+        org del veredicto. Devuelve False si no es miembro / no existe."""
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "update public.triage_verdicts tv set category = %s, confidence = %s,"
+                    "  requires_approval = %s, llm_assisted = %s, status = %s, evidence_bundle = %s"
+                    " where tv.id = %s and exists (select 1 from public.memberships m"
+                    "   where m.org_id = tv.org_id and m.user_id = %s)",
+                    (category, confidence, requires_approval, llm_assisted, status,
+                     Json(evidence_bundle), verdict_id, user_id),
+                )
+                updated = cur.rowcount > 0
+            conn.commit()
+        return updated
+
+    def set_family_label(self, *, user_id: str, family_id: str, label: str) -> bool:
+        """Etiqueta una familia (lazo de aprendizaje / triaje). Devuelve False si no
+        es miembro / no existe. Lanza ValueError si el label no es válido."""
+        if label not in ("flaky", "real", "maintenance", "infra", "unknown"):
+            raise ValueError(f"invalid label: {label!r}")
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "update public.defect_families set label = %s"
+                    " where id = %s and (scope = 'global' or exists (select 1 from public.memberships m"
+                    "   where m.org_id = public.defect_families.org_id and m.user_id = %s))",
+                    (label, family_id, user_id),
+                )
+                updated = cur.rowcount > 0
+            conn.commit()
+        return updated

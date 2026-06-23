@@ -16,10 +16,14 @@ def _sign(body: bytes) -> str:
     return "sha256=" + hmac.new(SECRET.encode(), body, hashlib.sha256).hexdigest()
 
 
-def make_client(service, monkeypatch):
+def make_client(service, monkeypatch, triage=None):
     monkeypatch.setattr(api_v2, "CI_WEBHOOK_SECRET", SECRET)
     monkeypatch.setattr(api_v2, "CI_SERVICE_USER_ID", "svc-user")
     monkeypatch.setattr(api_v2, "get_ci_ingestion_service", lambda: service)
+    if triage is None:
+        triage = MagicMock()
+        triage.triage_run.return_value = {"flaky": 0, "infra": 0, "maintenance": 0, "real": 0, "unknown": 0}
+    monkeypatch.setattr(api_v2, "get_triage_service", lambda: triage)
     app = FastAPI()
     app.include_router(api_v2.router)
     return TestClient(app)
@@ -40,7 +44,7 @@ def _ok_service():
     service = MagicMock()
     service.ingest_artifact.return_value = {
         "run_id": "r1", "ingested": 1, "known": 0, "novel": 1,
-        "results_recorded": 2, "snapshots_saved": 2,
+        "results_recorded": 2, "snapshots_saved": 2, "deduplicated": False,
     }
     return service
 
@@ -52,10 +56,15 @@ def test_webhook_valid_signature(monkeypatch):
     resp = client.post("/v2/ci/webhook", content=body,
                        headers={"X-Hub-Signature-256": _sign(body)})
     assert resp.status_code == 200
-    assert resp.json() == {
-        "run_id": "r1", "ingested": 1, "known": 0, "novel": 1,
-        "results_recorded": 2, "snapshots_saved": 2,
-    }
+    data = resp.json()
+    assert data["run_id"] == "r1"
+    assert data["ingested"] == 1
+    assert data["known"] == 0
+    assert data["novel"] == 1
+    assert data["results_recorded"] == 2
+    assert data["snapshots_saved"] == 2
+    assert data["deduplicated"] is False
+    assert resp.json()["triage"] == {"flaky": 0, "infra": 0, "maintenance": 0, "real": 0, "unknown": 0}
     service.ingest_artifact.assert_called_once()
 
 
@@ -143,3 +152,41 @@ def test_webhook_wrong_org_is_403(monkeypatch):
                        headers={"X-Hub-Signature-256": _sign(body)})
     assert resp.status_code == 403
     service.ingest_artifact.assert_not_called()
+
+
+def test_webhook_runs_triage_and_includes_summary(monkeypatch):
+    service = _ok_service()  # returns deduplicated=False, run_id="r1"
+    triage = MagicMock()
+    triage.triage_run.return_value = {"flaky": 1, "infra": 0, "maintenance": 0, "real": 2, "unknown": 0}
+    client = make_client(service, monkeypatch, triage=triage)
+    body = _body()
+    resp = client.post("/v2/ci/webhook", content=body, headers={"X-Hub-Signature-256": _sign(body)})
+    assert resp.status_code == 200
+    triage.triage_run.assert_called_once_with(user_id="svc-user", run_id="r1")
+    assert resp.json()["triage"] == {"flaky": 1, "infra": 0, "maintenance": 0, "real": 2, "unknown": 0}
+
+
+def test_webhook_skips_triage_on_dedup(monkeypatch):
+    service = MagicMock()
+    service.ingest_artifact.return_value = {
+        "run_id": "r1", "ingested": 0, "known": 0, "novel": 0,
+        "results_recorded": 0, "snapshots_saved": 0, "deduplicated": True,
+    }
+    triage = MagicMock()
+    client = make_client(service, monkeypatch, triage=triage)
+    body = _body()
+    resp = client.post("/v2/ci/webhook", content=body, headers={"X-Hub-Signature-256": _sign(body)})
+    assert resp.status_code == 200
+    triage.triage_run.assert_not_called()
+    assert resp.json()["triage"] is None
+
+
+def test_webhook_triage_failure_degrades(monkeypatch):
+    service = _ok_service()
+    triage = MagicMock()
+    triage.triage_run.side_effect = RuntimeError("boom")
+    client = make_client(service, monkeypatch, triage=triage)
+    body = _body()
+    resp = client.post("/v2/ci/webhook", content=body, headers={"X-Hub-Signature-256": _sign(body)})
+    assert resp.status_code == 200  # la ingesta no se rompe
+    assert resp.json()["triage"] is None

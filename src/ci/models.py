@@ -20,4 +20,5 @@ class CiRunArtifact(BaseModel):
     org_id: str = Field(max_length=200)
     commit_sha: str = Field(max_length=200)
     source: str = "playwright"
+    run_uid: Optional[str] = Field(default=None, max_length=200)
     tests: List[CiTestResult] = Field(max_length=10_000)
