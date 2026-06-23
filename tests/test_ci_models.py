@@ -42,3 +42,14 @@ def test_rejects_missing_required():
 def test_rejects_oversized_field():
     with pytest.raises(ValidationError):
         CiTestResult.model_validate({"test_name": "t", "status": "fail", "error_type": "x" * 501})
+
+
+def test_run_uid_optional_default_none():
+    art = CiRunArtifact.model_validate(
+        {"project": "p", "org_id": "o", "commit_sha": "abc", "tests": []}
+    )
+    assert art.run_uid is None
+    art2 = CiRunArtifact.model_validate(
+        {"project": "p", "org_id": "o", "commit_sha": "abc", "run_uid": "u-123", "tests": []}
+    )
+    assert art2.run_uid == "u-123"
