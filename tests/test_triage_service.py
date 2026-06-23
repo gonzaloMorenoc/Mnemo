@@ -75,7 +75,6 @@ def test_real_recurrent_verdict_fields_persisted():
 
 
 def test_resolve_tiebreaks_resolves_only_pending():
-    from unittest.mock import MagicMock
     repo = MagicMock()
     repo.get_triage_for_run.return_value = [
         {"id": "v1", "failure_id": "f1", "category": "real", "confidence": 0.85,
@@ -100,7 +99,6 @@ def test_resolve_tiebreaks_resolves_only_pending():
 
 
 def test_resolve_tiebreaks_leaves_pending_when_undecided():
-    from unittest.mock import MagicMock
     repo = MagicMock()
     repo.get_triage_for_run.return_value = [
         {"id": "v2", "failure_id": "f2", "category": "unknown", "confidence": 0.0,
@@ -115,7 +113,6 @@ def test_resolve_tiebreaks_leaves_pending_when_undecided():
 
 
 def test_resolve_tiebreaks_no_pending():
-    from unittest.mock import MagicMock
     repo = MagicMock()
     repo.get_triage_for_run.return_value = [{"id": "v1", "status": "resolved", "evidence_bundle": {}}]
     svc = TriageService(repo=repo, tiebreaker=MagicMock())

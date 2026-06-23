@@ -1,4 +1,5 @@
-from src.triage.tiebreaker import LLMTiebreaker, parse_category
+from src.triage.tiebreaker import LLMTiebreaker, _build_prompt, parse_category
+from src.llm.provider import LLMProvider
 
 
 def test_parse_category_finds_valid():
@@ -46,3 +47,29 @@ def test_llm_tiebreaker_unparseable_returns_none():
 def test_llm_tiebreaker_exception_returns_none():
     tb = LLMTiebreaker(provider=_FakeProvider(exc=RuntimeError("LLM caído")))
     assert tb.resolve({"error_type": "X", "signals": []}) is None
+
+
+def test_parse_category_bare_infrastructure_is_none():
+    assert parse_category("infrastructure") is None
+
+
+def test_parse_category_prompt_echo_returns_none():
+    # un eco que lista las 4 categorías no es una decisión → None
+    assert parse_category("Elige una de: flaky, infra, maintenance, real") is None
+
+
+def test_build_prompt_includes_active_signals_and_error():
+    p = _build_prompt({"error_type": "AssertionError",
+                       "signals": [{"name": "assertion_failure", "value": True},
+                                   {"name": "infra_error", "value": False}],
+                       "rule_applied": "R6_unknown"})
+    assert "AssertionError" in p and "assertion_failure" in p
+    assert "infra_error" not in p  # inactiva → no se lista
+
+
+def test_build_prompt_no_signals_says_ninguna():
+    assert "ninguna" in _build_prompt({"error_type": "X", "signals": [], "rule_applied": "R6"})
+
+
+def test_fake_provider_satisfies_protocol():
+    assert isinstance(_FakeProvider(resp="x"), LLMProvider)

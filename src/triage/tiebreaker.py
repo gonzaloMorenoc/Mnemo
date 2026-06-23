@@ -10,18 +10,19 @@ _VALID = ("flaky", "infra", "maintenance", "real")
 
 def parse_category(text: str) -> Optional[str]:
     """Extrae la categoría de la respuesta del LLM: la primera de las 4 válidas
-    que aparezca como palabra (case-insensitive). None si no hay ninguna."""
+    que aparezca como palabra (case-insensitive). None si no hay ninguna, o si
+    aparecen LAS CUATRO (probable eco de las instrucciones, no una decisión)."""
     if not text:
         return None
     low = text.lower()
-    best_cat: Optional[str] = None
-    best_pos = len(low) + 1
+    positions = {}
     for cat in _VALID:
         m = re.search(rf"\b{cat}\b", low)
-        if m and m.start() < best_pos:
-            best_pos = m.start()
-            best_cat = cat
-    return best_cat
+        if m:
+            positions[cat] = m.start()
+    if not positions or len(positions) == len(_VALID):
+        return None
+    return min(positions, key=positions.get)
 
 
 def _build_prompt(evidence: Dict[str, Any]) -> str:
