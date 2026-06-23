@@ -2,11 +2,16 @@ import logging
 from typing import Any, Dict, List, Optional
 
 import psycopg
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
 
-from src.config import multi_tenant_enabled
+from src.ci.ingestion_service import CiIngestionService
+from src.triage.service import TriageService
+from src.ci.models import CiRunArtifact
+from src.ci.webhook_auth import verify_signature
+from src.config import CI_MAX_BODY_BYTES, CI_SERVICE_ORG_ID, CI_SERVICE_USER_ID, CI_WEBHOOK_SECRET, multi_tenant_enabled
 from src.defects.ingestion_service import IngestionService
 from src.defects.repository import AssuranceRepository
 from src.assurance.narrator import LLMNarrator, Narrator
@@ -19,6 +24,7 @@ from src.multitenant_models import (
     AnalyzeV2Request,
     AnalyzeV2Response,
     AssuranceVerdictResponse,
+    CiWebhookResponse,
     CreateOrgRequest,
     DefectFamilyResponse,
     DefectFamilySummary,
@@ -35,6 +41,7 @@ from src.multitenant_models import (
     RootCauseResponse,
     ScopeSource,
     StructuredAnalysisPayload,
+    TriageVerdictResponse,
     UploadResponse,
 )
 from src.security import AuthenticatedUser, get_current_user
@@ -52,6 +59,8 @@ _narrator = None
 _root_cause_analyzer = None
 _integrations_repo = None
 _jira_service = None
+_ci_ingestion_service = None
+_triage_service = None
 
 
 def get_repo() -> TenantKBRepository:
@@ -122,6 +131,27 @@ def get_jira_ingestion_service() -> JiraIngestionService:
             integrations=get_integrations_repo(),
         )
     return _jira_service
+
+
+def get_ci_ingestion_service() -> CiIngestionService:
+    if not multi_tenant_enabled():
+        raise HTTPException(status_code=503, detail="Multi-tenant KB not configured")
+    global _ci_ingestion_service
+    if _ci_ingestion_service is None:
+        from src.defects.embedder import LocalEmbedder
+        _ci_ingestion_service = CiIngestionService(
+            repo=get_assurance_repo(), embedder=LocalEmbedder()
+        )
+    return _ci_ingestion_service
+
+
+def get_triage_service() -> TriageService:
+    if not multi_tenant_enabled():
+        raise HTTPException(status_code=503, detail="Multi-tenant KB not configured")
+    global _triage_service
+    if _triage_service is None:
+        _triage_service = TriageService(repo=get_assurance_repo())
+    return _triage_service
 
 
 def _unique_scopes(contexts: List[Dict[str, Any]]) -> List[str]:
@@ -284,6 +314,70 @@ def ingest_report_v2(
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail="Database error") from exc
     return IngestReportResponse(**result)
+
+
+@router.post("/ci/webhook", response_model=CiWebhookResponse)
+async def ci_webhook(request: Request) -> CiWebhookResponse:
+    declared = request.headers.get("content-length")
+    if declared is not None and declared.isdigit() and int(declared) > CI_MAX_BODY_BYTES:
+        raise HTTPException(status_code=413, detail="payload too large")
+    body = await request.body()
+    if len(body) > CI_MAX_BODY_BYTES:
+        raise HTTPException(status_code=413, detail="payload too large")
+    signature = request.headers.get("X-Hub-Signature-256", "")
+    if not verify_signature(body, signature, CI_WEBHOOK_SECRET):
+        raise HTTPException(status_code=401, detail="invalid signature")
+    if not CI_SERVICE_USER_ID:
+        raise HTTPException(status_code=503, detail="CI service account not configured")
+    try:
+        artifact = CiRunArtifact.model_validate_json(body)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail="invalid artifact") from exc
+    if CI_SERVICE_ORG_ID and artifact.org_id != CI_SERVICE_ORG_ID:
+        raise HTTPException(status_code=403, detail="org_id not allowed for this CI account")
+    service = get_ci_ingestion_service()
+    try:
+        result = service.ingest_artifact(user_id=CI_SERVICE_USER_ID, artifact=artifact)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    triage_summary = None
+    if not result.get("deduplicated"):
+        try:
+            triage_summary = get_triage_service().triage_run(
+                user_id=CI_SERVICE_USER_ID, run_id=result["run_id"]
+            )
+        except Exception:  # noqa: BLE001 — el triaje degrada; la ingesta ya está commiteada
+            logger.exception("triage failed for run %s", result["run_id"])
+    return CiWebhookResponse(**result, triage=triage_summary)
+
+
+@router.get("/triage/run/{run_id}", response_model=List[TriageVerdictResponse])
+def triage_run_v2(
+    run_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+    repo: AssuranceRepository = Depends(get_assurance_repo),
+) -> List[TriageVerdictResponse]:
+    try:
+        verdicts = repo.get_triage_for_run(user_id=user.user_id, run_id=run_id)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    return [TriageVerdictResponse(**v) for v in verdicts]
+
+
+@router.post("/triage/run/{run_id}/resolve")
+def resolve_triage_run_v2(
+    run_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+    service: TriageService = Depends(get_triage_service),
+) -> Dict[str, int]:
+    try:
+        return service.resolve_tiebreaks(user_id=user.user_id, run_id=run_id)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
 
 
 @router.post("/integrations/jira", response_model=JiraConfigResponse)

@@ -54,6 +54,21 @@ SUPABASE_JWT_AUDIENCE = os.getenv("SUPABASE_JWT_AUDIENCE", "")
 # HS256 shared secret for self-hosted GoTrue (docker demo). Empty = cloud RS256 path.
 SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
 
+# CI webhook (Mnemo Autopilot) — ingesta viva desde el CI del cliente.
+# Secreto compartido para verificar la firma HMAC-SHA256 del webhook.
+CI_WEBHOOK_SECRET = os.getenv("CI_WEBHOOK_SECRET", "")
+# Cuenta de servicio (miembro del org) a la que se atribuye la ingesta del CI.
+CI_SERVICE_USER_ID = os.getenv("CI_SERVICE_USER_ID", "")
+# Límite de tamaño del cuerpo del webhook de CI (anti-DoS). Por defecto 10 MiB.
+CI_MAX_BODY_BYTES = int(os.getenv("CI_MAX_BODY_BYTES", str(10 * 1024 * 1024)))
+# Org único al que está ligada la cuenta de servicio del CI. Si se define, el webhook
+# rechaza (403) cualquier artefacto con otro org_id (aislamiento mono-org).
+CI_SERVICE_ORG_ID = os.getenv("CI_SERVICE_ORG_ID", "")
+
+# Triaje (Mnemo Autopilot F2): nº mínimo de fallos con firma de infra en un run
+# para considerarlo "co-fallo masivo" (señal de problema de entorno, no de producto).
+TRIAGE_MASS_COFAILURE_MIN = int(os.getenv("TRIAGE_MASS_COFAILURE_MIN", "3"))
+
 
 def multi_tenant_enabled() -> bool:
     """True solo si hay BD Postgres y Supabase configurados."""

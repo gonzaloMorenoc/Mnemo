@@ -146,3 +146,26 @@ class RootCauseResponse(BaseModel):
     defect_id: str
     root_cause: str
     cached: bool
+
+
+class CiWebhookResponse(BaseModel):
+    run_id: str
+    ingested: int
+    known: int
+    novel: int
+    results_recorded: int
+    snapshots_saved: int
+    deduplicated: bool = False
+    triage: Optional[Dict[str, int]] = None
+
+
+class TriageVerdictResponse(BaseModel):
+    id: str
+    failure_id: str
+    category: str
+    confidence: float
+    rule_applied: str
+    requires_approval: bool
+    llm_assisted: bool
+    status: str
+    evidence_bundle: Optional[dict] = None

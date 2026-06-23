@@ -24,6 +24,8 @@ htmlcov/
 
 # Artefactos de agentes/herramientas locales
 .agent/
+.claude/
+.superpowers/
 
 # Modelos y caches de HuggingFace/Transformers
 .cache/
