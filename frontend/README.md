@@ -1,71 +1,48 @@
-# TraceFix Frontend (Next.js)
+# Mnemo — Frontend (Next.js)
 
-Modern web frontend for TraceFix using Next.js App Router, Tailwind, shadcn/ui patterns, Supabase auth, and TanStack Query.
+Frontend web de **Mnemo** con Next.js (App Router), Tailwind + shadcn/ui, autenticación Supabase y TanStack Query. Es **solo cliente**: el dato, el LLM, los embeddings y la firma viven en el backend; el frontend habla con él a través de un **proxy server-side**.
 
-## Tech Stack
+## Stack
 
-- Next.js (App Router) + TypeScript
-- TailwindCSS + shadcn/ui-style components
-- Supabase JS (client auth)
+- Next.js 16 (App Router) + React 19 + TypeScript
+- TailwindCSS 4 + componentes estilo shadcn/ui
+- Supabase JS (auth de cliente)
 - TanStack Query
 - react-hook-form + zod
-- lucide-react
-- framer-motion
+- lucide-react · framer-motion · sonner
 - Vitest + Testing Library
 
-## Routes
+## Rutas
 
-- `/`
-- `/login`
-- `/signup`
-- `/app/analyze`
-- `/app/knowledge`
-- `/app/org`
-- `/app/settings`
+`/` · `/login` · `/signup` · `/app` · `/app/analyze` · `/app/assurance` · `/app/defects` · `/app/integrations` · `/app/knowledge` · `/app/org` · `/app/settings`
 
-## Environment Variables
+## Cómo habla con el backend (proxy server-side)
 
-Copy `.env.example` into `.env.local` and set:
+El frontend **no** llama al backend directamente desde el navegador. Llama a sus propias rutas `/api/v2/*` (route handlers en `src/app/api/`), que reenvían (`src/lib/server/proxy.ts`) al backend en `NEXT_PUBLIC_API_BASE_URL`. Ventaja: sin CORS y la URL del backend se resuelve en el servidor. Por eso `next.config.ts` no necesita `rewrites`.
 
-- `NEXT_PUBLIC_API_BASE_URL`
+## Variables de entorno
+
+Copia `.env.example` en `.env.local` y rellena:
+
+- `NEXT_PUBLIC_API_BASE_URL` — URL del backend (p. ej. `http://localhost:8000` en local).
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
 ## Scripts
 
-- `npm run dev` - start dev server
-- `npm run build` - production build
-- `npm run start` - run production server
-- `npm run lint` - run ESLint
-- `npm run lint:ci` - run ESLint with GitHub annotations format
-- `npm run typecheck` - run TypeScript type checks
-- `npm run typecheck:ci` - deterministic TypeScript check for CI
-- `npm run test` - run UI tests (Vitest)
-- `npm run test:ci` - Vitest single-fork mode for CI stability
-- `npm run check:ci` - lint + test + build (build includes Next.js type validation)
+- `npm run dev` — servidor de desarrollo
+- `npm run build` — build de producción
+- `npm run start` — servidor de producción
+- `npm run lint` / `lint:ci` — ESLint
+- `npm run typecheck` / `typecheck:ci` — chequeo de tipos
+- `npm run test` / `test:ci` — Vitest
+- `npm run check:ci` — lint + test + build (lo que corre CI)
 
-## CI Hardening
+## CI
 
-- Node version pinned in `/Users/gonzalo/Documents/GitHub/SmartErrorDebugger/frontend/.nvmrc` (`22.14.0`).
-- npm behavior pinned via `/Users/gonzalo/Documents/GitHub/SmartErrorDebugger/frontend/.npmrc`.
-- GitHub Actions workflow at `/Users/gonzalo/Documents/GitHub/SmartErrorDebugger/.github/workflows/frontend-ci.yml`.
-- Workflow triggers only when frontend files (or workflow file) change.
+- Versión de Node fijada en `.nvmrc` (`22.14.0`) y comportamiento de npm en `.npmrc`.
+- Workflow en `.github/workflows/` (se dispara solo cuando cambian archivos del frontend).
 
-## API Notes
+## Despliegue (Vercel)
 
-Implemented against existing backend endpoints:
-
-- `GET /health`
-- `GET /v2/orgs`
-- `POST /v2/orgs`
-- `POST /v2/orgs/join`
-- `POST /v2/upload`
-- `POST /v2/analyze`
-
-Missing APIs are surfaced in UI as clear placeholders:
-
-- `GET /v2/knowledge/documents?scope=&org_id=`
-- `DELETE /v2/knowledge/documents/:id`
-- `GET /v2/orgs/:org_id/members`
-- `PATCH /v2/orgs/:org_id/members/:user_id`
-- `POST /v2/analyses/:id/feedback`
+El proyecto vive en este subdirectorio, así que en Vercel hay que fijar **Root Directory = `frontend`** (si no, Vercel detecta el backend FastAPI de la raíz y el build falla). Framework **Next.js** (autodetectado), **Node 22.x**. Configura las 3 variables `NEXT_PUBLIC_*` en el proyecto de Vercel. Ver la sección *Despliegue* del [README raíz](../README.md).
