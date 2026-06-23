@@ -1,10 +1,11 @@
-from typing import Dict
+from typing import Dict, Optional
 
 from src.config import TRIAGE_MASS_COFAILURE_MIN
 from src.triage.engine import triage
 from src.triage.evidence import build_evidence
 from src.triage.patterns import classify_error
 from src.triage.signals import FailureInput, compute_signals
+from src.triage.tiebreaker import LLMTiebreaker
 
 _CATEGORIES = ("flaky", "infra", "maintenance", "real", "unknown")
 
@@ -14,9 +15,10 @@ class TriageService:
     a nivel de run, clasifica cada fallo con el motor determinista y persiste los
     veredictos. Los ambiguos quedan 'needs_tiebreak' (el desempate LLM es F2f)."""
 
-    def __init__(self, *, repo, threshold: int = TRIAGE_MASS_COFAILURE_MIN):
+    def __init__(self, *, repo, threshold: int = TRIAGE_MASS_COFAILURE_MIN, tiebreaker: Optional[LLMTiebreaker] = None):
         self.repo = repo
         self.threshold = threshold
+        self.tiebreaker = tiebreaker or LLMTiebreaker()
 
     def triage_run(self, *, user_id: str, run_id: str) -> Dict[str, int]:
         data = self.repo.get_triage_inputs(user_id=user_id, run_id=run_id)
@@ -63,3 +65,25 @@ class TriageService:
             user_id=user_id, org_id=data["run"]["org_id"], run_id=run_id, verdicts=verdicts,
         )
         return counts
+
+    def resolve_tiebreaks(self, *, user_id: str, run_id: str) -> Dict[str, int]:
+        """Resuelve los veredictos 'needs_tiebreak' del run con el tiebreaker (LLM).
+        Los que el tiebreaker no decide se quedan pendientes. Devuelve {resolved, pending}."""
+        verdicts = self.repo.get_triage_for_run(user_id=user_id, run_id=run_id)
+        pending = [v for v in verdicts if v["status"] == "needs_tiebreak"]
+        resolved = 0
+        for v in pending:
+            result = self.tiebreaker.resolve(v["evidence_bundle"] or {})
+            if result is None:
+                continue
+            category, reason = result
+            bundle = dict(v["evidence_bundle"] or {})
+            bundle.update({
+                "tiebreak_category": category, "tiebreak_reason": reason,
+            })
+            self.repo.update_triage_verdict(
+                user_id=user_id, verdict_id=v["id"], category=category, confidence=0.70,
+                requires_approval=True, llm_assisted=True, status="resolved", evidence_bundle=bundle,
+            )
+            resolved += 1
+        return {"resolved": resolved, "pending": len(pending) - resolved}

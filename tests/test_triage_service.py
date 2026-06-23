@@ -72,3 +72,50 @@ def test_real_recurrent_verdict_fields_persisted():
     assert v["category"] == "real" and v["confidence"] == 0.85
     assert v["rule_applied"] == "R4_real_recurrent" and v["requires_approval"] is False
     assert v["llm_assisted"] is False and v["status"] == "resolved"
+
+
+def test_resolve_tiebreaks_resolves_only_pending():
+    from unittest.mock import MagicMock
+    repo = MagicMock()
+    repo.get_triage_for_run.return_value = [
+        {"id": "v1", "failure_id": "f1", "category": "real", "confidence": 0.85,
+         "rule_applied": "R4_real_recurrent", "evidence_bundle": {}, "requires_approval": False,
+         "llm_assisted": False, "status": "resolved"},
+        {"id": "v2", "failure_id": "f2", "category": "unknown", "confidence": 0.0,
+         "rule_applied": "R6_unknown", "evidence_bundle": {"signals": []}, "requires_approval": True,
+         "llm_assisted": False, "status": "needs_tiebreak"},
+    ]
+    tb = MagicMock()
+    tb.resolve.return_value = ("flaky", "intermitente")
+    svc = TriageService(repo=repo, tiebreaker=tb)
+    out = svc.resolve_tiebreaks(user_id="u", run_id="r1")
+    assert out == {"resolved": 1, "pending": 0}
+    repo.update_triage_verdict.assert_called_once()
+    kw = repo.update_triage_verdict.call_args.kwargs
+    assert kw["verdict_id"] == "v2" and kw["category"] == "flaky" and kw["confidence"] == 0.70
+    assert kw["llm_assisted"] is True and kw["requires_approval"] is True and kw["status"] == "resolved"
+    assert kw["evidence_bundle"]["tiebreak_reason"] == "intermitente"
+    assert kw["evidence_bundle"]["tiebreak_category"] == "flaky"
+
+
+def test_resolve_tiebreaks_leaves_pending_when_undecided():
+    from unittest.mock import MagicMock
+    repo = MagicMock()
+    repo.get_triage_for_run.return_value = [
+        {"id": "v2", "failure_id": "f2", "category": "unknown", "confidence": 0.0,
+         "rule_applied": "R6_unknown", "evidence_bundle": {}, "requires_approval": True,
+         "llm_assisted": False, "status": "needs_tiebreak"},
+    ]
+    tb = MagicMock()
+    tb.resolve.return_value = None
+    svc = TriageService(repo=repo, tiebreaker=tb)
+    assert svc.resolve_tiebreaks(user_id="u", run_id="r1") == {"resolved": 0, "pending": 1}
+    repo.update_triage_verdict.assert_not_called()
+
+
+def test_resolve_tiebreaks_no_pending():
+    from unittest.mock import MagicMock
+    repo = MagicMock()
+    repo.get_triage_for_run.return_value = [{"id": "v1", "status": "resolved", "evidence_bundle": {}}]
+    svc = TriageService(repo=repo, tiebreaker=MagicMock())
+    assert svc.resolve_tiebreaks(user_id="u", run_id="r1") == {"resolved": 0, "pending": 0}
