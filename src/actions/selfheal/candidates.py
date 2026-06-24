@@ -8,7 +8,7 @@ from src.actions.selfheal.dom import ElementSignature, _implicit_role, _norm_tex
 from src.actions.selfheal.locator import robust_locator
 
 
-@dataclass
+@dataclass(frozen=True)
 class ScoredCandidate:
     locator: str
     score: int

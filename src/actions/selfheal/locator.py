@@ -23,7 +23,9 @@ def robust_locator(el: Tag) -> Tuple[str, int]:
     if testid:
         return (f"getByTestId('{_esc(testid)}')", 3)
     if text:
-        return (f"getByText('{_esc(text)}')", 2)
+        # exact:true porque getByText hace substring match por defecto en Playwright
+        # (sin exact, 'Save' resolvería también a 'Save draft' → strict-mode violation).
+        return (f"getByText('{_esc(text)}', {{ exact: true }})", 2)
     if el_id:
         return (f"locator('#{_esc(el_id)}')", 1)
     return (f"locator('{_esc(el.name)}')", 0)

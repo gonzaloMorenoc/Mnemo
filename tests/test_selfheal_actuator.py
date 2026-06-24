@@ -38,6 +38,8 @@ def test_uses_explainer_when_present():
     explainer.explain.return_value = "Razón del LLM."
     p = SelfHealActuator(explainer=explainer).propose({}, _ctx())
     assert p.payload["reasoning"] == "Razón del LLM."
+    # el locator sugerido es determinista (del DOM), el LLM solo escribe la prosa
+    assert p.payload["suggested_locator"] == "getByRole('button', { name: 'Checkout' })"
 
 
 def test_degrades_explainer_raises_to_template():
@@ -84,3 +86,14 @@ def test_degrades_ambiguous_locator():
                green_dom="<button id='save-btn'>Save</button>",
                failure_dom="<button>Save</button><button>Save</button>")
     assert SelfHealActuator().propose({}, ctx) is None   # 2 elementos idénticos → ambiguo → degrade
+
+
+def test_getbytext_suggested_with_exact():
+    # regresión: getByText hace substring match por defecto en Playwright; el locator
+    # sugerido debe llevar { exact: true } para no resolver a 'Save more items' también.
+    ctx = _ctx(error_message="waiting for locator('#save')",
+               green_dom="<span id='save'>Save</span>",
+               failure_dom="<span>Save</span><span>Save more items</span>")
+    p = SelfHealActuator().propose({}, ctx)
+    assert p is not None
+    assert p.payload["suggested_locator"] == "getByText('Save', { exact: true })"

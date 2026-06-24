@@ -19,7 +19,7 @@ def test_testid_when_no_accessible_name():
 
 def test_text_when_no_role_no_testid():
     loc, rank = robust_locator(_el("<span>Total</span>"))
-    assert loc == "getByText('Total')" and rank == 2
+    assert loc == "getByText('Total', { exact: true })" and rank == 2
 
 
 def test_id_fallback():
