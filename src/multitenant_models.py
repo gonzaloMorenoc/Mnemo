@@ -174,6 +174,7 @@ class TriageVerdictResponse(BaseModel):
 class ProposeActionsResponse(BaseModel):
     quarantine: int = 0
     ticket: int = 0
+    self_heal: int = 0
     skipped: int = 0
 
 

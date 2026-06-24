@@ -8,6 +8,7 @@ from pydantic import ValidationError
 logger = logging.getLogger(__name__)
 
 from src.actions.quarantine import QuarantineActuator
+from src.actions.selfheal.selfheal import SelfHealActuator
 from src.actions.service import ActionService
 from src.actions.ticket import TicketActuator
 from src.ci.ingestion_service import CiIngestionService
@@ -172,6 +173,15 @@ class _LazyRootCauseAnalyzer:
         return get_root_cause_analyzer().analyze(family, failures)
 
 
+class _LazySelfHealExplainer:
+    """Construye el explainer LLM en tiempo de uso (mala config del LLM → degrada a plantilla)."""
+
+    def explain(self, **kw):
+        from src.actions.selfheal.explainer import LLMSelfHealExplainer
+        from src.llm.factory import get_llm_provider
+        return LLMSelfHealExplainer(get_llm_provider()).explain(**kw)
+
+
 def get_action_service() -> ActionService:
     if not multi_tenant_enabled():
         raise HTTPException(status_code=503, detail="Multi-tenant KB not configured")
@@ -179,7 +189,11 @@ def get_action_service() -> ActionService:
     if _action_service is None:
         _action_service = ActionService(
             repo=get_assurance_repo(),
-            actuators={"flaky": QuarantineActuator(), "real": TicketActuator(_LazyRootCauseAnalyzer())},
+            actuators={
+                "flaky": QuarantineActuator(),
+                "real": TicketActuator(_LazyRootCauseAnalyzer()),
+                "maintenance": SelfHealActuator(explainer=_LazySelfHealExplainer()),
+            },
         )
     return _action_service
 
