@@ -26,7 +26,7 @@ def test_propose_maps_categories_and_skips_unmapped():
     ]
     svc, repo, quarantine, ticket = _svc(verdicts)
     counts = svc.propose_actions(user_id="u", run_id="r")
-    assert counts == {"quarantine": 1, "ticket": 1, "skipped": 1}
+    assert counts == {"quarantine": 1, "ticket": 1, "self_heal": 0, "skipped": 1}
     # el ticket recibió context con family+failures (fetch de get_family_with_failures)
     _, ctx = ticket.propose.call_args.args
     assert ctx["family"]["title"] == "F" and ctx["test_name"] == "b"
@@ -39,7 +39,7 @@ def test_propose_maps_categories_and_skips_unmapped():
 
 def test_propose_no_actionable_does_not_save():
     svc, repo, _, _ = _svc([])
-    assert svc.propose_actions(user_id="u", run_id="r") == {"quarantine": 0, "ticket": 0, "skipped": 0}
+    assert svc.propose_actions(user_id="u", run_id="r") == {"quarantine": 0, "ticket": 0, "self_heal": 0, "skipped": 0}
     repo.save_actions.assert_not_called()
 
 
@@ -96,7 +96,7 @@ def test_propose_none_proposal_counts_skipped():
     actuator = MagicMock()
     actuator.propose.return_value = None             # actuador que no propone
     svc = ActionService(repo=repo, actuators={"flaky": actuator})
-    assert svc.propose_actions(user_id="u", run_id="r") == {"quarantine": 0, "ticket": 0, "skipped": 1}
+    assert svc.propose_actions(user_id="u", run_id="r") == {"quarantine": 0, "ticket": 0, "self_heal": 0, "skipped": 1}
     repo.save_actions.assert_not_called()
 
 
@@ -105,3 +105,23 @@ def test_reject_delegates_to_repo():
     repo.reject_action.return_value = True
     svc = ActionService(repo=repo, actuators={})
     assert svc.reject_action(user_id="u", action_id="a1", reason="dup") is True
+
+
+def test_maintenance_uses_selfheal_context():
+    from unittest.mock import MagicMock
+    from src.actions.base import ActionProposal
+    repo = MagicMock()
+    repo.get_run_actionable_verdicts.return_value = [
+        {"verdict_id": "v1", "category": "maintenance", "org_id": "o", "evidence_bundle": {},
+         "test_name": "t", "failure_id": "f1"}]
+    repo.get_selfheal_context.return_value = {"error_message": "e", "trace": None,
+                                              "green_dom": "<a/>", "failure_dom": "<a/>"}
+    repo.save_actions.return_value = 1
+    sh = MagicMock()
+    sh.propose.return_value = ActionProposal("self_heal", {"suggested_locator": "x"}, "s")
+    svc = ActionService(repo=repo, actuators={"maintenance": sh})
+    counts = svc.propose_actions(user_id="u", run_id="r")
+    repo.get_selfheal_context.assert_called_once_with(user_id="u", failure_id="f1")
+    _, ctx = sh.propose.call_args.args
+    assert ctx["green_dom"] == "<a/>" and ctx["error_message"] == "e"
+    assert counts.get("self_heal", 0) == 1 or counts == {"quarantine": 0, "ticket": 0, "self_heal": 1, "skipped": 0}

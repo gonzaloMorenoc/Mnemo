@@ -110,3 +110,25 @@ def test_save_actions_rejects_foreign_run(repo, org):
     u, o = org["user_id"], org["org_id"]
     with pytest.raises((ValueError, PermissionError)):
         repo.save_actions(user_id=u, org_id=o, run_id=str(uuid.uuid4()), actions=[])
+
+
+def test_get_selfheal_context_returns_error_and_doms(repo, org):
+    u, o = org["user_id"], org["org_id"]
+    from src.defects.fingerprint import fingerprint
+    from src.defects.repository import IngestItem
+    from src.ingest.models import FailureRecord
+    rec = FailureRecord(test_name="t_co", error_type="TimeoutError",
+                        message="waiting for locator('#btn')", trace=None, project="web", source="playwright")
+    item = IngestItem(rec=rec, fingerprint=fingerprint(rec), embedding=[1.0] + [0.0] * 383)
+    r = repo.ingest_ci_run(user_id=u, org_id=o, project="web", source="playwright", run_uid="sh",
+                           commit_sha="c1", items=[item],
+                           results=[{"test_name": "t_co", "status": "fail"}],
+                           snapshots=[{"test_name": "t_co", "kind": "last_green", "content": "<button>Go</button>", "commit_sha": "c0"},
+                                      {"test_name": "t_co", "kind": "failure", "content": "<button id='v2'>Go</button>", "commit_sha": "c1"}])
+    fid = repo.get_triage_inputs(user_id=u, run_id=r["run_id"])["failures"][0]["failure_id"]
+    ctx = repo.get_selfheal_context(user_id=u, failure_id=fid)
+    assert ctx is not None
+    assert "locator('#btn')" in ctx["error_message"]
+    assert ctx["green_dom"] == "<button>Go</button>" and "v2" in ctx["failure_dom"]
+    import uuid as _uuid
+    assert repo.get_selfheal_context(user_id=str(_uuid.uuid4()), failure_id=fid) is None

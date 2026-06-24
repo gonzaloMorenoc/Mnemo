@@ -26,10 +26,10 @@ def _client(*, repo=None, service=None, with_user=True):
 
 def test_propose_returns_counts():
     svc = MagicMock()
-    svc.propose_actions.return_value = {"quarantine": 1, "ticket": 2, "skipped": 0}
+    svc.propose_actions.return_value = {"quarantine": 1, "ticket": 2, "self_heal": 0, "skipped": 0}
     resp = _client(service=svc).post("/v2/actions/run/r1/propose")
     assert resp.status_code == 200
-    assert resp.json() == {"quarantine": 1, "ticket": 2, "skipped": 0}
+    assert resp.json() == {"quarantine": 1, "ticket": 2, "self_heal": 0, "skipped": 0}
     svc.propose_actions.assert_called_once_with(user_id="user-1", run_id="r1")
 
 

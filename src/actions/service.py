@@ -2,7 +2,7 @@ from typing import Any, Dict, Optional
 
 from src.actions.base import Actuator, CodeHost, NullCodeHost
 
-_CATEGORIES = ("quarantine", "ticket")
+_CATEGORIES = ("quarantine", "ticket", "self_heal")
 
 
 class ActionService:
@@ -43,13 +43,18 @@ class ActionService:
 
     def _context_for(self, user_id: str, verdict: Dict[str, Any]) -> Dict[str, Any]:
         ctx: Dict[str, Any] = {"test_name": verdict.get("test_name")}
-        if verdict["category"] == "real" and verdict.get("defect_family_id"):
+        category = verdict["category"]
+        if category == "real" and verdict.get("defect_family_id"):
             fam = self.repo.get_family_with_failures(
                 user_id=user_id, defect_id=verdict["defect_family_id"]
             )
             if fam:
                 ctx["family"] = fam.get("family") or {}
                 ctx["failures"] = fam.get("failures") or []
+        elif category == "maintenance" and verdict.get("failure_id"):
+            sh = self.repo.get_selfheal_context(user_id=user_id, failure_id=verdict["failure_id"])
+            if sh:
+                ctx.update(sh)
         return ctx
 
     def approve_action(self, *, user_id: str, action_id: str) -> Dict[str, Any]:

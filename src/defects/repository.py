@@ -976,3 +976,39 @@ class AssuranceRepository:
                 ok = cur.rowcount > 0
             conn.commit()
         return ok
+
+    def get_selfheal_context(self, *, user_id: str, failure_id: str) -> Optional[Dict[str, Any]]:
+        """Contexto para el self-heal de un fallo: el error + los DOM verde/rojo del test.
+        None si no es miembro / no existe el fallo."""
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "select f.message, f.trace, f.test_name, r.org_id, r.project, r.commit_sha"
+                    " from public.failures f join public.test_runs r on r.id = f.run_id"
+                    " where f.id = %s and exists (select 1 from public.memberships m"
+                    "   where m.org_id = r.org_id and m.user_id = %s)",
+                    (failure_id, user_id),
+                )
+                row = cur.fetchone()
+                if row is None:
+                    return None
+                cur.execute(
+                    "select content from public.dom_snapshots"
+                    " where org_id = %s and project = %s and test_name = %s and kind = 'last_green'"
+                    " order by created_at desc limit 1",
+                    (row["org_id"], row["project"], row["test_name"]),
+                )
+                green = cur.fetchone()
+                cur.execute(
+                    "select content from public.dom_snapshots"
+                    " where org_id = %s and project = %s and test_name = %s and kind = 'failure'"
+                    "   and commit_sha is not distinct from %s order by created_at desc limit 1",
+                    (row["org_id"], row["project"], row["test_name"], row["commit_sha"]),
+                )
+                fail = cur.fetchone()
+        return {
+            "error_message": row["message"], "trace": row["trace"],
+            "green_dom": green["content"] if green else None,
+            "failure_dom": fail["content"] if fail else None,
+        }
