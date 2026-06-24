@@ -25,3 +25,5 @@ def test_quarantine_includes_annotation_with_test_name():
 def test_quarantine_handles_missing_test_name():
     p = QuarantineActuator().propose(_verdict(), {})
     assert p.payload["debt_ticket"]["title"]     # sigue produciendo ticket de deuda
+    assert p.payload["debt_ticket"]["body"]
+    assert p.payload["annotation"]["test_name"] == "(test desconocido)"

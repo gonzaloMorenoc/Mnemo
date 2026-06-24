@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from src.actions.base import ActionProposal
 
@@ -9,7 +9,7 @@ class QuarantineActuator:
 
     def propose(
         self, verdict: Dict[str, Any], context: Dict[str, Any]
-    ) -> Optional[ActionProposal]:
+    ) -> ActionProposal:
         test_name = context.get("test_name") or "(test desconocido)"
         ev = verdict.get("evidence_bundle") or {}
         family_id = ev.get("family_id")
