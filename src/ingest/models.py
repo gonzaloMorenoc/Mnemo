@@ -41,3 +41,5 @@ class FailureRecord:
     trace: Optional[str]
     project: str
     source: str  # allure | junit | testng | cucumber | playwright | cypress | robot
+    file: Optional[str] = None
+    line: Optional[int] = None

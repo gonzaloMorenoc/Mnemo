@@ -23,6 +23,8 @@ def to_failure_records(artifact: CiRunArtifact) -> List[FailureRecord]:
                 trace=t.trace,
                 project=artifact.project,
                 source=artifact.source,
+                file=t.file,
+                line=t.line,
             )
         )
     return records

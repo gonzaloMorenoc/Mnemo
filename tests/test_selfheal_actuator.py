@@ -97,3 +97,8 @@ def test_getbytext_suggested_with_exact():
     p = SelfHealActuator().propose({}, ctx)
     assert p is not None
     assert p.payload["suggested_locator"] == "getByText('Save', { exact: true })"
+
+
+def test_payload_includes_file_from_context():
+    p = SelfHealActuator().propose({}, _ctx(file="tests/checkout.spec.ts"))
+    assert p is not None and p.payload["file"] == "tests/checkout.spec.ts"

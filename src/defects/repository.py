@@ -145,12 +145,12 @@ class AssuranceRepository:
             insert into public.failures
                 (run_id, org_id, test_name, error_type, message, trace,
                  fingerprint, embedding, sanitized, defect_family_id,
-                 external_ref, external_url)
-            values (%s, %s, %s, %s, %s, %s, %s, %s, true, %s, %s, %s)
+                 external_ref, external_url, file, line)
+            values (%s, %s, %s, %s, %s, %s, %s, %s, true, %s, %s, %s, %s, %s)
             """,
             (run_id, org_id, item.rec.test_name, item.rec.error_type, item.rec.message,
              item.rec.trace, item.fingerprint, Vector(list(item.embedding)), family_id,
-             item.external_ref, item.external_url),
+             item.external_ref, item.external_url, item.rec.file, item.rec.line),
         )
         return is_new
 
@@ -873,7 +873,7 @@ class AssuranceRepository:
             self._set_claims(conn, user_id)
             with conn.cursor() as cur:
                 cur.execute(
-                    "select f.message, f.trace, f.test_name, r.org_id, r.project, r.commit_sha"
+                    "select f.message, f.trace, f.test_name, f.file, r.org_id, r.project, r.commit_sha"
                     " from public.failures f join public.test_runs r on r.id = f.run_id"
                     " where f.id = %s and exists (select 1 from public.memberships m"
                     "   where m.org_id = r.org_id and m.user_id = %s)",
@@ -900,4 +900,5 @@ class AssuranceRepository:
             "error_message": row["message"], "trace": row["trace"],
             "green_dom": green["content"] if green else None,
             "failure_dom": fail["content"] if fail else None,
+            "file": row["file"],
         }
