@@ -39,6 +39,8 @@ from src.multitenant_models import (
     DefectLineageResponse,
     FailureRef,
     FamilyVerdict,
+    GitHubConfigRequest,
+    GitHubConfigResponse,
     IngestReportResponse,
     JiraConfigRequest,
     JiraConfigResponse,
@@ -458,6 +460,42 @@ def get_jira_integration(
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail="Database error") from exc
     return JiraConfigResponse(**cfg)
+
+
+@router.post("/integrations/github", response_model=GitHubConfigResponse)
+def set_github_integration(
+    body: GitHubConfigRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+    integrations: IntegrationsRepository = Depends(get_integrations_repo),
+) -> GitHubConfigResponse:
+    try:
+        integrations.upsert_github_config(
+            user_id=user.user_id, org_id=body.org_id,
+            installation_id=body.installation_id, repo_full_name=body.repo_full_name,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    return GitHubConfigResponse(configured=True, repo_full_name=body.repo_full_name,
+                                installation_id=body.installation_id)
+
+
+@router.get("/integrations/github", response_model=GitHubConfigResponse)
+def get_github_integration(
+    org_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+    integrations: IntegrationsRepository = Depends(get_integrations_repo),
+) -> GitHubConfigResponse:
+    try:
+        cfg = integrations.get_github_config(user_id=user.user_id, org_id=org_id)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    return GitHubConfigResponse(**cfg)
 
 
 @router.post("/ingest/jira/file", response_model=JiraIngestResponse)

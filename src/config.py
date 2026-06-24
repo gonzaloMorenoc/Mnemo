@@ -69,6 +69,10 @@ CI_SERVICE_ORG_ID = os.getenv("CI_SERVICE_ORG_ID", "")
 # para considerarlo "co-fallo masivo" (señal de problema de entorno, no de producto).
 TRIAGE_MASS_COFAILURE_MIN = int(os.getenv("TRIAGE_MASS_COFAILURE_MIN", "3"))
 
+# GitHub App (F3c): credenciales globales de la app.
+GITHUB_APP_ID = os.getenv("GITHUB_APP_ID", "")
+GITHUB_APP_PRIVATE_KEY = os.getenv("GITHUB_APP_PRIVATE_KEY", "")
+
 
 def multi_tenant_enabled() -> bool:
     """True solo si hay BD Postgres y Supabase configurados."""
