@@ -45,47 +45,88 @@ def test_propose_no_actionable_does_not_save():
 
 def test_approve_materializes_via_codehost_and_records_ref():
     repo = MagicMock()
-    repo.get_action.return_value = {"id": "a1", "kind": "ticket", "status": "proposed",
+    repo.get_action.return_value = {"id": "a1", "org_id": "o", "kind": "ticket", "status": "proposed",
                                     "payload": {"title": "T", "body": "B", "labels": ["bug"]}}
     repo.approve_action.return_value = True
+    repo.materialize_action.return_value = True
     codehost = MagicMock()
-    codehost.create_issue.return_value = "stub://issue/9"
-    svc = ActionService(repo=repo, actuators={}, codehost=codehost)
+    codehost.create_issue.return_value = "https://github.com/o/r/issues/9"
+    svc = ActionService(repo=repo, actuators={}, codehost_factory=lambda org, user: codehost)
     out = svc.approve_action(user_id="u", action_id="a1")
-    assert out == {"approved": True, "artifact_ref": "stub://issue/9"}
-    codehost.create_issue.assert_called_once()
-    assert repo.approve_action.call_args.kwargs["artifact_ref"] == "stub://issue/9"
+    assert out == {"approved": True, "materialized": True,
+                   "artifact_ref": "https://github.com/o/r/issues/9"}
+    assert codehost.create_issue.call_args.kwargs["marker"] == "mnemo:action:a1"
+    assert repo.materialize_action.call_args.kwargs["artifact_ref"] == "https://github.com/o/r/issues/9"
 
 
 def test_approve_quarantine_materializes_debt_ticket():
     repo = MagicMock()
     repo.get_action.return_value = {
-        "id": "a2", "kind": "quarantine", "status": "proposed",
+        "id": "a2", "org_id": "o", "kind": "quarantine", "status": "proposed",
         "payload": {"debt_ticket": {"title": "[Flaky] t", "body": "B", "labels": ["flaky"]},
                     "annotation": {"test_name": "t"}}}
     repo.approve_action.return_value = True
+    repo.materialize_action.return_value = True
     codehost = MagicMock()
-    codehost.create_issue.return_value = "stub://issue/22"
-    svc = ActionService(repo=repo, actuators={}, codehost=codehost)
+    codehost.create_issue.return_value = "https://github.com/o/r/issues/22"
+    svc = ActionService(repo=repo, actuators={}, codehost_factory=lambda org, user: codehost)
     out = svc.approve_action(user_id="u", action_id="a2")
-    assert out == {"approved": True, "artifact_ref": "stub://issue/22"}
-    # materializó el ticket de deuda (no el annotation)
+    assert out["materialized"] is True and out["artifact_ref"] == "https://github.com/o/r/issues/22"
     kw = codehost.create_issue.call_args.kwargs
     assert kw["title"] == "[Flaky] t" and kw["body"] == "B"
-    assert repo.approve_action.call_args.kwargs["artifact_ref"] == "stub://issue/22"
 
 
-def test_approve_non_proposed_does_not_materialize():
-    from unittest.mock import MagicMock
+def test_approve_rejected_or_missing_returns_false():
     repo = MagicMock()
-    repo.get_action.return_value = {"id": "a1", "kind": "ticket", "status": "approved",
-                                    "payload": {"title": "T"}}
+    repo.get_action.return_value = None
     codehost = MagicMock()
-    svc = ActionService(repo=repo, actuators={}, codehost=codehost)
-    out = svc.approve_action(user_id="u", action_id="a1")
-    assert out == {"approved": False, "artifact_ref": None}
-    codehost.create_issue.assert_not_called()        # invariante Nivel-2
+    svc = ActionService(repo=repo, actuators={}, codehost_factory=lambda org, user: codehost)
+    assert svc.approve_action(user_id="u", action_id="x") == {
+        "approved": False, "materialized": False, "artifact_ref": None}
+    codehost.create_issue.assert_not_called()
     repo.approve_action.assert_not_called()
+
+
+def test_approve_already_materialized_is_idempotent():
+    repo = MagicMock()
+    repo.get_action.return_value = {"id": "a1", "org_id": "o", "kind": "ticket",
+                                    "status": "materialized",
+                                    "artifact_ref": "https://github.com/o/r/issues/1", "payload": {}}
+    codehost = MagicMock()
+    svc = ActionService(repo=repo, actuators={}, codehost_factory=lambda org, user: codehost)
+    out = svc.approve_action(user_id="u", action_id="a1")
+    assert out == {"approved": True, "materialized": True,
+                   "artifact_ref": "https://github.com/o/r/issues/1"}
+    codehost.create_issue.assert_not_called()
+    repo.approve_action.assert_not_called()
+
+
+def test_approve_retries_materialize_when_already_approved():
+    repo = MagicMock()
+    repo.get_action.return_value = {"id": "a1", "org_id": "o", "kind": "ticket", "status": "approved",
+                                    "artifact_ref": None,
+                                    "payload": {"title": "T", "body": "B", "labels": []}}
+    repo.materialize_action.return_value = True
+    codehost = MagicMock()
+    codehost.create_issue.return_value = "https://github.com/o/r/issues/7"
+    svc = ActionService(repo=repo, actuators={}, codehost_factory=lambda org, user: codehost)
+    out = svc.approve_action(user_id="u", action_id="a1")
+    assert out["materialized"] is True and out["artifact_ref"] == "https://github.com/o/r/issues/7"
+    repo.approve_action.assert_not_called()         # ya estaba approved
+    codehost.create_issue.assert_called_once()
+
+
+def test_approve_self_heal_stays_approved_without_materializing():
+    repo = MagicMock()
+    repo.get_action.return_value = {"id": "a3", "org_id": "o", "kind": "self_heal",
+                                    "status": "proposed", "payload": {"suggested_locator": "x"}}
+    repo.approve_action.return_value = True
+    codehost = MagicMock()
+    svc = ActionService(repo=repo, actuators={}, codehost_factory=lambda org, user: codehost)
+    out = svc.approve_action(user_id="u", action_id="a3")
+    assert out == {"approved": True, "materialized": False, "artifact_ref": None}
+    codehost.create_issue.assert_not_called()
+    repo.materialize_action.assert_not_called()
 
 
 def test_propose_none_proposal_counts_skipped():
