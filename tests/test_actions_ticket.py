@@ -41,3 +41,12 @@ def test_ticket_degrades_when_analyzer_raises():
     p = TicketActuator(analyzer).propose(_verdict(), _ctx())
     assert "no disponible" in p.payload["body"].lower()
     assert p.kind == "ticket"
+
+
+def test_ticket_no_failures_skips_analyzer_and_degrades():
+    analyzer = MagicMock()
+    ctx = {"test_name": "t_x", "family": {"title": "F", "root_cause": None}, "failures": []}
+    p = TicketActuator(analyzer).propose(_verdict(), ctx)
+    analyzer.analyze.assert_not_called()          # sin datos, no se llama al LLM
+    assert "no disponible" in p.payload["body"].lower()
+    assert p.kind == "ticket"

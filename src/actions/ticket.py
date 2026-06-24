@@ -5,7 +5,7 @@ from src.actions.base import ActionProposal
 
 class TicketActuator:
     """Defecto real → ticket enriquecido: root-cause (RootCauseAnalyzer, inyectado) +
-    linaje cross-proyecto + severidad. Prefiere el root_cause ya guardado; degrada a
+    linaje cross-proyecto. Prefiere el root_cause ya guardado; degrada a
     'no disponible' si el LLM falla (nunca rompe)."""
 
     def __init__(self, analyzer: Any):
