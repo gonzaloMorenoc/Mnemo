@@ -40,3 +40,13 @@ def test_signature_extracts_stable_attrs():
     assert sig.tag == "button" and sig.role == "button"
     assert sig.text == "Checkout" and sig.testid == "checkout"
     assert sig.aria_label == "Checkout now" and sig.el_id == "checkout-btn"
+
+
+def test_find_element_by_role_link():
+    el = find_element(_soup(_GREEN), BrokenSelector("role", "link"))
+    assert el is not None and el.name == "a"
+
+
+def test_implicit_role_input():
+    from src.actions.selfheal.dom import _implicit_role
+    assert _implicit_role("input") == "textbox"

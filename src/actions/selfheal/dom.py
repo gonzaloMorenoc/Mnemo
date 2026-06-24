@@ -23,7 +23,7 @@ def _implicit_role(tag: str) -> Optional[str]:
     return _IMPLICIT_ROLE.get(tag)
 
 
-@dataclass
+@dataclass(frozen=True)
 class ElementSignature:
     tag: str
     role: Optional[str]
