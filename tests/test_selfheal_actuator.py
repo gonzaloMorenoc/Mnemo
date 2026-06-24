@@ -45,3 +45,10 @@ def test_degrades_explainer_raises_to_template():
     explainer.explain.side_effect = RuntimeError("LLM caído")
     p = SelfHealActuator(explainer=explainer).propose({}, _ctx())
     assert "robusto" in p.payload["reasoning"].lower()
+
+
+def test_broken_locator_role_renders_canonically():
+    ctx = _ctx(error_message="waiting for getByRole('button', { name: 'Checkout' })")
+    p = SelfHealActuator().propose({}, ctx)
+    assert p is not None
+    assert p.payload["broken_locator"] == "getByRole('button', { name: 'Checkout' })"

@@ -12,7 +12,9 @@ _TOP_N = 3
 
 def _broken_str(b: BrokenSelector) -> str:
     if b.kind == "role":
-        return f"getByRole('{b.value}'" + (f", name: '{b.name}')" if b.name else ")")
+        if b.name:
+            return f"getByRole('{b.value}', {{ name: '{b.name}' }})"
+        return f"getByRole('{b.value}')"
     if b.kind == "testid":
         return f"getByTestId('{b.value}')"
     if b.kind == "text":
