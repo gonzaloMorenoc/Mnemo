@@ -45,7 +45,7 @@ def test_propose_no_actionable_does_not_save():
 
 def test_approve_materializes_via_codehost_and_records_ref():
     repo = MagicMock()
-    repo.get_action.return_value = {"id": "a1", "kind": "ticket",
+    repo.get_action.return_value = {"id": "a1", "kind": "ticket", "status": "proposed",
                                     "payload": {"title": "T", "body": "B", "labels": ["bug"]}}
     repo.approve_action.return_value = True
     codehost = MagicMock()
@@ -60,7 +60,7 @@ def test_approve_materializes_via_codehost_and_records_ref():
 def test_approve_quarantine_materializes_debt_ticket():
     repo = MagicMock()
     repo.get_action.return_value = {
-        "id": "a2", "kind": "quarantine",
+        "id": "a2", "kind": "quarantine", "status": "proposed",
         "payload": {"debt_ticket": {"title": "[Flaky] t", "body": "B", "labels": ["flaky"]},
                     "annotation": {"test_name": "t"}}}
     repo.approve_action.return_value = True
@@ -73,6 +73,31 @@ def test_approve_quarantine_materializes_debt_ticket():
     kw = codehost.create_issue.call_args.kwargs
     assert kw["title"] == "[Flaky] t" and kw["body"] == "B"
     assert repo.approve_action.call_args.kwargs["artifact_ref"] == "stub://issue/22"
+
+
+def test_approve_non_proposed_does_not_materialize():
+    from unittest.mock import MagicMock
+    repo = MagicMock()
+    repo.get_action.return_value = {"id": "a1", "kind": "ticket", "status": "approved",
+                                    "payload": {"title": "T"}}
+    codehost = MagicMock()
+    svc = ActionService(repo=repo, actuators={}, codehost=codehost)
+    out = svc.approve_action(user_id="u", action_id="a1")
+    assert out == {"approved": False, "artifact_ref": None}
+    codehost.create_issue.assert_not_called()        # invariante Nivel-2
+    repo.approve_action.assert_not_called()
+
+
+def test_propose_none_proposal_counts_skipped():
+    from unittest.mock import MagicMock
+    repo = MagicMock()
+    repo.get_run_actionable_verdicts.return_value = [
+        {"verdict_id": "v1", "category": "flaky", "org_id": "o", "evidence_bundle": {}, "test_name": "a"}]
+    actuator = MagicMock()
+    actuator.propose.return_value = None             # actuador que no propone
+    svc = ActionService(repo=repo, actuators={"flaky": actuator})
+    assert svc.propose_actions(user_id="u", run_id="r") == {"quarantine": 0, "ticket": 0, "skipped": 1}
+    repo.save_actions.assert_not_called()
 
 
 def test_reject_delegates_to_repo():

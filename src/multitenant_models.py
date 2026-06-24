@@ -193,3 +193,12 @@ class ActionResponse(BaseModel):
 
 class ActionRejectRequest(BaseModel):
     reason: str = ""
+
+
+class ActionApproveResponse(BaseModel):
+    approved: bool
+    artifact_ref: Optional[str] = None
+
+
+class ActionRejectResponse(BaseModel):
+    rejected: bool

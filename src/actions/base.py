@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Protocol
 
 
-@dataclass
+@dataclass(frozen=True)
 class ActionProposal:
     kind: str                       # quarantine | ticket | self_heal
     payload: Dict[str, Any]

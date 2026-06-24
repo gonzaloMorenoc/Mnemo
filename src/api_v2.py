@@ -24,7 +24,9 @@ from src.jira.integrations_repository import IntegrationsRepository
 from src.jira.ingestion_service import JiraIngestionService
 from src.jira.safe_url import validate_base_url
 from src.multitenant_models import (
+    ActionApproveResponse,
     ActionRejectRequest,
+    ActionRejectResponse,
     ActionResponse,
     AnalyzeV2Request,
     AnalyzeV2Response,
@@ -161,6 +163,15 @@ def get_triage_service() -> TriageService:
     return _triage_service
 
 
+class _LazyRootCauseAnalyzer:
+    """Construye el RootCauseAnalyzer (y su LLM) en tiempo de análisis, no al crear el
+    singleton: una mala config del LLM degrada el ticket ('no disponible') en vez de
+    tumbar el servicio de acciones con un 500."""
+
+    def analyze(self, family, failures):
+        return get_root_cause_analyzer().analyze(family, failures)
+
+
 def get_action_service() -> ActionService:
     if not multi_tenant_enabled():
         raise HTTPException(status_code=503, detail="Multi-tenant KB not configured")
@@ -168,7 +179,7 @@ def get_action_service() -> ActionService:
     if _action_service is None:
         _action_service = ActionService(
             repo=get_assurance_repo(),
-            actuators={"flaky": QuarantineActuator(), "real": TicketActuator(get_root_cause_analyzer())},
+            actuators={"flaky": QuarantineActuator(), "real": TicketActuator(_LazyRootCauseAnalyzer())},
         )
     return _action_service
 
@@ -589,27 +600,29 @@ def list_actions_v2(
     return [ActionResponse(**r) for r in rows]
 
 
-@router.post("/actions/{action_id}/approve")
+@router.post("/actions/{action_id}/approve", response_model=ActionApproveResponse)
 def approve_action_v2(
     action_id: str,
     user: AuthenticatedUser = Depends(get_current_user),
     service: ActionService = Depends(get_action_service),
-) -> Dict[str, Any]:
+) -> ActionApproveResponse:
     try:
-        return service.approve_action(user_id=user.user_id, action_id=action_id)
+        return ActionApproveResponse(
+            **service.approve_action(user_id=user.user_id, action_id=action_id)
+        )
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail="Database error") from exc
 
 
-@router.post("/actions/{action_id}/reject")
+@router.post("/actions/{action_id}/reject", response_model=ActionRejectResponse)
 def reject_action_v2(
     action_id: str,
     body: ActionRejectRequest,
     user: AuthenticatedUser = Depends(get_current_user),
     service: ActionService = Depends(get_action_service),
-) -> Dict[str, bool]:
+) -> ActionRejectResponse:
     try:
         ok = service.reject_action(user_id=user.user_id, action_id=action_id, reason=body.reason)
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail="Database error") from exc
-    return {"rejected": ok}
+    return ActionRejectResponse(rejected=ok)

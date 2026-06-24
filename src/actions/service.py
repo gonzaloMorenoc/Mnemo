@@ -54,7 +54,7 @@ class ActionService:
 
     def approve_action(self, *, user_id: str, action_id: str) -> Dict[str, Any]:
         action = self.repo.get_action(user_id=user_id, action_id=action_id)
-        if action is None:
+        if action is None or action.get("status") != "proposed":
             return {"approved": False, "artifact_ref": None}
         ref = self._materialize(action)
         ok = self.repo.approve_action(user_id=user_id, action_id=action_id, artifact_ref=ref)
