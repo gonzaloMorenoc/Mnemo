@@ -68,3 +68,22 @@ def test_non_member_rejected(repo, org):
     with pytest.raises(PermissionError):
         repo.upsert_jira_config(user_id=other, org_id=org["org_id"], base_url="https://acme.atlassian.net",
                                 email="a@b.c", token="t", jql="issuetype = Bug")
+
+
+def test_github_upsert_then_get(repo, org):
+    u, o = org["user_id"], org["org_id"]
+    repo.upsert_github_config(user_id=u, org_id=o, installation_id="42", repo_full_name="acme/web")
+    cfg = repo.get_github_config(user_id=u, org_id=o)
+    assert cfg == {"configured": True, "repo_full_name": "acme/web", "installation_id": "42"}
+
+
+def test_github_get_unconfigured(repo, org):
+    cfg = repo.get_github_config(user_id=org["user_id"], org_id=org["org_id"])
+    assert cfg == {"configured": False, "repo_full_name": None, "installation_id": None}
+
+
+def test_github_upsert_non_member_rejected(repo, org):
+    import uuid as _u
+    with pytest.raises(PermissionError):
+        repo.upsert_github_config(user_id=str(_u.uuid4()), org_id=org["org_id"],
+                                  installation_id="1", repo_full_name="x/y")

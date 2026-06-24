@@ -9,4 +9,5 @@ def test_action_proposal_holds_fields():
 def test_null_codehost_returns_stub_refs_and_writes_nothing():
     ch = NullCodeHost()
     assert ch.create_issue(title="t", body="b", labels=["x"]).startswith("stub://")
-    assert ch.open_draft_pr(title="t", body="b", patch="p").startswith("stub://")
+    assert ch.open_draft_pr(title="t", body="b", file_path="f.ts",
+                             old_str="old", new_str="new").startswith("stub://")

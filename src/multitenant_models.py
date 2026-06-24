@@ -129,6 +129,18 @@ class JiraConfigResponse(BaseModel):
     jql: Optional[str] = None
 
 
+class GitHubConfigRequest(BaseModel):
+    org_id: str
+    installation_id: str
+    repo_full_name: str
+
+
+class GitHubConfigResponse(BaseModel):
+    configured: bool
+    repo_full_name: Optional[str] = None
+    installation_id: Optional[str] = None
+
+
 class JiraPullRequest(BaseModel):
     org_id: str
     project: str
@@ -182,6 +194,7 @@ class ActionResponse(BaseModel):
     id: str
     triage_verdict_id: str
     run_id: str
+    org_id: Optional[str] = None
     kind: str
     payload: Optional[dict] = None
     summary: Optional[str] = None
@@ -198,6 +211,7 @@ class ActionRejectRequest(BaseModel):
 
 class ActionApproveResponse(BaseModel):
     approved: bool
+    materialized: bool = False
     artifact_ref: Optional[str] = None
 
 

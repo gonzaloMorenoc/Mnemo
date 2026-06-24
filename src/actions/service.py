@@ -1,20 +1,35 @@
-from typing import Any, Dict, Optional
+import logging
+from typing import Any, Callable, Dict, Optional
 
 from src.actions.base import Actuator, CodeHost, NullCodeHost
+
+logger = logging.getLogger(__name__)
 
 _CATEGORIES = ("quarantine", "ticket", "self_heal")
 
 
-class ActionService:
-    """Orquesta la capa de acción: de los veredictos resueltos genera acciones propuestas,
-    y materializa/rechaza al aprobar. Nivel 2: nada externo sin approve."""
+def _self_heal_body(payload: Dict[str, Any]) -> str:
+    return (
+        "**Self-heal de locator** (Mnemo Autopilot, Nivel 2).\n\n"
+        f"- Locator roto: `{payload.get('broken_locator', '')}`\n"
+        f"- Locator sugerido: `{payload.get('suggested_locator', '')}`\n"
+        f"- Archivo: `{payload.get('file', '')}`\n\n"
+        f"## Razonamiento\n{payload.get('reasoning', '')}\n\n"
+        "> PR borrador automático — requiere revisión humana; nunca auto-merge."
+    )
 
-    def __init__(
-        self, *, repo, actuators: Dict[str, Actuator], codehost: Optional[CodeHost] = None
-    ):
-        self.repo = repo
+
+class ActionService:
+    """Orquesta la capa de acción. Nivel 2: nada externo sin approve. La materialización
+    es por-org (codehost_factory) y reintentable (proposed→approved→materialized)."""
+
+    def __init__(self, *, repo, actuators: Dict[str, Actuator],
+                 actions_repo=None,
+                 codehost_factory: Optional[Callable[[str, str], CodeHost]] = None):
+        self.repo = repo                                  # lecturas de contexto (assurance)
+        self.actions_repo = actions_repo or repo          # CRUD de acciones
         self.actuators = actuators
-        self.codehost = codehost or NullCodeHost()
+        self._codehost_factory = codehost_factory or (lambda org_id, user_id: NullCodeHost())
 
     def propose_actions(self, *, user_id: str, run_id: str) -> Dict[str, int]:
         verdicts = self.repo.get_run_actionable_verdicts(user_id=user_id, run_id=run_id)
@@ -38,7 +53,8 @@ class ActionService:
             })
             counts[proposal.kind] = counts.get(proposal.kind, 0) + 1
         if proposals and org_id:
-            self.repo.save_actions(user_id=user_id, org_id=org_id, run_id=run_id, actions=proposals)
+            self.actions_repo.save_actions(user_id=user_id, org_id=org_id,
+                                           run_id=run_id, actions=proposals)
         return counts
 
     def _context_for(self, user_id: str, verdict: Dict[str, Any]) -> Dict[str, Any]:
@@ -58,26 +74,64 @@ class ActionService:
         return ctx
 
     def approve_action(self, *, user_id: str, action_id: str) -> Dict[str, Any]:
-        action = self.repo.get_action(user_id=user_id, action_id=action_id)
-        if action is None or action.get("status") != "proposed":
-            return {"approved": False, "artifact_ref": None}
-        ref = self._materialize(action)
-        ok = self.repo.approve_action(user_id=user_id, action_id=action_id, artifact_ref=ref)
-        return {"approved": ok, "artifact_ref": ref}
+        action = self.actions_repo.get_action(user_id=user_id, action_id=action_id)
+        if action is None or action.get("status") == "rejected":
+            return {"approved": False, "materialized": False, "artifact_ref": None}
+        if action.get("status") == "materialized":
+            return {"approved": True, "materialized": True,
+                    "artifact_ref": action.get("artifact_ref")}
+        if action.get("status") == "proposed":
+            if not self.actions_repo.approve_action(user_id=user_id, action_id=action_id):
+                # carrera: alguien más cambió el estado; re-leer
+                action = self.actions_repo.get_action(user_id=user_id, action_id=action_id)
+                if action is None or action.get("status") not in ("approved", "materialized"):
+                    return {"approved": False, "materialized": False, "artifact_ref": None}
+                if action.get("status") == "materialized":
+                    return {"approved": True, "materialized": True,
+                            "artifact_ref": action.get("artifact_ref")}
+        # aquí status == 'approved' (recién o de un intento previo)
+        codehost = self._codehost_factory(action["org_id"], user_id)
+        ref = self._materialize(action, codehost)
+        if ref is None:
+            # self_heal degradó (sin file o locator no casa): decisión preservada, sin PR
+            logger.warning("self_heal de la acción %s no produjo PR (sin file o locator no casa)",
+                           action_id)
+            return {"approved": True, "materialized": False, "artifact_ref": None}
+        ok = self.actions_repo.materialize_action(user_id=user_id, action_id=action_id, artifact_ref=ref)
+        if not ok:
+            logger.warning(
+                "materialize_action no actualizó la acción %s (estado ya no 'approved'); "
+                "posible doble materialización mitigada por el marcador", action_id,
+            )
+        return {"approved": True, "materialized": ok, "artifact_ref": ref}
 
-    def _materialize(self, action: Dict[str, Any]) -> str:
+    def _materialize(self, action: Dict[str, Any], codehost: CodeHost) -> Optional[str]:
         payload = action.get("payload") or {}
+        marker = f"mnemo:action:{action['id']}"
         if action["kind"] == "ticket":
-            return self.codehost.create_issue(
+            return codehost.create_issue(
                 title=payload.get("title", ""), body=payload.get("body", ""),
-                labels=payload.get("labels", []),
+                labels=payload.get("labels", []), marker=marker,
             )
         if action["kind"] == "quarantine":
             dt = payload.get("debt_ticket") or {}
-            return self.codehost.create_issue(
-                title=dt.get("title", ""), body=dt.get("body", ""), labels=dt.get("labels", []),
+            return codehost.create_issue(
+                title=dt.get("title", ""), body=dt.get("body", ""),
+                labels=dt.get("labels", []), marker=marker,
             )
-        return "stub://unknown"
+        if action["kind"] == "self_heal":
+            file_path = payload.get("file")
+            if not file_path:
+                return None  # sin file no se puede localizar el test → degrada
+            return codehost.open_draft_pr(
+                title=action.get("summary") or "Self-heal de locator",
+                body=_self_heal_body(payload),
+                file_path=file_path,
+                old_str=payload.get("broken_locator", ""),
+                new_str=payload.get("suggested_locator", ""),
+                marker=marker,
+            )
+        raise ValueError(f"_materialize: unknown action kind {action['kind']!r}")
 
     def reject_action(self, *, user_id: str, action_id: str, reason: str = "") -> bool:
-        return self.repo.reject_action(user_id=user_id, action_id=action_id, reason=reason)
+        return self.actions_repo.reject_action(user_id=user_id, action_id=action_id, reason=reason)

@@ -16,16 +16,17 @@ class Actuator(Protocol):
 
 
 class CodeHost(Protocol):
-    def create_issue(self, *, title: str, body: str, labels: List[str]) -> str: ...
-    def open_draft_pr(self, *, title: str, body: str, patch: str) -> str: ...
+    def create_issue(self, *, title: str, body: str, labels: List[str], marker: str = "") -> str: ...
+    def open_draft_pr(self, *, title: str, body: str, file_path: str,
+                      old_str: str, new_str: str, marker: str = "") -> Optional[str]: ...
 
 
 class NullCodeHost:
-    """Stub: NO escribe en ningún sitio externo; devuelve un ref placeholder.
-    El CodeHost real (GitHub App) es F3c."""
+    """Stub: NO escribe en ningún sitio externo (default de tests / sin GitHub)."""
 
-    def create_issue(self, *, title: str, body: str, labels: List[str]) -> str:
+    def create_issue(self, *, title: str, body: str, labels: List[str], marker: str = "") -> str:
         return "stub://issue/pending"
 
-    def open_draft_pr(self, *, title: str, body: str, patch: str) -> str:
+    def open_draft_pr(self, *, title: str, body: str, file_path: str,
+                      old_str: str, new_str: str, marker: str = "") -> Optional[str]:
         return "stub://pr/pending"

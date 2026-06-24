@@ -8,9 +8,12 @@ from pydantic import ValidationError
 logger = logging.getLogger(__name__)
 
 from src.actions.quarantine import QuarantineActuator
+from src.actions.repository import ActionRepository
 from src.actions.selfheal.selfheal import SelfHealActuator
 from src.actions.service import ActionService
 from src.actions.ticket import TicketActuator
+from src.ci.github_app import GitHubCodeHost, GitHubError
+from src.ci.github_auth import GitHubAppAuth, GitHubAuthError
 from src.ci.ingestion_service import CiIngestionService
 from src.triage.service import TriageService
 from src.ci.models import CiRunArtifact
@@ -39,6 +42,8 @@ from src.multitenant_models import (
     DefectLineageResponse,
     FailureRef,
     FamilyVerdict,
+    GitHubConfigRequest,
+    GitHubConfigResponse,
     IngestReportResponse,
     JiraConfigRequest,
     JiraConfigResponse,
@@ -59,6 +64,8 @@ from src.tenant_kb import TenantKBRepository
 
 router = APIRouter(prefix="/v2", tags=["v2"])
 
+_ACTION_STATUSES = {"proposed", "approved", "rejected", "materialized"}
+
 # Singletons perezosos (sin anotacion PEP 604 para compatibilidad <3.10)
 _repo = None
 _analyzer = None
@@ -71,6 +78,8 @@ _jira_service = None
 _ci_ingestion_service = None
 _triage_service = None
 _action_service = None
+_action_repo = None
+_github_auth = None
 
 
 def get_repo() -> TenantKBRepository:
@@ -164,6 +173,33 @@ def get_triage_service() -> TriageService:
     return _triage_service
 
 
+def get_action_repo() -> ActionRepository:
+    if not multi_tenant_enabled():
+        raise HTTPException(status_code=503, detail="Multi-tenant KB not configured")
+    global _action_repo
+    if _action_repo is None:
+        _action_repo = ActionRepository()
+    return _action_repo
+
+
+def _get_github_auth() -> GitHubAppAuth:
+    global _github_auth
+    if _github_auth is None:
+        _github_auth = GitHubAppAuth()   # lee env perezosamente
+    return _github_auth
+
+
+def _github_codehost_factory(org_id: str, user_id: str) -> GitHubCodeHost:
+    cfg = get_integrations_repo().get_github_config(user_id=user_id, org_id=org_id)
+    if not cfg.get("configured"):
+        raise ValueError("GitHub no configurado para el org")
+    if not cfg.get("installation_id") or not cfg.get("repo_full_name"):
+        raise ValueError("GitHub integration incompleta para el org (falta installation_id o repo)")
+    return GitHubCodeHost(auth=_get_github_auth(),
+                          installation_id=cfg["installation_id"],
+                          repo_full_name=cfg["repo_full_name"])
+
+
 class _LazyRootCauseAnalyzer:
     """Construye el RootCauseAnalyzer (y su LLM) en tiempo de análisis, no al crear el
     singleton: una mala config del LLM degrada el ticket ('no disponible') en vez de
@@ -189,11 +225,13 @@ def get_action_service() -> ActionService:
     if _action_service is None:
         _action_service = ActionService(
             repo=get_assurance_repo(),
+            actions_repo=get_action_repo(),
             actuators={
                 "flaky": QuarantineActuator(),
                 "real": TicketActuator(_LazyRootCauseAnalyzer()),
                 "maintenance": SelfHealActuator(explainer=_LazySelfHealExplainer()),
             },
+            codehost_factory=_github_codehost_factory,
         )
     return _action_service
 
@@ -460,6 +498,42 @@ def get_jira_integration(
     return JiraConfigResponse(**cfg)
 
 
+@router.post("/integrations/github", response_model=GitHubConfigResponse)
+def set_github_integration(
+    body: GitHubConfigRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+    integrations: IntegrationsRepository = Depends(get_integrations_repo),
+) -> GitHubConfigResponse:
+    try:
+        integrations.upsert_github_config(
+            user_id=user.user_id, org_id=body.org_id,
+            installation_id=body.installation_id, repo_full_name=body.repo_full_name,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    return GitHubConfigResponse(configured=True, repo_full_name=body.repo_full_name,
+                                installation_id=body.installation_id)
+
+
+@router.get("/integrations/github", response_model=GitHubConfigResponse)
+def get_github_integration(
+    org_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+    integrations: IntegrationsRepository = Depends(get_integrations_repo),
+) -> GitHubConfigResponse:
+    try:
+        cfg = integrations.get_github_config(user_id=user.user_id, org_id=org_id)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    return GitHubConfigResponse(**cfg)
+
+
 @router.post("/ingest/jira/file", response_model=JiraIngestResponse)
 def ingest_jira_file(
     file: UploadFile = File(...),
@@ -605,8 +679,10 @@ def list_actions_v2(
     org_id: str,
     status: Optional[str] = None,
     user: AuthenticatedUser = Depends(get_current_user),
-    repo: AssuranceRepository = Depends(get_assurance_repo),
+    repo: ActionRepository = Depends(get_action_repo),
 ) -> List[ActionResponse]:
+    if status is not None and status not in _ACTION_STATUSES:
+        raise HTTPException(status_code=400, detail="invalid status")
     try:
         rows = repo.get_actions(user_id=user.user_id, org_id=org_id, status=status)
     except psycopg.Error as exc:
@@ -624,6 +700,12 @@ def approve_action_v2(
         return ActionApproveResponse(
             **service.approve_action(user_id=user.user_id, action_id=action_id)
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except GitHubAuthError as exc:
+        raise HTTPException(status_code=503, detail="GitHub App no configurada") from exc
+    except GitHubError as exc:
+        raise HTTPException(status_code=502, detail="GitHub API error") from exc
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail="Database error") from exc
 

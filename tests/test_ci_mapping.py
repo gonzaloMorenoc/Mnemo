@@ -36,3 +36,16 @@ def test_keeps_explicit_error_type():
     art = _art([{"test_name": "c", "status": "fail",
                  "error_type": "CustomError", "message": "boom"}])
     assert to_failure_records(art)[0].error_type == "CustomError"
+
+
+def test_carries_file_and_line():
+    art = _art([{"test_name": "c", "status": "fail", "message": "boom",
+                 "file": "tests/checkout.spec.ts", "line": 42}])
+    rec = to_failure_records(art)[0]
+    assert rec.file == "tests/checkout.spec.ts" and rec.line == 42
+
+
+def test_file_line_default_none_when_absent():
+    art = _art([{"test_name": "c", "status": "fail", "message": "boom"}])
+    rec = to_failure_records(art)[0]
+    assert rec.file is None and rec.line is None
