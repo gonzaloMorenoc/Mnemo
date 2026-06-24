@@ -62,8 +62,11 @@ def _score(el: Tag, sig: ElementSignature) -> int:
 
 def _why(el: Tag, sig: ElementSignature) -> str:
     bits = []
-    if sig.text and _norm_text(el.get_text()) == sig.text:
+    cand_text = _norm_text(el.get_text())
+    if sig.text and cand_text == sig.text:
         bits.append("texto")
+    elif sig.text and cand_text and sig.text in cand_text:
+        bits.append("texto parcial")
     if sig.role and (el.get("role") or _implicit_role(el.name)) == sig.role:
         bits.append("role")
     if sig.testid and el.get("data-testid") == sig.testid:

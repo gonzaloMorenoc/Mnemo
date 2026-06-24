@@ -33,3 +33,11 @@ def test_ranks_semantic_match_first():
 def test_rank_empty_when_no_candidates():
     soup = BeautifulSoup("<html><body><p>nada</p></body></html>", "html.parser")
     assert rank(find_candidates(soup, _sig()), _sig()) == []
+
+
+def test_why_labels_partial_text():
+    sig = ElementSignature(tag="button", role="button", text="Checkout",
+                           testid=None, aria_label=None, el_id=None)
+    soup = BeautifulSoup("<button>Checkout now</button>", "html.parser")
+    ranked = rank(find_candidates(soup, sig), sig)
+    assert ranked and "texto parcial" in ranked[0].why
