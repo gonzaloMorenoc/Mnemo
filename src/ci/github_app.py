@@ -20,7 +20,7 @@ class GitHubCodeHost:
         self._auth = auth
         self._installation_id = installation_id
         self._repo = repo_full_name
-        self._session = session or requests
+        self._session = session if session is not None else requests
 
     def _headers(self) -> dict:
         token = self._auth.installation_token(self._installation_id)

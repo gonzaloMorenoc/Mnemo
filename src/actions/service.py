@@ -1,6 +1,9 @@
+import logging
 from typing import Any, Callable, Dict, Optional
 
 from src.actions.base import Actuator, CodeHost, NullCodeHost
+
+logger = logging.getLogger(__name__)
 
 _CATEGORIES = ("quarantine", "ticket", "self_heal")
 
@@ -80,8 +83,13 @@ class ActionService:
             return {"approved": True, "materialized": False, "artifact_ref": None}  # PR = F3c-2
         codehost = self._codehost_factory(action["org_id"], user_id)
         ref = self._materialize(action, codehost)
-        self.actions_repo.materialize_action(user_id=user_id, action_id=action_id, artifact_ref=ref)
-        return {"approved": True, "materialized": True, "artifact_ref": ref}
+        ok = self.actions_repo.materialize_action(user_id=user_id, action_id=action_id, artifact_ref=ref)
+        if not ok:
+            logger.warning(
+                "materialize_action no actualizó la acción %s (estado ya no 'approved'); "
+                "posible doble materialización mitigada por el marcador", action_id,
+            )
+        return {"approved": True, "materialized": ok, "artifact_ref": ref}
 
     def _materialize(self, action: Dict[str, Any], codehost: CodeHost) -> str:
         payload = action.get("payload") or {}
@@ -97,7 +105,7 @@ class ActionService:
                 title=dt.get("title", ""), body=dt.get("body", ""),
                 labels=dt.get("labels", []), marker=marker,
             )
-        return "stub://unknown"
+        raise ValueError(f"_materialize: unknown action kind {action['kind']!r}")
 
     def reject_action(self, *, user_id: str, action_id: str, reason: str = "") -> bool:
         return self.actions_repo.reject_action(user_id=user_id, action_id=action_id, reason=reason)

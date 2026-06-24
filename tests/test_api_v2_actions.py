@@ -140,3 +140,9 @@ def test_set_github_integration_requires_auth():
     assert _client(integrations=MagicMock(), with_user=False).post(
         "/v2/integrations/github",
         json={"org_id": "o", "installation_id": "1", "repo_full_name": "a/b"}).status_code == 401
+
+
+def test_get_github_integration_non_member_403():
+    integ = MagicMock()
+    integ.get_github_config.side_effect = PermissionError("nope")
+    assert _client(integrations=integ).get("/v2/integrations/github?org_id=o1").status_code == 403

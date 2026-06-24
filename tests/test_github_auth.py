@@ -18,6 +18,7 @@ def test_app_jwt_has_iss_and_exp(private_key):
     tok = GitHubAppAuth(app_id="123", private_key=private_key).app_jwt()
     decoded = jwt.decode(tok, options={"verify_signature": False})
     assert decoded["iss"] == "123" and decoded["exp"] > decoded["iat"]
+    assert decoded["exp"] - decoded["iat"] <= 600
 
 
 def test_app_jwt_missing_config_raises():

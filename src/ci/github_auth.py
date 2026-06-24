@@ -29,7 +29,7 @@ class GitHubAppAuth:
                  session: Optional[object] = None):
         self._app_id = app_id
         self._private_key = private_key
-        self._session = session or requests
+        self._session = session if session is not None else requests
         self._cache: Dict[str, Tuple[str, float]] = {}
 
     def app_jwt(self) -> str:
@@ -55,6 +55,8 @@ class GitHubAppAuth:
         if resp.status_code >= 300:
             raise GitHubAuthError(f"installation token falló: HTTP {resp.status_code}")
         data = resp.json()
-        token = data["token"]
+        token = data.get("token")
+        if not token:
+            raise GitHubAuthError("respuesta de installation token sin 'token'")
         self._cache[installation_id] = (token, _parse_expiry(data.get("expires_at")))
         return token

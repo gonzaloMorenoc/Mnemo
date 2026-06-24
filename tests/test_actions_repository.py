@@ -133,6 +133,15 @@ def test_save_actions_rejects_foreign_run(repo, arepo, org):
         arepo.save_actions(user_id=u, org_id=o, run_id=str(uuid.uuid4()), actions=[])
 
 
+def test_approve_action_non_member_returns_false(repo, arepo, org):
+    u, o = org["user_id"], org["org_id"]
+    run_id, vid, _ = _resolved_verdict(repo, u, o)
+    arepo.save_actions(user_id=u, org_id=o, run_id=run_id, actions=[
+        {"triage_verdict_id": vid, "kind": "ticket", "payload": {}, "summary": "s"}])
+    aid = arepo.get_actions(user_id=u, org_id=o)[0]["id"]
+    assert arepo.approve_action(user_id=str(uuid.uuid4()), action_id=aid) is False
+
+
 def test_get_selfheal_context_returns_error_and_doms(repo, org):
     u, o = org["user_id"], org["org_id"]
     from src.defects.fingerprint import fingerprint
