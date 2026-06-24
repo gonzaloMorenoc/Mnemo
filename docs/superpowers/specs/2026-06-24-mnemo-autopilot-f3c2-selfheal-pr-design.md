@@ -25,14 +25,14 @@ Al aprobar una acción de **self_heal**, abrir un **PR borrador real** en GitHub
 - `SelfHealActuator.propose` (`src/actions/selfheal/selfheal.py`): `payload["file"] = context.get("file")`.
 
 ### `src/actions/base.py` — `CodeHost`/`NullCodeHost`
-`open_draft_pr` cambia de `(*, title, body, patch)` a **`(*, title, body, file_path, old_str, new_str, marker="") -> str`**. `NullCodeHost.open_draft_pr` devuelve `"stub://pr/pending"`.
+`open_draft_pr` cambia de `(*, title, body, patch)` a **`(*, title, body, file_path, old_str, new_str, marker="") -> Optional[str]`** (URL del PR, o `None` si el locator no casa → degrada). `NullCodeHost.open_draft_pr` devuelve `"stub://pr/pending"`.
 
 ### `src/ci/github_app.py` — `GitHubCodeHost.open_draft_pr`
 Implementa el flujo (reemplaza el `NotImplementedError`), con `requests` + `_headers()` (token de F3c):
 1. `branch = f"mnemo/self-heal/{<action_id del marker>}"` — determinista. GET `pulls?head={owner}:{branch}&state=all`; si existe → devuelve su `html_url` (idempotencia).
 2. GET `/repos/{repo}` → `default_branch`; GET `/repos/{repo}/git/ref/heads/{default}` → `sha` base.
 3. GET `/repos/{repo}/contents/{file_path}?ref={default}` → contenido (base64 → texto) + `file_sha`.
-4. `new_content = content.replace(old_str, new_str, 1)`; si `new_content == content` → `GitHubError` (locator no encontrado → el service degrada).
+4. `new_content = content.replace(old_str, new_str, 1)`; si `new_content == content` → devuelve **`None`** (locator no encontrado → no es un error de GitHub; el service degrada en silencio). `GitHubError` se reserva para errores reales de la API.
 5. POST `/repos/{repo}/git/refs` (`ref=refs/heads/{branch}`, `sha`); 422 "ya existe" → reusa el branch.
 6. PUT `/repos/{repo}/contents/{file_path}` (`message`, `content=base64(new_content)`, `sha=file_sha`, `branch`) → commit.
 7. POST `/repos/{repo}/pulls` (`title`, `body` + `<!-- {marker} -->`, `head=branch`, `base=default`, `draft=true`) → `html_url`.
