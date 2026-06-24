@@ -836,3 +836,143 @@ class AssuranceRepository:
                 updated = cur.rowcount > 0
             conn.commit()
         return updated
+
+    def get_run_actionable_verdicts(self, *, user_id: str, run_id: str) -> List[Dict[str, Any]]:
+        """Veredictos 'resolved' del run + datos del fallo (test_name, error_type, familia).
+        Vacío si no es miembro / no existe."""
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "select tv.id as verdict_id, tv.failure_id, tv.org_id, tv.category,"
+                    "       tv.confidence, tv.requires_approval, tv.evidence_bundle,"
+                    "       f.test_name, f.error_type, f.defect_family_id"
+                    " from public.triage_verdicts tv"
+                    " join public.test_runs r on r.id = tv.run_id"
+                    " join public.failures f on f.id = tv.failure_id"
+                    " where tv.run_id = %s and tv.status = 'resolved'"
+                    "   and exists (select 1 from public.memberships m"
+                    "     where m.org_id = r.org_id and m.user_id = %s)"
+                    " order by tv.created_at",
+                    (run_id, user_id),
+                )
+                return [
+                    {"verdict_id": str(r["verdict_id"]), "failure_id": str(r["failure_id"]),
+                     "org_id": str(r["org_id"]), "category": r["category"],
+                     "confidence": r["confidence"], "requires_approval": r["requires_approval"],
+                     "evidence_bundle": r["evidence_bundle"], "test_name": r["test_name"],
+                     "error_type": r["error_type"],
+                     "defect_family_id": str(r["defect_family_id"]) if r["defect_family_id"] else None}
+                    for r in cur.fetchall()
+                ]
+
+    def save_actions(
+        self, *, user_id: str, org_id: str, run_id: str, actions: List[Dict[str, Any]]
+    ) -> int:
+        """Reemplaza solo las acciones 'proposed' del run (preserva approved/rejected/
+        materialized). Lanza PermissionError/ValueError si no es miembro / el run no es del org."""
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute("select exists(select 1 from public.memberships"
+                            " where org_id = %s and user_id = %s) as ok", (org_id, user_id))
+                if not cur.fetchone()["ok"]:
+                    raise PermissionError("user is not a member of the organization")
+                cur.execute("select 1 from public.test_runs where id = %s and org_id = %s",
+                            (run_id, org_id))
+                if cur.fetchone() is None:
+                    raise ValueError("run does not belong to the organization")
+                cur.execute("delete from public.actions where run_id = %s and status = 'proposed'",
+                            (run_id,))
+                for a in actions:
+                    cur.execute(
+                        "insert into public.actions"
+                        " (triage_verdict_id, run_id, org_id, kind, payload, summary)"
+                        " values (%s, %s, %s, %s, %s, %s)",
+                        (a["triage_verdict_id"], run_id, org_id, a["kind"],
+                         Json(a.get("payload")), a.get("summary")),
+                    )
+            conn.commit()
+        return len(actions)
+
+    def _action_rows(self, cur) -> List[Dict[str, Any]]:
+        return [
+            {"id": str(r["id"]), "triage_verdict_id": str(r["triage_verdict_id"]),
+             "run_id": str(r["run_id"]), "kind": r["kind"], "payload": r["payload"],
+             "summary": r["summary"], "status": r["status"], "artifact_ref": r["artifact_ref"],
+             "approved_by": str(r["approved_by"]) if r["approved_by"] else None,
+             "approved_at": r["approved_at"].isoformat() if r["approved_at"] else None,
+             "reject_reason": r["reject_reason"]}
+            for r in cur.fetchall()
+        ]
+
+    def get_actions(
+        self, *, user_id: str, org_id: str, status: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Bandeja de acciones del org (status opcional). Vacío si no es miembro."""
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute("select exists(select 1 from public.memberships"
+                            " where org_id = %s and user_id = %s) as ok", (org_id, user_id))
+                if not cur.fetchone()["ok"]:
+                    return []
+                cols = ("id, triage_verdict_id, run_id, kind, payload, summary, status,"
+                        " artifact_ref, approved_by, approved_at, reject_reason")
+                if status:
+                    cur.execute(f"select {cols} from public.actions"
+                                " where org_id = %s and status = %s order by created_at desc",
+                                (org_id, status))
+                else:
+                    cur.execute(f"select {cols} from public.actions"
+                                " where org_id = %s order by created_at desc", (org_id,))
+                return self._action_rows(cur)
+
+    def get_action(self, *, user_id: str, action_id: str) -> Optional[Dict[str, Any]]:
+        """Una acción por id (membership-gated). None si no es miembro / no existe."""
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "select a.id, a.triage_verdict_id, a.run_id, a.kind, a.payload, a.summary,"
+                    "       a.status, a.artifact_ref, a.approved_by, a.approved_at, a.reject_reason"
+                    " from public.actions a"
+                    " where a.id = %s and exists (select 1 from public.memberships m"
+                    "   where m.org_id = a.org_id and m.user_id = %s)",
+                    (action_id, user_id),
+                )
+                rows = self._action_rows(cur)
+                return rows[0] if rows else None
+
+    def approve_action(self, *, user_id: str, action_id: str, artifact_ref: str) -> bool:
+        """Aprueba (solo si 'proposed'): status='approved' + sign-off + ref. Membership-gated."""
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "update public.actions a set status = 'approved', artifact_ref = %s,"
+                    "  approved_by = %s, approved_at = now()"
+                    " where a.id = %s and a.status = 'proposed'"
+                    "   and exists (select 1 from public.memberships m"
+                    "     where m.org_id = a.org_id and m.user_id = %s)",
+                    (artifact_ref, user_id, action_id, user_id),
+                )
+                ok = cur.rowcount > 0
+            conn.commit()
+        return ok
+
+    def reject_action(self, *, user_id: str, action_id: str, reason: str) -> bool:
+        """Rechaza (solo si 'proposed'): status='rejected' + motivo. Membership-gated."""
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "update public.actions a set status = 'rejected', reject_reason = %s"
+                    " where a.id = %s and a.status = 'proposed'"
+                    "   and exists (select 1 from public.memberships m"
+                    "     where m.org_id = a.org_id and m.user_id = %s)",
+                    (reason, action_id, user_id),
+                )
+                ok = cur.rowcount > 0
+            conn.commit()
+        return ok
