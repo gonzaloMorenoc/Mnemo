@@ -193,6 +193,8 @@ def _github_codehost_factory(org_id: str, user_id: str) -> GitHubCodeHost:
     cfg = get_integrations_repo().get_github_config(user_id=user_id, org_id=org_id)
     if not cfg.get("configured"):
         raise ValueError("GitHub no configurado para el org")
+    if not cfg.get("installation_id") or not cfg.get("repo_full_name"):
+        raise ValueError("GitHub integration incompleta para el org (falta installation_id o repo)")
     return GitHubCodeHost(auth=_get_github_auth(),
                           installation_id=cfg["installation_id"],
                           repo_full_name=cfg["repo_full_name"])

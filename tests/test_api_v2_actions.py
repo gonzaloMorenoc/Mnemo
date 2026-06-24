@@ -52,10 +52,13 @@ def test_approve_and_reject():
                                        "artifact_ref": "https://github.com/o/r/issues/1"}
     svc.reject_action.return_value = True
     client = _client(service=svc)
-    body = client.post("/v2/actions/a1/approve").json()
+    approve_resp = client.post("/v2/actions/a1/approve")
+    assert approve_resp.status_code == 200
+    body = approve_resp.json()
     assert body["approved"] is True and body["materialized"] is True
     assert client.post("/v2/actions/a1/reject", json={"reason": "dup"}).status_code == 200
     svc.approve_action.assert_called_once_with(user_id="user-1", action_id="a1")
+    svc.reject_action.assert_called_once_with(user_id="user-1", action_id="a1", reason="dup")
 
 
 def test_approve_github_not_configured_is_400():
