@@ -17,7 +17,8 @@ class Actuator(Protocol):
 
 class CodeHost(Protocol):
     def create_issue(self, *, title: str, body: str, labels: List[str], marker: str = "") -> str: ...
-    def open_draft_pr(self, *, title: str, body: str, patch: str) -> str: ...
+    def open_draft_pr(self, *, title: str, body: str, file_path: str,
+                      old_str: str, new_str: str, marker: str = "") -> Optional[str]: ...
 
 
 class NullCodeHost:
@@ -26,5 +27,6 @@ class NullCodeHost:
     def create_issue(self, *, title: str, body: str, labels: List[str], marker: str = "") -> str:
         return "stub://issue/pending"
 
-    def open_draft_pr(self, *, title: str, body: str, patch: str) -> str:
+    def open_draft_pr(self, *, title: str, body: str, file_path: str,
+                      old_str: str, new_str: str, marker: str = "") -> Optional[str]:
         return "stub://pr/pending"

@@ -8,6 +8,17 @@ logger = logging.getLogger(__name__)
 _CATEGORIES = ("quarantine", "ticket", "self_heal")
 
 
+def _self_heal_body(payload: Dict[str, Any]) -> str:
+    return (
+        "**Self-heal de locator** (Mnemo Autopilot, Nivel 2).\n\n"
+        f"- Locator roto: `{payload.get('broken_locator', '')}`\n"
+        f"- Locator sugerido: `{payload.get('suggested_locator', '')}`\n"
+        f"- Archivo: `{payload.get('file', '')}`\n\n"
+        f"## Razonamiento\n{payload.get('reasoning', '')}\n\n"
+        "> PR borrador automático — requiere revisión humana; nunca auto-merge."
+    )
+
+
 class ActionService:
     """Orquesta la capa de acción. Nivel 2: nada externo sin approve. La materialización
     es por-org (codehost_factory) y reintentable (proposed→approved→materialized)."""
@@ -79,10 +90,13 @@ class ActionService:
                     return {"approved": True, "materialized": True,
                             "artifact_ref": action.get("artifact_ref")}
         # aquí status == 'approved' (recién o de un intento previo)
-        if action["kind"] == "self_heal":
-            return {"approved": True, "materialized": False, "artifact_ref": None}  # PR = F3c-2
         codehost = self._codehost_factory(action["org_id"], user_id)
         ref = self._materialize(action, codehost)
+        if ref is None:
+            # self_heal degradó (sin file o locator no casa): decisión preservada, sin PR
+            logger.warning("self_heal de la acción %s no produjo PR (sin file o locator no casa)",
+                           action_id)
+            return {"approved": True, "materialized": False, "artifact_ref": None}
         ok = self.actions_repo.materialize_action(user_id=user_id, action_id=action_id, artifact_ref=ref)
         if not ok:
             logger.warning(
@@ -91,7 +105,7 @@ class ActionService:
             )
         return {"approved": True, "materialized": ok, "artifact_ref": ref}
 
-    def _materialize(self, action: Dict[str, Any], codehost: CodeHost) -> str:
+    def _materialize(self, action: Dict[str, Any], codehost: CodeHost) -> Optional[str]:
         payload = action.get("payload") or {}
         marker = f"mnemo:action:{action['id']}"
         if action["kind"] == "ticket":
@@ -104,6 +118,18 @@ class ActionService:
             return codehost.create_issue(
                 title=dt.get("title", ""), body=dt.get("body", ""),
                 labels=dt.get("labels", []), marker=marker,
+            )
+        if action["kind"] == "self_heal":
+            file_path = payload.get("file")
+            if not file_path:
+                return None  # sin file no se puede localizar el test → degrada
+            return codehost.open_draft_pr(
+                title=action.get("summary") or "Self-heal de locator",
+                body=_self_heal_body(payload),
+                file_path=file_path,
+                old_str=payload.get("broken_locator", ""),
+                new_str=payload.get("suggested_locator", ""),
+                marker=marker,
             )
         raise ValueError(f"_materialize: unknown action kind {action['kind']!r}")
 

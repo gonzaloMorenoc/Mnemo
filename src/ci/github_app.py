@@ -1,3 +1,4 @@
+import base64
 from typing import List, Optional
 
 import requests
@@ -52,5 +53,92 @@ class GitHubCodeHost:
             raise GitHubError(f"crear issue falló: HTTP {resp.status_code}")
         return resp.json()["html_url"]
 
-    def open_draft_pr(self, *, title: str, body: str, patch: str) -> str:
-        raise NotImplementedError("open_draft_pr (self-heal → PR) es F3c-2")
+    def open_draft_pr(self, *, title: str, body: str, file_path: str,
+                      old_str: str, new_str: str, marker: str = "") -> Optional[str]:
+        owner = self._repo.split("/")[0]
+        action_id = marker.rsplit(":", 1)[-1] if marker else "fix"
+        branch = f"mnemo/self-heal/{action_id}"
+        existing = self._find_pr_by_head(owner, branch)
+        if existing:
+            return existing
+        default_branch = self._default_branch()
+        base_sha = self._ref_sha(default_branch)
+        content, file_sha = self._get_file(file_path, default_branch)
+        new_content = content.replace(old_str, new_str, 1)
+        if new_content == content:
+            return None  # locator no encontrado en el archivo → degrada
+        self._create_ref(branch, base_sha)
+        self._put_file(file_path, new_content, file_sha, branch,
+                       message=f"fix(self-heal): {old_str} -> {new_str}")
+        pr_body = f"{body}\n\n<!-- {marker} -->" if marker else body
+        return self._create_pr(title, pr_body, branch, default_branch)
+
+    def _find_pr_by_head(self, owner: str, branch: str) -> Optional[str]:
+        resp = self._session.get(
+            f"{_API}/repos/{self._repo}/pulls",
+            params={"head": f"{owner}:{branch}", "state": "all"},
+            headers=self._headers(), timeout=15,
+        )
+        if resp.status_code >= 300:
+            return None
+        prs = resp.json()
+        return prs[0]["html_url"] if prs else None
+
+    def _default_branch(self) -> str:
+        resp = self._session.get(f"{_API}/repos/{self._repo}", headers=self._headers(), timeout=15)
+        if resp.status_code >= 300:
+            raise GitHubError(f"get repo falló: HTTP {resp.status_code}")
+        return resp.json()["default_branch"]
+
+    def _ref_sha(self, branch: str) -> str:
+        resp = self._session.get(
+            f"{_API}/repos/{self._repo}/git/ref/heads/{branch}",
+            headers=self._headers(), timeout=15,
+        )
+        if resp.status_code >= 300:
+            raise GitHubError(f"get ref falló: HTTP {resp.status_code}")
+        return resp.json()["object"]["sha"]
+
+    def _get_file(self, file_path: str, ref: str):
+        resp = self._session.get(
+            f"{_API}/repos/{self._repo}/contents/{file_path}",
+            params={"ref": ref}, headers=self._headers(), timeout=15,
+        )
+        if resp.status_code >= 300:
+            raise GitHubError(f"get contents falló: HTTP {resp.status_code}")
+        data = resp.json()
+        content = base64.b64decode(data["content"]).decode("utf-8")
+        return content, data["sha"]
+
+    def _create_ref(self, branch: str, sha: str) -> None:
+        resp = self._session.post(
+            f"{_API}/repos/{self._repo}/git/refs",
+            json={"ref": f"refs/heads/{branch}", "sha": sha},
+            headers=self._headers(), timeout=15,
+        )
+        if resp.status_code == 422:
+            return  # el branch ya existe → reusa
+        if resp.status_code >= 300:
+            raise GitHubError(f"create ref falló: HTTP {resp.status_code}")
+
+    def _put_file(self, file_path: str, new_content: str, file_sha: str,
+                  branch: str, *, message: str) -> None:
+        resp = self._session.put(
+            f"{_API}/repos/{self._repo}/contents/{file_path}",
+            json={"message": message,
+                  "content": base64.b64encode(new_content.encode("utf-8")).decode("utf-8"),
+                  "sha": file_sha, "branch": branch},
+            headers=self._headers(), timeout=15,
+        )
+        if resp.status_code >= 300:
+            raise GitHubError(f"put contents falló: HTTP {resp.status_code}")
+
+    def _create_pr(self, title: str, body: str, head: str, base: str) -> str:
+        resp = self._session.post(
+            f"{_API}/repos/{self._repo}/pulls",
+            json={"title": title, "body": body, "head": head, "base": base, "draft": True},
+            headers=self._headers(), timeout=15,
+        )
+        if resp.status_code >= 300:
+            raise GitHubError(f"create PR falló: HTTP {resp.status_code}")
+        return resp.json()["html_url"]

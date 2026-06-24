@@ -116,16 +116,50 @@ def test_approve_retries_materialize_when_already_approved():
     codehost.create_issue.assert_called_once()
 
 
-def test_approve_self_heal_stays_approved_without_materializing():
+def test_approve_self_heal_opens_draft_pr():
     repo = MagicMock()
-    repo.get_action.return_value = {"id": "a3", "org_id": "o", "kind": "self_heal",
-                                    "status": "proposed", "payload": {"suggested_locator": "x"}}
+    repo.get_action.return_value = {"id": "a3", "org_id": "o", "kind": "self_heal", "status": "proposed",
+                                    "payload": {"file": "t.spec.ts", "broken_locator": "locator('#x')",
+                                                "suggested_locator": "getByTestId('x')",
+                                                "reasoning": "r", "candidates": []}}
+    repo.approve_action.return_value = True
+    repo.materialize_action.return_value = True
+    codehost = MagicMock()
+    codehost.open_draft_pr.return_value = "https://github.com/o/r/pull/7"
+    svc = ActionService(repo=repo, actuators={}, codehost_factory=lambda org, user: codehost)
+    out = svc.approve_action(user_id="u", action_id="a3")
+    assert out == {"approved": True, "materialized": True,
+                   "artifact_ref": "https://github.com/o/r/pull/7"}
+    kw = codehost.open_draft_pr.call_args.kwargs
+    assert kw["file_path"] == "t.spec.ts" and kw["old_str"] == "locator('#x')"
+    assert kw["new_str"] == "getByTestId('x')" and kw["marker"] == "mnemo:action:a3"
+    codehost.create_issue.assert_not_called()
+
+
+def test_approve_self_heal_no_file_degrades():
+    repo = MagicMock()
+    repo.get_action.return_value = {"id": "a3", "org_id": "o", "kind": "self_heal", "status": "proposed",
+                                    "payload": {"suggested_locator": "x"}}  # sin file
     repo.approve_action.return_value = True
     codehost = MagicMock()
     svc = ActionService(repo=repo, actuators={}, codehost_factory=lambda org, user: codehost)
     out = svc.approve_action(user_id="u", action_id="a3")
     assert out == {"approved": True, "materialized": False, "artifact_ref": None}
-    codehost.create_issue.assert_not_called()
+    codehost.open_draft_pr.assert_not_called()
+    repo.materialize_action.assert_not_called()
+
+
+def test_approve_self_heal_locator_not_found_degrades():
+    repo = MagicMock()
+    repo.get_action.return_value = {"id": "a3", "org_id": "o", "kind": "self_heal", "status": "proposed",
+                                    "payload": {"file": "t.spec.ts", "broken_locator": "locator('#x')",
+                                                "suggested_locator": "y"}}
+    repo.approve_action.return_value = True
+    codehost = MagicMock()
+    codehost.open_draft_pr.return_value = None  # locator no casa
+    svc = ActionService(repo=repo, actuators={}, codehost_factory=lambda org, user: codehost)
+    out = svc.approve_action(user_id="u", action_id="a3")
+    assert out == {"approved": True, "materialized": False, "artifact_ref": None}
     repo.materialize_action.assert_not_called()
 
 

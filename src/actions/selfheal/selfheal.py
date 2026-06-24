@@ -55,7 +55,8 @@ class SelfHealActuator:
             return ActionProposal(
                 kind="self_heal",
                 payload={"broken_locator": broken_str, "suggested_locator": top.locator,
-                         "candidates": cands, "reasoning": reasoning},
+                         "candidates": cands, "reasoning": reasoning,
+                         "file": context.get("file")},
                 summary=f"Self-heal: {broken_str} → {top.locator}",
             )
         except Exception:  # noqa: BLE001 — el self-heal nunca rompe propose_actions

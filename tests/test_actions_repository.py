@@ -148,7 +148,8 @@ def test_get_selfheal_context_returns_error_and_doms(repo, org):
     from src.defects.repository import IngestItem
     from src.ingest.models import FailureRecord
     rec = FailureRecord(test_name="t_co", error_type="TimeoutError",
-                        message="waiting for locator('#btn')", trace=None, project="web", source="playwright")
+                        message="waiting for locator('#btn')", trace=None, project="web", source="playwright",
+                        file="tests/co.spec.ts")
     item = IngestItem(rec=rec, fingerprint=fingerprint(rec), embedding=[1.0] + [0.0] * 383)
     r = repo.ingest_ci_run(user_id=u, org_id=o, project="web", source="playwright", run_uid="sh",
                            commit_sha="c1", items=[item],
@@ -160,5 +161,6 @@ def test_get_selfheal_context_returns_error_and_doms(repo, org):
     assert ctx is not None
     assert "locator('#btn')" in ctx["error_message"]
     assert ctx["green_dom"] == "<button>Go</button>" and "v2" in ctx["failure_dom"]
+    assert ctx["file"] == "tests/co.spec.ts"
     import uuid as _uuid
     assert repo.get_selfheal_context(user_id=str(_uuid.uuid4()), failure_id=fid) is None
