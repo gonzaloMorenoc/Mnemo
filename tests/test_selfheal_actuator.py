@@ -52,3 +52,35 @@ def test_broken_locator_role_renders_canonically():
     p = SelfHealActuator().propose({}, ctx)
     assert p is not None
     assert p.payload["broken_locator"] == "getByRole('button', { name: 'Checkout' })"
+
+
+def test_degrades_when_old_element_deleted():
+    # el botón viejo no existe en el DOM rojo; solo hay botones sin relación → no curar
+    ctx = _ctx(error_message="waiting for locator('#buy-btn')",
+               green_dom="<button id='buy-btn'>Buy Now</button>",
+               failure_dom="<button>Home</button><button>Help</button>")
+    assert SelfHealActuator().propose({}, ctx) is None
+
+
+def test_degrades_id_only_signature_no_content():
+    # un div sin texto/role/testid → ninguna señal de contenido → no curar
+    ctx = _ctx(error_message="waiting for locator('#modal')",
+               green_dom="<div id='modal'></div>",
+               failure_dom="<div id='m2'></div><div id='m3'></div>")
+    assert SelfHealActuator().propose({}, ctx) is None
+
+
+def test_exact_text_beats_partial_cross_tag():
+    ctx = _ctx(error_message="waiting for locator('#save-btn')",
+               green_dom="<button id='save-btn'>Save</button>",
+               failure_dom="<span>Save</span><button>Save Draft and Exit</button>")
+    p = SelfHealActuator().propose({}, ctx)
+    assert p is not None
+    assert "Save Draft" not in p.payload["suggested_locator"]   # el parcial NO gana
+
+
+def test_degrades_ambiguous_locator():
+    ctx = _ctx(error_message="waiting for locator('#save-btn')",
+               green_dom="<button id='save-btn'>Save</button>",
+               failure_dom="<button>Save</button><button>Save</button>")
+    assert SelfHealActuator().propose({}, ctx) is None   # 2 elementos idénticos → ambiguo → degrade

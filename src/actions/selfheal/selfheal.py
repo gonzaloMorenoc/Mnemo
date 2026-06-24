@@ -45,6 +45,10 @@ class SelfHealActuator:
             if not ranked:
                 return None
             top = ranked[0]
+            if not top.content_match:
+                return None   # sin señal de contenido (texto/testid/aria) → no curar (evita un heal confiadamente erróneo)
+            if sum(1 for c in ranked if c.locator == top.locator) > 1:
+                return None   # locator ambiguo (apunta a >1 elemento) → degrade (evita strict-mode violation)
             broken_str = _broken_str(broken)
             cands = [{"locator": c.locator, "score": c.score, "why": c.why} for c in ranked[:_TOP_N]]
             reasoning = self._reasoning(broken_str, top.locator, cands)

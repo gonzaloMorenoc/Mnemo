@@ -13,6 +13,7 @@ class ScoredCandidate:
     locator: str
     score: int
     why: str
+    content_match: bool = False
 
 
 def find_candidates(soup: BeautifulSoup, sig: ElementSignature) -> List[Tag]:
@@ -42,6 +43,18 @@ def find_candidates(soup: BeautifulSoup, sig: ElementSignature) -> List[Tag]:
     return out
 
 
+def _has_content_match(el: Tag, sig: ElementSignature) -> bool:
+    """True cuando el candidato comparte al menos una señal de contenido (testid/aria/texto)."""
+    if sig.testid and el.get("data-testid") == sig.testid:
+        return True
+    if sig.aria_label and el.get("aria-label") == sig.aria_label:
+        return True
+    cand_text = _norm_text(el.get_text())
+    if sig.text and cand_text and (cand_text == sig.text or sig.text in cand_text):
+        return True
+    return False
+
+
 def _score(el: Tag, sig: ElementSignature) -> int:
     s = 0
     if sig.testid and el.get("data-testid") == sig.testid:
@@ -50,7 +63,7 @@ def _score(el: Tag, sig: ElementSignature) -> int:
         s += 30
     cand_text = _norm_text(el.get_text())
     if sig.text and cand_text == sig.text:
-        s += 40
+        s += 60  # texto exacto: supera a parcial+role+tag (15+20+10=45)
     elif sig.text and cand_text and sig.text in cand_text:
         s += 15
     if sig.role and (el.get("role") or _implicit_role(el.name)) == sig.role:
@@ -78,7 +91,12 @@ def _why(el: Tag, sig: ElementSignature) -> str:
 
 def rank(candidates: List[Tag], sig: ElementSignature) -> List[ScoredCandidate]:
     scored = [
-        (ScoredCandidate(locator=robust_locator(el)[0], score=_score(el, sig), why=_why(el, sig)))
+        ScoredCandidate(
+            locator=robust_locator(el)[0],
+            score=_score(el, sig),
+            why=_why(el, sig),
+            content_match=_has_content_match(el, sig),
+        )
         for el in candidates
     ]
     scored.sort(key=lambda c: c.score, reverse=True)
