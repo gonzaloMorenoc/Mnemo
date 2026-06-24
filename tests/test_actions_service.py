@@ -57,6 +57,24 @@ def test_approve_materializes_via_codehost_and_records_ref():
     assert repo.approve_action.call_args.kwargs["artifact_ref"] == "stub://issue/9"
 
 
+def test_approve_quarantine_materializes_debt_ticket():
+    repo = MagicMock()
+    repo.get_action.return_value = {
+        "id": "a2", "kind": "quarantine",
+        "payload": {"debt_ticket": {"title": "[Flaky] t", "body": "B", "labels": ["flaky"]},
+                    "annotation": {"test_name": "t"}}}
+    repo.approve_action.return_value = True
+    codehost = MagicMock()
+    codehost.create_issue.return_value = "stub://issue/22"
+    svc = ActionService(repo=repo, actuators={}, codehost=codehost)
+    out = svc.approve_action(user_id="u", action_id="a2")
+    assert out == {"approved": True, "artifact_ref": "stub://issue/22"}
+    # materializó el ticket de deuda (no el annotation)
+    kw = codehost.create_issue.call_args.kwargs
+    assert kw["title"] == "[Flaky] t" and kw["body"] == "B"
+    assert repo.approve_action.call_args.kwargs["artifact_ref"] == "stub://issue/22"
+
+
 def test_reject_delegates_to_repo():
     repo = MagicMock()
     repo.reject_action.return_value = True
