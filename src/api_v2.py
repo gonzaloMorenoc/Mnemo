@@ -7,6 +7,9 @@ from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
 
+from src.actions.quarantine import QuarantineActuator
+from src.actions.service import ActionService
+from src.actions.ticket import TicketActuator
 from src.ci.ingestion_service import CiIngestionService
 from src.triage.service import TriageService
 from src.ci.models import CiRunArtifact
@@ -21,6 +24,8 @@ from src.jira.integrations_repository import IntegrationsRepository
 from src.jira.ingestion_service import JiraIngestionService
 from src.jira.safe_url import validate_base_url
 from src.multitenant_models import (
+    ActionRejectRequest,
+    ActionResponse,
     AnalyzeV2Request,
     AnalyzeV2Response,
     AssuranceVerdictResponse,
@@ -38,6 +43,7 @@ from src.multitenant_models import (
     JiraPullRequest,
     JoinOrgRequest,
     OrganizationResponse,
+    ProposeActionsResponse,
     RootCauseResponse,
     ScopeSource,
     StructuredAnalysisPayload,
@@ -61,6 +67,7 @@ _integrations_repo = None
 _jira_service = None
 _ci_ingestion_service = None
 _triage_service = None
+_action_service = None
 
 
 def get_repo() -> TenantKBRepository:
@@ -152,6 +159,18 @@ def get_triage_service() -> TriageService:
     if _triage_service is None:
         _triage_service = TriageService(repo=get_assurance_repo())
     return _triage_service
+
+
+def get_action_service() -> ActionService:
+    if not multi_tenant_enabled():
+        raise HTTPException(status_code=503, detail="Multi-tenant KB not configured")
+    global _action_service
+    if _action_service is None:
+        _action_service = ActionService(
+            repo=get_assurance_repo(),
+            actuators={"flaky": QuarantineActuator(), "real": TicketActuator(get_root_cause_analyzer())},
+        )
+    return _action_service
 
 
 def _unique_scopes(contexts: List[Dict[str, Any]]) -> List[str]:
@@ -542,3 +561,55 @@ def assurance_verdict_v2(
         top_families=[FamilyVerdict(**f) for f in verdict["top_families"]],
         narrative=narrative,
     )
+
+
+@router.post("/actions/run/{run_id}/propose", response_model=ProposeActionsResponse)
+def propose_actions_v2(
+    run_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+    service: ActionService = Depends(get_action_service),
+) -> ProposeActionsResponse:
+    try:
+        return ProposeActionsResponse(**service.propose_actions(user_id=user.user_id, run_id=run_id))
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+
+
+@router.get("/actions", response_model=List[ActionResponse])
+def list_actions_v2(
+    org_id: str,
+    status: Optional[str] = None,
+    user: AuthenticatedUser = Depends(get_current_user),
+    repo: AssuranceRepository = Depends(get_assurance_repo),
+) -> List[ActionResponse]:
+    try:
+        rows = repo.get_actions(user_id=user.user_id, org_id=org_id, status=status)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    return [ActionResponse(**r) for r in rows]
+
+
+@router.post("/actions/{action_id}/approve")
+def approve_action_v2(
+    action_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+    service: ActionService = Depends(get_action_service),
+) -> Dict[str, Any]:
+    try:
+        return service.approve_action(user_id=user.user_id, action_id=action_id)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+
+
+@router.post("/actions/{action_id}/reject")
+def reject_action_v2(
+    action_id: str,
+    body: ActionRejectRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+    service: ActionService = Depends(get_action_service),
+) -> Dict[str, bool]:
+    try:
+        ok = service.reject_action(user_id=user.user_id, action_id=action_id, reason=body.reason)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    return {"rejected": ok}
