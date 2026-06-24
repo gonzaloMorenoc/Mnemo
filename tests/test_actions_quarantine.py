@@ -27,3 +27,11 @@ def test_quarantine_handles_missing_test_name():
     assert p.payload["debt_ticket"]["title"]     # sigue produciendo ticket de deuda
     assert p.payload["debt_ticket"]["body"]
     assert p.payload["annotation"]["test_name"] == "(test desconocido)"
+
+
+def test_quarantine_family_id_degrades_when_absent():
+    # evidence_bundle sin family_id → el body no debe decir "None" sino degradar
+    p = QuarantineActuator().propose(_verdict(evidence_bundle={}), {"test_name": "t_login"})
+    body = p.payload["debt_ticket"]["body"]
+    assert "desconocida" in body
+    assert "`None`" not in body

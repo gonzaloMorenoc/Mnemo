@@ -17,6 +17,7 @@ class TicketActuator:
         ev = verdict.get("evidence_bundle") or {}
         test_name = context.get("test_name") or "(test desconocido)"
         lineage = ev.get("lineage_projects") or []
+        rule_applied = ev.get("rule_applied") or "desconocida"
         family = context.get("family") or {}
         failures = context.get("failures") or []
 
@@ -33,7 +34,7 @@ class TicketActuator:
         )
         body = (
             f"**Defecto real** en `{test_name}` "
-            f"(confianza {verdict.get('confidence')}, regla {verdict.get('rule_applied')}).\n\n"
+            f"(confianza {verdict.get('confidence')}, regla {rule_applied}).\n\n"
             f"{lineage_line}\n\n"
             "## Causa raíz (hipótesis)\n"
             f"{root_cause or '_root-cause no disponible (LLM no accesible)._'}\n"

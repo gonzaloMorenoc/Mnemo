@@ -4,9 +4,11 @@ from src.actions.ticket import TicketActuator
 
 
 def _verdict(**over):
+    # rule_applied vive DENTRO de evidence_bundle (es lo que devuelve get_run_actionable_verdicts),
+    # no en el top-level del veredicto.
     base = {"verdict_id": "v1", "category": "real", "confidence": 0.85,
-            "rule_applied": "R4_real_recurrent",
-            "evidence_bundle": {"family_id": "fam-1", "lineage_projects": ["web", "admin"]}}
+            "evidence_bundle": {"family_id": "fam-1", "rule_applied": "R4_real_recurrent",
+                                "lineage_projects": ["web", "admin"]}}
     base.update(over)
     return base
 
@@ -50,3 +52,16 @@ def test_ticket_no_failures_skips_analyzer_and_degrades():
     analyzer.analyze.assert_not_called()          # sin datos, no se llama al LLM
     assert "no disponible" in p.payload["body"].lower()
     assert p.kind == "ticket"
+
+
+def test_ticket_includes_rule_from_evidence_bundle():
+    # regresión: la regla se lee de evidence_bundle, no del top-level (antes salía "regla None")
+    p = TicketActuator(MagicMock()).propose(_verdict(), _ctx(root_cause="ya"))
+    assert "R4_real_recurrent" in p.payload["body"]
+    assert "regla None" not in p.payload["body"]
+
+
+def test_ticket_rule_degrades_when_absent():
+    v = _verdict(evidence_bundle={"family_id": "fam-1", "lineage_projects": []})
+    p = TicketActuator(MagicMock()).propose(v, _ctx(root_cause="ya"))
+    assert "regla desconocida" in p.payload["body"]

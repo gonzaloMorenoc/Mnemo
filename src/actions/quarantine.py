@@ -12,7 +12,7 @@ class QuarantineActuator:
     ) -> ActionProposal:
         test_name = context.get("test_name") or "(test desconocido)"
         ev = verdict.get("evidence_bundle") or {}
-        family_id = ev.get("family_id")
+        family_id = ev.get("family_id") or "desconocida"
         debt_ticket = {
             "title": f"[Flaky] {test_name}",
             "body": (
