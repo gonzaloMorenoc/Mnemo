@@ -169,3 +169,37 @@ class TriageVerdictResponse(BaseModel):
     llm_assisted: bool
     status: str
     evidence_bundle: Optional[dict] = None
+
+
+class ProposeActionsResponse(BaseModel):
+    quarantine: int = 0
+    ticket: int = 0
+    self_heal: int = 0
+    skipped: int = 0
+
+
+class ActionResponse(BaseModel):
+    id: str
+    triage_verdict_id: str
+    run_id: str
+    kind: str
+    payload: Optional[dict] = None
+    summary: Optional[str] = None
+    status: str
+    artifact_ref: Optional[str] = None
+    approved_by: Optional[str] = None
+    approved_at: Optional[str] = None
+    reject_reason: Optional[str] = None
+
+
+class ActionRejectRequest(BaseModel):
+    reason: str = ""
+
+
+class ActionApproveResponse(BaseModel):
+    approved: bool
+    artifact_ref: Optional[str] = None
+
+
+class ActionRejectResponse(BaseModel):
+    rejected: bool
