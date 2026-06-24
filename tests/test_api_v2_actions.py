@@ -50,6 +50,7 @@ def test_approve_and_reject():
     client = _client(service=svc)
     assert client.post("/v2/actions/a1/approve").json()["approved"] is True
     assert client.post("/v2/actions/a1/reject", json={"reason": "dup"}).status_code == 200
+    svc.approve_action.assert_called_once_with(user_id="user-1", action_id="a1")
     svc.reject_action.assert_called_once_with(user_id="user-1", action_id="a1", reason="dup")
 
 
@@ -61,3 +62,16 @@ def test_inbox_db_error_is_502():
     repo = MagicMock()
     repo.get_actions.side_effect = psycopg.OperationalError("db")
     assert _client(repo=repo).get("/v2/actions?org_id=o1").status_code == 502
+
+
+def test_approve_requires_auth():
+    assert _client(service=MagicMock(), with_user=False).post("/v2/actions/a1/approve").status_code == 401
+
+
+def test_reject_requires_auth():
+    assert _client(service=MagicMock(), with_user=False).post(
+        "/v2/actions/a1/reject", json={"reason": "x"}).status_code == 401
+
+
+def test_inbox_requires_auth():
+    assert _client(repo=MagicMock(), with_user=False).get("/v2/actions?org_id=o1").status_code == 401
