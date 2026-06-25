@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { useAuth } from "@/components/providers/auth-provider";
 import { getDefects, getDefectLineage, getOrganizations, analyzeRootCause } from "@/lib/api/endpoints";
+import { FamilyLabelControl } from "@/components/autopilot/FamilyLabelControl";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -141,6 +142,9 @@ export default function DefectsPage() {
                   token={accessToken!}
                   defectId={lineageQuery.data.family.id}
                 />
+              )}
+              {lineageQuery.data?.family && (
+                <FamilyLabelControl key={`label-${lineageQuery.data.family.id}`} familyId={lineageQuery.data.family.id} />
               )}
             </div>
           )}
