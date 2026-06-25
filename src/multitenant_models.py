@@ -235,3 +235,9 @@ class CertificateVerifyRequest(BaseModel):
 
 class CertificateVerifyResponse(BaseModel):
     valido: bool
+
+
+class GateResponse(BaseModel):
+    verdict: str
+    conclusion: str
+    check_run_url: str

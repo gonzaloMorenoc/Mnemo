@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
 
+from src.certify.gate import GateService
 from src.certify.repository import CertificateRepository
 from src.certify.render import render_html
 from src.certify.service import CertificateService
@@ -46,6 +47,7 @@ from src.multitenant_models import (
     CertificateResponse,
     CertificateVerifyRequest,
     CertificateVerifyResponse,
+    GateResponse,
     CiWebhookResponse,
     CreateOrgRequest,
     DefectFamilyResponse,
@@ -93,6 +95,7 @@ _action_repo = None
 _github_auth = None
 _cert_repo = None
 _certificate_service = None
+_gate_service = None
 
 
 def get_repo() -> TenantKBRepository:
@@ -249,18 +252,36 @@ def get_action_service() -> ActionService:
     return _action_service
 
 
+def get_certificate_repo() -> CertificateRepository:
+    if not multi_tenant_enabled():
+        raise HTTPException(status_code=503, detail="Multi-tenant KB not configured")
+    global _cert_repo
+    if _cert_repo is None:
+        _cert_repo = CertificateRepository()
+    return _cert_repo
+
+
 def get_certificate_service() -> CertificateService:
     if not multi_tenant_enabled():
         raise HTTPException(status_code=503, detail="Multi-tenant KB not configured")
-    global _cert_repo, _certificate_service
+    global _certificate_service
     if _certificate_service is None:
-        _cert_repo = CertificateRepository()
         _certificate_service = CertificateService(
-            repo=get_assurance_repo(), cert_repo=_cert_repo,
+            repo=get_assurance_repo(), cert_repo=get_certificate_repo(),
             private_key=MNEMO_SIGNING_PRIVATE_KEY, public_key=MNEMO_SIGNING_PUBLIC_KEY,
             mnemo_version=MNEMO_VERSION, model_version=LLM_MODEL or "unknown",
         )
     return _certificate_service
+
+
+def get_gate_service() -> GateService:
+    if not multi_tenant_enabled():
+        raise HTTPException(status_code=503, detail="Multi-tenant KB not configured")
+    global _gate_service
+    if _gate_service is None:
+        _gate_service = GateService(repo=get_assurance_repo(), cert_repo=get_certificate_repo(),
+                                    codehost_factory=_github_codehost_factory)
+    return _gate_service
 
 
 def _unique_scopes(contexts: List[Dict[str, Any]]) -> List[str]:
@@ -812,3 +833,21 @@ def verify_certificate_v2(
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail="Database error") from exc
     return CertificateVerifyResponse(valido=valido)
+
+
+@router.post("/gate/run/{run_id}", response_model=GateResponse)
+def publish_gate_v2(
+    run_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+    service: GateService = Depends(get_gate_service),
+) -> GateResponse:
+    try:
+        return GateResponse(**service.publish(user_id=user.user_id, run_id=run_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except GitHubAuthError as exc:
+        raise HTTPException(status_code=503, detail="GitHub App no configurada") from exc
+    except GitHubError as exc:
+        raise HTTPException(status_code=502, detail="GitHub API error") from exc
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
