@@ -30,7 +30,7 @@ export default function AutopilotPage() {
       </div>
       <RunSelector orgId={orgId} onRunId={setRunId} />
       {runId && (
-        <div className="space-y-4">
+        <div key={runId} className="space-y-4">
           <TriageVerdictList runId={runId} />
           <ActionsPanel runId={runId} orgId={orgId} />
           <CertificateCard runId={runId} />
