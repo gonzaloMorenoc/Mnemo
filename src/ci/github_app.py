@@ -142,3 +142,17 @@ class GitHubCodeHost:
         if resp.status_code >= 300:
             raise GitHubError(f"create PR falló: HTTP {resp.status_code}")
         return resp.json()["html_url"]
+
+    def publish_check_run(self, *, head_sha: str, conclusion: str,
+                          title: str, summary: str) -> str:
+        """Publica un check run mnemo/assurance sobre head_sha (Checks API).
+        conclusion ∈ {success, failure, neutral}. Devuelve la URL del check run."""
+        resp = self._session.post(
+            f"{_API}/repos/{self._repo}/check-runs",
+            json={"name": "mnemo/assurance", "head_sha": head_sha, "status": "completed",
+                  "conclusion": conclusion, "output": {"title": title, "summary": summary}},
+            headers=self._headers(), timeout=15,
+        )
+        if resp.status_code >= 300:
+            raise GitHubError(f"publish check-run falló: HTTP {resp.status_code}")
+        return resp.json()["html_url"]
