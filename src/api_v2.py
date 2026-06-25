@@ -807,5 +807,8 @@ def verify_certificate_v2(
     user: AuthenticatedUser = Depends(get_current_user),
     service: CertificateService = Depends(get_certificate_service),
 ) -> CertificateVerifyResponse:
-    return CertificateVerifyResponse(
-        valido=service.verify_payload(cert=body.canonical_json, signature=body.signature))
+    try:
+        valido = service.verify_payload(cert=body.canonical_json, signature=body.signature)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    return CertificateVerifyResponse(valido=valido)

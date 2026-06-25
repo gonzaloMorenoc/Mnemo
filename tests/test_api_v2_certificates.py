@@ -78,5 +78,27 @@ def test_verify_endpoint_roundtrip():
     assert resp.status_code == 200 and resp.json()["valido"] is True
 
 
+def test_verify_endpoint_real_crypto_true_and_false():
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from src.certify.service import CertificateService
+    from src.certify.signing import canonical_json, sign
+    priv = Ed25519PrivateKey.generate()
+    priv_pem = priv.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+                                  serialization.NoEncryption()).decode()
+    pub_pem = priv.public_key().public_bytes(
+        serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo).decode()
+    svc = CertificateService(repo=MagicMock(), cert_repo=MagicMock(), private_key=priv_pem,
+                             public_key=pub_pem, mnemo_version="0.4.0", model_version="m")
+    cert = {"verdict": "apto", "risk_score": 0}
+    sig = sign(canonical_json(cert), priv_pem)
+    client = _client(service=svc)
+    ok = client.post("/v2/certificates/verify", json={"canonical_json": cert, "signature": sig})
+    assert ok.status_code == 200 and ok.json()["valido"] is True
+    bad = client.post("/v2/certificates/verify",
+                      json={"canonical_json": {"verdict": "no-apto"}, "signature": sig})
+    assert bad.status_code == 200 and bad.json()["valido"] is False
+
+
 def test_requires_auth():
     assert _client(service=MagicMock(), with_user=False).post("/v2/certificates/run/r1").status_code == 401
