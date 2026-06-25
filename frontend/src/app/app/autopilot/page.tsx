@@ -7,6 +7,9 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { getOrganizations } from "@/lib/api/endpoints";
 import { RunSelector } from "@/components/autopilot/RunSelector";
 import { TriageVerdictList } from "@/components/autopilot/TriageVerdictList";
+import { ActionsPanel } from "@/components/autopilot/ActionsPanel";
+import { CertificateCard } from "@/components/autopilot/CertificateCard";
+import { GateCard } from "@/components/autopilot/GateCard";
 
 export default function AutopilotPage() {
   const { accessToken } = useAuth();
@@ -29,6 +32,9 @@ export default function AutopilotPage() {
       {runId && (
         <div className="space-y-4">
           <TriageVerdictList runId={runId} />
+          <ActionsPanel runId={runId} orgId={orgId} />
+          <CertificateCard runId={runId} />
+          <GateCard runId={runId} />
         </div>
       )}
     </div>
