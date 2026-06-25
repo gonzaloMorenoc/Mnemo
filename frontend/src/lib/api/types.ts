@@ -176,3 +176,16 @@ export interface GateResult {
   conclusion: string;
   check_run_url: string;
 }
+
+export interface CalibrationMetrics {
+  total: number;
+  aciertos: number;
+  accuracy: number;
+  familias_calibradas: number;
+  por_categoria: Record<string, number>;
+}
+
+export interface FamilyLabel {
+  family_id: string;
+  label: string;
+}
