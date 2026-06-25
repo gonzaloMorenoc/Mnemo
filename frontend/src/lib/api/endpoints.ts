@@ -6,9 +6,11 @@ import type {
   AnalyzeV2Request,
   AnalyzeV2Response,
   AssuranceVerdictResponse,
+  CalibrationMetrics,
   Certificate,
   DefectFamilyResponse,
   DefectLineageResponse,
+  FamilyLabel,
   GateResult,
   HealthResponse,
   IngestReportResponse,
@@ -147,4 +149,14 @@ export function getCertificate(token: string, runId: string) {
 export function publishGate(token: string, runId: string) {
   return apiRequest<GateResult>(
     `/api/v2/gate/run/${encodeURIComponent(runId)}`, "POST", { token });
+}
+
+export function getCalibrationMetrics(token: string, orgId: string) {
+  return apiRequest<CalibrationMetrics>(
+    `/api/v2/calibration/metrics?org_id=${encodeURIComponent(orgId)}`, "GET", { token });
+}
+
+export function setFamilyLabel(token: string, familyId: string, label: string, reason = "") {
+  return apiRequest<FamilyLabel>(
+    `/api/v2/defects/${encodeURIComponent(familyId)}/label`, "PATCH", { token, body: { label, reason } });
 }
