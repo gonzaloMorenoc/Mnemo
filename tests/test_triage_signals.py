@@ -17,9 +17,10 @@ def test_classification_signals_from_message():
     assert s.locator_error is True and s.infra_error is False and s.assertion_failure is False
 
 
-def test_known_flaky_family_from_label():
-    assert compute_signals(_fi(family_label="flaky")).known_flaky_family is True
-    assert compute_signals(_fi(family_label="real")).known_flaky_family is False
+def test_family_label_passed_through():
+    assert compute_signals(_fi(family_label="flaky")).family_label == "flaky"
+    assert compute_signals(_fi(family_label="real")).family_label == "real"
+    assert compute_signals(_fi(family_label="unknown")).family_label == "unknown"
 
 
 def test_novel_and_recurrent_are_complementary():

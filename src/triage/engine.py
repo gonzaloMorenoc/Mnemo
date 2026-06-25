@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from src.triage.signals import Signals
 
 _APPROVAL_THRESHOLD = 0.80
+_HUMAN_CATEGORIES = ("flaky", "real", "maintenance", "infra")
 
 
 @dataclass
@@ -16,9 +17,15 @@ class TriageVerdict:
 
 
 def triage(signals: Signals) -> TriageVerdict:
-    """Clasificación determinista por reglas de prioridad. El ambiguo (R6) queda
-    'unknown' + ambiguous=True para que el desempate LLM (F2f) lo resuelva."""
-    if signals.retry_passed_in_run or signals.intermittent_same_sha or signals.known_flaky_family:
+    """Clasificación determinista por reglas de prioridad. R0 aplica el prior humano
+    calibrado; el ambiguo (R6) queda 'unknown' + ambiguous=True para el desempate LLM."""
+    # R0 — prior humano calibrado (todas las categorías), salvo señal fuerte de real novedoso
+    if signals.family_label in _HUMAN_CATEGORIES and not (signals.assertion_failure and signals.novel):
+        return TriageVerdict(
+            category=signals.family_label, confidence=0.95, rule_applied="R0_calibrated",
+            requires_approval=False, llm_assisted=False, ambiguous=False,
+        )
+    if signals.retry_passed_in_run or signals.intermittent_same_sha:
         return _verdict("flaky", 0.90, "R1_flaky")
     if signals.mass_cofailure and signals.infra_error:
         return _verdict("infra", 0.90, "R2_infra")

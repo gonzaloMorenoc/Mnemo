@@ -6,7 +6,7 @@ from src.triage.signals import Signals
 def _sig(**over):
     base = dict(
         infra_error=False, locator_error=False, assertion_failure=False,
-        retry_passed_in_run=False, intermittent_same_sha=False, known_flaky_family=False,
+        retry_passed_in_run=False, intermittent_same_sha=False, family_label="unknown",
         mass_cofailure=False, has_green_baseline=False, dom_changed=False,
         novel=False, recurrent=False,
     )

@@ -36,7 +36,7 @@ def _signal_items(signals: Signals):
         ("assertion_failure", signals.assertion_failure),
         ("retry_passed_in_run", signals.retry_passed_in_run),
         ("intermittent_same_sha", signals.intermittent_same_sha),
-        ("known_flaky_family", signals.known_flaky_family),
+        ("family_label", signals.family_label),
         ("mass_cofailure", signals.mass_cofailure),
         ("has_green_baseline", signals.has_green_baseline),
         ("dom_changed", signals.dom_changed),
