@@ -73,6 +73,11 @@ TRIAGE_MASS_COFAILURE_MIN = int(os.getenv("TRIAGE_MASS_COFAILURE_MIN", "3"))
 GITHUB_APP_ID = os.getenv("GITHUB_APP_ID", "")
 GITHUB_APP_PRIVATE_KEY = os.getenv("GITHUB_APP_PRIVATE_KEY", "")
 
+# Certificación (Mnemo Autopilot F4a): firma Ed25519 de Release Assurance Certificates.
+MNEMO_VERSION = "0.4.0"
+MNEMO_SIGNING_PRIVATE_KEY = os.getenv("MNEMO_SIGNING_PRIVATE_KEY", "")
+MNEMO_SIGNING_PUBLIC_KEY = os.getenv("MNEMO_SIGNING_PUBLIC_KEY", "")
+
 
 def multi_tenant_enabled() -> bool:
     """True solo si hay BD Postgres y Supabase configurados."""
