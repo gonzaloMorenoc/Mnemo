@@ -1,4 +1,4 @@
-from src.certify.certificate import build_certificate
+from src.certify.certificate import build_certificate, compute_verdict
 
 _RUN = {"org_id": "o", "project": "web", "commit_sha": "abc123", "run_id": "r1"}
 
@@ -7,6 +7,11 @@ def _v(category, *, rule="", approval=False, conf=0.9, fid="f1"):
     return {"id": "v", "failure_id": fid, "category": category, "confidence": conf,
             "rule_applied": rule, "evidence_bundle": {}, "requires_approval": approval,
             "llm_assisted": False, "status": "resolved"}
+
+
+def _vv(category, *, rule="", approval=False):
+    return {"failure_id": "f", "category": category, "confidence": 0.9,
+            "rule_applied": rule, "requires_approval": approval}
 
 
 def _cert(verdicts):
@@ -48,3 +53,24 @@ def test_risk_score_formula():
                _v("real", rule="R4_real_recurrent"), _v("flaky")])
     assert c["risk_score"] == 72
     assert c["verdict"] == "no-apto"  # hay novel-sin-approval y pendiente
+
+
+def test_compute_verdict_no_apto_on_novel_real():
+    assert compute_verdict([_vv("real", rule="R5_real_novel")]) == "no-apto"
+
+
+def test_compute_verdict_no_apto_on_pending_approval():
+    assert compute_verdict([_vv("flaky", approval=True)]) == "no-apto"
+
+
+def test_compute_verdict_con_reservas_on_recurrent_real_or_maintenance():
+    assert compute_verdict([_vv("real", rule="R4_real_recurrent")]) == "apto-con-reservas"
+    assert compute_verdict([_vv("maintenance")]) == "apto-con-reservas"
+
+
+def test_compute_verdict_apto_on_flaky_or_infra():
+    assert compute_verdict([_vv("flaky"), _vv("infra")]) == "apto"
+
+
+def test_compute_verdict_apto_on_empty():
+    assert compute_verdict([]) == "apto"
