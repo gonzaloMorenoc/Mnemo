@@ -28,7 +28,7 @@ class Signals:
     assertion_failure: bool
     retry_passed_in_run: bool
     intermittent_same_sha: bool
-    known_flaky_family: bool
+    family_label: str
     mass_cofailure: bool
     has_green_baseline: bool
     dom_changed: bool
@@ -44,7 +44,7 @@ def compute_signals(failure: FailureInput) -> Signals:
         assertion_failure="assertion" in cats,
         retry_passed_in_run=failure.retry_passed_in_run,
         intermittent_same_sha=failure.intermittent_same_sha,
-        known_flaky_family=failure.family_label == "flaky",
+        family_label=failure.family_label,
         mass_cofailure=failure.mass_cofailure,
         has_green_baseline=failure.has_green_baseline,
         dom_changed=failure.dom_changed,

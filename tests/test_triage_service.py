@@ -34,8 +34,7 @@ def test_non_member_returns_empty_and_does_not_save():
 
 
 def test_flaky_classified_and_persisted():
-    svc, repo = _svc([_failure("t1", "Error", "boom", known_flaky_family=False,
-                               retry_passed_in_run=True)])
+    svc, repo = _svc([_failure("t1", "Error", "boom", retry_passed_in_run=True)])
     counts = svc.triage_run(user_id="u", run_id="r1")
     assert counts["flaky"] == 1
     _, kw = repo.save_triage_verdicts.call_args

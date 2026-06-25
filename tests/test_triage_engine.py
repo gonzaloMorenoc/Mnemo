@@ -5,7 +5,7 @@ from src.triage.signals import Signals
 def _sig(**over):
     base = dict(
         infra_error=False, locator_error=False, assertion_failure=False,
-        retry_passed_in_run=False, intermittent_same_sha=False, known_flaky_family=False,
+        retry_passed_in_run=False, intermittent_same_sha=False, family_label="unknown",
         mass_cofailure=False, has_green_baseline=False, dom_changed=False,
         novel=False, recurrent=False,
     )
@@ -19,9 +19,9 @@ def test_r1_flaky_by_retry():
     assert v.requires_approval is False and v.ambiguous is False and v.llm_assisted is False
 
 
-def test_r1_flaky_by_intermittency_or_known_family():
+def test_r1_flaky_by_intermittency():
     assert triage(_sig(intermittent_same_sha=True)).category == "flaky"
-    assert triage(_sig(known_flaky_family=True)).category == "flaky"
+    assert triage(_sig(intermittent_same_sha=True)).rule_applied == "R1_flaky"
 
 
 def test_r2_infra_requires_mass_cofailure_and_infra_error():
@@ -56,9 +56,35 @@ def test_r6_ambiguous_unknown():
     assert v.rule_applied == "R6_ambiguous" and v.llm_assisted is False
 
 
-def test_priority_flaky_over_infra():
-    v = triage(_sig(known_flaky_family=True, mass_cofailure=True, infra_error=True))
-    assert v.category == "flaky"  # R1 antes que R2
+def test_priority_r0_over_other_rules():
+    v = triage(_sig(family_label="flaky", mass_cofailure=True, infra_error=True))
+    assert v.category == "flaky" and v.rule_applied == "R0_calibrated"  # R0 antes que R2
+
+
+def test_r0_calibrated_each_category():
+    for cat in ("flaky", "real", "maintenance", "infra"):
+        v = triage(_sig(family_label=cat))
+        assert v.category == cat and v.rule_applied == "R0_calibrated"
+        assert v.confidence == 0.95 and v.requires_approval is False
+        assert v.llm_assisted is False and v.ambiguous is False
+
+
+def test_r0_safety_net_yields_to_real_novel():
+    # familia etiquetada flaky pero aserción + novedoso → posible bug real nuevo → R5, no R0
+    v = triage(_sig(family_label="flaky", assertion_failure=True, novel=True))
+    assert v.category == "real" and v.rule_applied == "R5_real_novel"
+
+
+def test_r0_does_not_fire_on_unknown_label():
+    # family_label='unknown' → R0 no aplica; cae en R1-R6 como antes
+    assert triage(_sig(family_label="unknown", retry_passed_in_run=True)).rule_applied == "R1_flaky"
+    assert triage(_sig(family_label="unknown", assertion_failure=True, novel=True)).rule_applied == "R5_real_novel"
+
+
+def test_r0_recurrent_real_in_flaky_family_stays_calibrated():
+    # aserción recurrente (no novel) en familia flaky → la red solo protege lo NOVEDOSO → R0 flaky
+    v = triage(_sig(family_label="flaky", assertion_failure=True, recurrent=True))
+    assert v.category == "flaky" and v.rule_applied == "R0_calibrated"
 
 
 def test_priority_infra_over_maintenance():

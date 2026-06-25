@@ -325,6 +325,54 @@ def test_save_triage_verdicts_rejects_foreign_run(repo, org):
             conn.commit()
 
 
+@pytest.fixture
+def assurance_repo(repo):
+    return repo
+
+
+@pytest.fixture
+def seeded_family(repo, org):
+    """Extiende el fixture org con una familia, un failure y un veredicto para poblar
+    engine_category. Devuelve {user_id, org_id, family_id}."""
+    u, o = org["user_id"], org["org_id"]
+    sig = f"sig-seed-{u[:8]}"
+    with psycopg.connect(DBURL) as conn:
+        with conn.cursor() as cur:
+            # Familia de defecto (scope='org')
+            cur.execute(
+                "insert into public.defect_families"
+                " (scope, org_id, signature, title, occurrence_count)"
+                " values ('org', %s, %s, 'Seeded Family', 1) returning id",
+                (o, sig),
+            )
+            family_id = str(cur.fetchone()[0])
+            # Run necesario para el failure
+            cur.execute(
+                "insert into public.test_runs (org_id, project, source)"
+                " values (%s, 'p', 'playwright') returning id",
+                (o,),
+            )
+            run_id = str(cur.fetchone()[0])
+            # Failure enlazado a la familia
+            cur.execute(
+                "insert into public.failures"
+                " (run_id, org_id, test_name, message, fingerprint, defect_family_id)"
+                " values (%s, %s, 'seed_test', 'err', 'fp-seed', %s) returning id",
+                (run_id, o, family_id),
+            )
+            failure_id = str(cur.fetchone()[0])
+            # Veredicto con category='real' → engine_category quedará 'real'
+            cur.execute(
+                "insert into public.triage_verdicts"
+                " (failure_id, run_id, org_id, category, confidence, rule_applied)"
+                " values (%s, %s, %s, 'real', 0.9, 'R4_real_recurrent')",
+                (failure_id, run_id, o),
+            )
+        conn.commit()
+    yield {"user_id": u, "org_id": o, "family_id": family_id}
+    # Cleanup: la familia (y su cascada) se elimina cuando se borra el org en el fixture org
+
+
 def test_get_triage_inputs_wrong_org_isolation(repo, org):
     """Un miembro del org B no puede ver los inputs de triaje de un run del org A."""
     if not DBURL:
@@ -362,3 +410,45 @@ def test_get_triage_inputs_wrong_org_isolation(repo, org):
                 cur.execute("delete from public.organizations where id = %s", (o_b,))
                 cur.execute("delete from auth.users where id = %s", (u_b,))
             conn.commit()
+
+
+# ---------------------------------------------------------------------------
+# Task 2 (F5a): triage_corrections + get_calibration_metrics
+# ---------------------------------------------------------------------------
+
+import uuid as _uuid
+
+
+@pytest.mark.integration
+def test_set_family_label_records_correction(assurance_repo, seeded_family):
+    # seeded_family: dict with user_id, org_id, family_id, and a recent verdict category 'real'
+    repo, ctx = assurance_repo, seeded_family
+    ok = repo.set_family_label(user_id=ctx["user_id"], family_id=ctx["family_id"],
+                               label="flaky", reason="histórico flaky")
+    assert ok is True
+    metrics = repo.get_calibration_metrics(user_id=ctx["user_id"], org_id=ctx["org_id"])
+    assert metrics["total"] == 1
+    # engine dijo 'real', humano dijo 'flaky' → no es acierto
+    assert metrics["aciertos"] == 0
+    assert metrics["familias_calibradas"] == 1
+    assert metrics["por_categoria"].get("flaky") == 1
+
+
+@pytest.mark.integration
+def test_set_family_label_non_member_returns_false(assurance_repo, seeded_family):
+    repo, ctx = assurance_repo, seeded_family
+    assert repo.set_family_label(user_id=str(_uuid.uuid4()), family_id=ctx["family_id"],
+                                 label="flaky") is False
+
+
+@pytest.mark.integration
+def test_get_calibration_metrics_non_member_is_none(assurance_repo, seeded_family):
+    repo, ctx = assurance_repo, seeded_family
+    assert repo.get_calibration_metrics(user_id=str(_uuid.uuid4()), org_id=ctx["org_id"]) is None
+
+
+@pytest.mark.integration
+def test_set_family_label_invalid_label_raises(assurance_repo, seeded_family):
+    repo, ctx = assurance_repo, seeded_family
+    with pytest.raises(ValueError):
+        repo.set_family_label(user_id=ctx["user_id"], family_id=ctx["family_id"], label="bogus")
