@@ -44,9 +44,11 @@ from src.multitenant_models import (
     AnalyzeV2Request,
     AnalyzeV2Response,
     AssuranceVerdictResponse,
+    CalibrationMetricsResponse,
     CertificateResponse,
     CertificateVerifyRequest,
     CertificateVerifyResponse,
+    FamilyLabelResponse,
     GateResponse,
     CiWebhookResponse,
     CreateOrgRequest,
@@ -67,6 +69,7 @@ from src.multitenant_models import (
     ProposeActionsResponse,
     RootCauseResponse,
     ScopeSource,
+    SetFamilyLabelRequest,
     StructuredAnalysisPayload,
     TriageVerdictResponse,
     UploadResponse,
@@ -648,6 +651,40 @@ def defect_lineage_v2(
         raise HTTPException(status_code=502, detail="Database error") from exc
     family = DefectFamilySummary(**data["family"]) if data["family"] else None
     return DefectLineageResponse(family=family, failures=[FailureRef(**f) for f in data["failures"]])
+
+
+@router.patch("/defects/{family_id}/label", response_model=FamilyLabelResponse)
+def set_family_label_v2(
+    family_id: str,
+    body: SetFamilyLabelRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+    repo: AssuranceRepository = Depends(get_assurance_repo),
+) -> FamilyLabelResponse:
+    try:
+        ok = repo.set_family_label(user_id=user.user_id, family_id=family_id,
+                                   label=body.label, reason=body.reason)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    if not ok:
+        raise HTTPException(status_code=404, detail="defect family not found")
+    return FamilyLabelResponse(family_id=family_id, label=body.label)
+
+
+@router.get("/calibration/metrics", response_model=CalibrationMetricsResponse)
+def calibration_metrics_v2(
+    org_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+    repo: AssuranceRepository = Depends(get_assurance_repo),
+) -> CalibrationMetricsResponse:
+    try:
+        metrics = repo.get_calibration_metrics(user_id=user.user_id, org_id=org_id)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    if metrics is None:
+        raise HTTPException(status_code=404, detail="org not found or not a member")
+    return CalibrationMetricsResponse(**metrics)
 
 
 @router.post("/defects/{defect_id}/root-cause", response_model=RootCauseResponse)

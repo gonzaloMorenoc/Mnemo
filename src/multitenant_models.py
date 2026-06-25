@@ -241,3 +241,21 @@ class GateResponse(BaseModel):
     verdict: str
     conclusion: str
     check_run_url: str
+
+
+class SetFamilyLabelRequest(BaseModel):
+    label: str
+    reason: Optional[str] = None
+
+
+class FamilyLabelResponse(BaseModel):
+    family_id: str
+    label: str
+
+
+class CalibrationMetricsResponse(BaseModel):
+    total: int
+    aciertos: int
+    accuracy: float
+    familias_calibradas: int
+    por_categoria: dict
