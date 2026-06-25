@@ -60,7 +60,7 @@ export default function CalibrationPage() {
           </div>
           <p className="text-sm text-zinc-600">{m.familias_calibradas} familias calibradas</p>
           <div className="flex flex-wrap gap-2">
-            {Object.entries(m.por_categoria).map(([cat, n]) => (
+            {Object.entries(m.por_categoria ?? {}).map(([cat, n]) => (
               <Badge key={cat}>{cat}: {n}</Badge>
             ))}
           </div>

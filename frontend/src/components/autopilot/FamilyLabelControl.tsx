@@ -41,7 +41,7 @@ export function FamilyLabelControl({ familyId }: { familyId: string }) {
           {LABELS.map((l) => <option key={l} value={l}>{l}</option>)}
         </select>
       </div>
-      <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="motivo (opcional)" />
+      <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="motivo (opcional)" aria-label="Motivo" />
       <Button className="text-xs" disabled={mut.isPending} onClick={() => mut.mutate()}>
         {mut.isPending ? "Guardando…" : "Etiquetar familia"}
       </Button>
