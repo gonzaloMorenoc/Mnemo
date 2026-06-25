@@ -117,3 +117,75 @@ export interface RootCauseResponse {
   root_cause: string;
   cached: boolean;
 }
+
+export interface TriageVerdict {
+  id: string;
+  failure_id: string;
+  category: string;
+  confidence: number;
+  rule_applied: string;
+  requires_approval: boolean;
+  llm_assisted: boolean;
+  status: string;
+  evidence_bundle?: Record<string, unknown> | null;
+}
+
+export interface ActionItem {
+  id: string;
+  triage_verdict_id: string;
+  run_id: string;
+  org_id?: string | null;
+  kind: string;
+  payload?: Record<string, unknown> | null;
+  summary?: string | null;
+  status: string;
+  artifact_ref?: string | null;
+  approved_by?: string | null;
+  approved_at?: string | null;
+  reject_reason?: string | null;
+}
+
+export interface ProposeActionsResult {
+  quarantine: number;
+  ticket: number;
+  self_heal: number;
+  skipped: number;
+}
+
+export interface ActionApproveResult {
+  approved: boolean;
+  materialized: boolean;
+  artifact_ref?: string | null;
+}
+
+export interface ActionRejectResult {
+  rejected: boolean;
+}
+
+export interface Certificate {
+  run_id: string;
+  verdict: string;
+  risk_score: number;
+  canonical_json: Record<string, unknown>;
+  signature: string;
+  created_at?: string | null;
+}
+
+export interface GateResult {
+  verdict: string;
+  conclusion: string;
+  check_run_url: string;
+}
+
+export interface CalibrationMetrics {
+  total: number;
+  aciertos: number;
+  accuracy: number;
+  familias_calibradas: number;
+  por_categoria: Record<string, number>;
+}
+
+export interface FamilyLabel {
+  family_id: string;
+  label: string;
+}
