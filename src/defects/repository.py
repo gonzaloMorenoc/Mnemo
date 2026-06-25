@@ -819,9 +819,11 @@ class AssuranceRepository:
             conn.commit()
         return updated
 
-    def set_family_label(self, *, user_id: str, family_id: str, label: str) -> bool:
-        """Etiqueta una familia (lazo de aprendizaje / triaje). Devuelve False si no
-        es miembro / no existe. Lanza ValueError si el label no es válido."""
+    def set_family_label(self, *, user_id: str, family_id: str, label: str,
+                         reason: Optional[str] = None) -> bool:
+        """Etiqueta una familia (lazo de aprendizaje) y registra la corrección
+        (motor vs humano) en triage_corrections. Devuelve False si no es miembro /
+        no existe. Lanza ValueError si el label no es válido."""
         if label not in ("flaky", "real", "maintenance", "infra", "unknown"):
             raise ValueError(f"invalid label: {label!r}")
         with self._connect() as conn:
@@ -830,12 +832,57 @@ class AssuranceRepository:
                 cur.execute(
                     "update public.defect_families set label = %s"
                     " where id = %s and (scope = 'global' or exists (select 1 from public.memberships m"
-                    "   where m.org_id = public.defect_families.org_id and m.user_id = %s))",
+                    "   where m.org_id = public.defect_families.org_id and m.user_id = %s))"
+                    " returning org_id",
                     (label, family_id, user_id),
                 )
-                updated = cur.rowcount > 0
+                row = cur.fetchone()
+                if row is None:
+                    conn.rollback()
+                    return False
+                org_id = row["org_id"]
+                if org_id is not None:
+                    cur.execute(
+                        "select tv.category from public.triage_verdicts tv"
+                        " join public.failures f on f.id = tv.failure_id"
+                        " where f.defect_family_id = %s order by tv.created_at desc limit 1",
+                        (family_id,),
+                    )
+                    er = cur.fetchone()
+                    engine_category = er["category"] if er else None
+                    cur.execute(
+                        "insert into public.triage_corrections"
+                        " (org_id, family_id, engine_category, human_category, source, reason, corrected_by)"
+                        " values (%s, %s, %s, %s, 'family_label', %s, %s)",
+                        (org_id, family_id, engine_category, label, reason, user_id),
+                    )
             conn.commit()
-        return updated
+        return True
+
+    def get_calibration_metrics(self, *, user_id: str, org_id: str) -> Optional[Dict[str, Any]]:
+        """Métrica del foso por org. None si el usuario no es miembro."""
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute("select exists(select 1 from public.memberships"
+                            " where org_id = %s and user_id = %s) as ok", (org_id, user_id))
+                if not cur.fetchone()["ok"]:
+                    return None
+                cur.execute(
+                    "select count(*) as total,"
+                    " count(*) filter (where engine_category = human_category) as aciertos"
+                    " from public.triage_corrections where org_id = %s", (org_id,))
+                agg = cur.fetchone()
+                total, aciertos = agg["total"], agg["aciertos"]
+                cur.execute("select count(*) as n from public.defect_families"
+                            " where org_id = %s and label is not null and label <> 'unknown'", (org_id,))
+                familias_calibradas = cur.fetchone()["n"]
+                cur.execute("select human_category, count(*) as n from public.triage_corrections"
+                            " where org_id = %s group by human_category", (org_id,))
+                por_categoria = {r["human_category"]: r["n"] for r in cur.fetchall()}
+        return {"total": total, "aciertos": aciertos,
+                "accuracy": (aciertos / total) if total else 0.0,
+                "familias_calibradas": familias_calibradas, "por_categoria": por_categoria}
 
     def get_run_actionable_verdicts(self, *, user_id: str, run_id: str) -> List[Dict[str, Any]]:
         """Veredictos 'resolved' del run + datos del fallo (test_name, error_type, familia).
