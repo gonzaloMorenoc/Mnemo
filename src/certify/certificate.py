@@ -10,8 +10,10 @@ def build_certificate(*, run: Dict[str, Any], verdicts: List[Dict[str, Any]],
     Puro: el timestamp se inyecta (created_at)."""
     breakdown = {c: 0 for c in _CATEGORIES}
     for v in verdicts:
-        cat = v.get("category") or "unknown"
-        breakdown[cat] = breakdown.get(cat, 0) + 1
+        cat = v.get("category")
+        if cat not in _CATEGORIES:
+            cat = "unknown"
+        breakdown[cat] += 1
 
     reales_novel_sin_approval = sum(
         1 for v in verdicts if v.get("category") == "real"

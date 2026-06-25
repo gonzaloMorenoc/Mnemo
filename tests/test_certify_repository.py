@@ -70,3 +70,28 @@ def test_save_certificate_non_member_rejected(repos, org):
         crepo.save_certificate(user_id=str(uuid.uuid4()), org_id=org["org_id"], run_id=org["run_id"],
                                canonical_json={}, signature="s", verdict="apto", risk_score=0,
                                sign_offs=[], mnemo_version="v", model_version="m")
+
+
+def test_signature_survives_jsonb_roundtrip(repos, org):
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from src.certify.certificate import build_certificate
+    from src.certify.signing import canonical_json, sign, verify
+    crepo, _ = repos
+    u, o, r = org["user_id"], org["org_id"], org["run_id"]
+    priv = Ed25519PrivateKey.generate()
+    priv_pem = priv.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+                                  serialization.NoEncryption()).decode()
+    pub_pem = priv.public_key().public_bytes(
+        serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo).decode()
+    cert = build_certificate(
+        run={"org_id": o, "project": "web", "commit_sha": "sha-cert", "run_id": r},
+        verdicts=[{"failure_id": "f1", "category": "real", "confidence": 0.93333333333,
+                   "rule_applied": "R5_real_novel", "requires_approval": False}],
+        sign_offs=[], mnemo_version="0.4.0", model_version="m", created_at="2026-06-25T00:00:00Z")
+    sig = sign(canonical_json(cert), priv_pem)
+    crepo.save_certificate(user_id=u, org_id=o, run_id=r, canonical_json=cert, signature=sig,
+                           verdict=cert["verdict"], risk_score=cert["risk_score"],
+                           sign_offs=cert["sign_offs"], mnemo_version="0.4.0", model_version="m")
+    stored = crepo.get_certificate(user_id=u, run_id=r)
+    assert verify(canonical_json(stored["canonical_json"]), stored["signature"], pub_pem) is True

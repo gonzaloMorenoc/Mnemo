@@ -39,7 +39,7 @@ Generar, por run, un **Release Assurance Certificate** auditable y **firmado (Ed
 ```
 - **Veredicto (política §7.1, determinista) — usa solo campos ya presentes en `triage_verdicts` (`category`, `requires_approval`, `rule_applied`), sin umbrales nuevos:**
   - `no-apto`: ≥1 veredicto `real` **novedoso** (`rule_applied == "R5_real_novel"`) con `requires_approval=false` (F2 lo dio por alta confianza), **o** ≥1 veredicto con `requires_approval=true` (pendiente de aprobación Nivel 2).
-  - `apto-con-reservas`: no se cumple `no-apto`, pero hay ≥1 `real` (recurrente) o ≥1 `flaky`/`maintenance`.
+  - `apto-con-reservas`: no se cumple `no-apto`, pero hay ≥1 `real` (recurrente) o ≥1 `maintenance`.
   - `apto`: el resto (sin `real`; todo `flaky`/`maintenance`/`infra`/`unknown` reconocido).
 - **`risk_score`** (0–100, determinista, fórmula fija): `min(100, 40*reales_novel_sin_approval + 20*pendientes_approval + 10*reales_recurrentes + 2*flaky)`.
 - `created_at` se pasa como argumento (no se llama a `now()` dentro → función pura/testeable); lo inyecta `CertificateService.generate`.
