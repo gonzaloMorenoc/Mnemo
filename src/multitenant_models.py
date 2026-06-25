@@ -217,3 +217,21 @@ class ActionApproveResponse(BaseModel):
 
 class ActionRejectResponse(BaseModel):
     rejected: bool
+
+
+class CertificateResponse(BaseModel):
+    run_id: str
+    verdict: str
+    risk_score: int
+    canonical_json: dict
+    signature: str
+    created_at: Optional[str] = None
+
+
+class CertificateVerifyRequest(BaseModel):
+    canonical_json: dict
+    signature: str
+
+
+class CertificateVerifyResponse(BaseModel):
+    valido: bool

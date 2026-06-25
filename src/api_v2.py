@@ -1,12 +1,21 @@
 import logging
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import psycopg
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import HTMLResponse
 from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
 
+from src.certify.repository import CertificateRepository
+from src.certify.render import render_html
+from src.certify.service import CertificateService
+from src.certify.signing import SigningKeyMissing, canonical_json, verify
+from src.config import (CI_MAX_BODY_BYTES, CI_SERVICE_ORG_ID, CI_SERVICE_USER_ID,
+                        CI_WEBHOOK_SECRET, LLM_MODEL, MNEMO_SIGNING_PRIVATE_KEY,
+                        MNEMO_SIGNING_PUBLIC_KEY, MNEMO_VERSION, multi_tenant_enabled)
 from src.actions.quarantine import QuarantineActuator
 from src.actions.repository import ActionRepository
 from src.actions.selfheal.selfheal import SelfHealActuator
@@ -18,7 +27,6 @@ from src.ci.ingestion_service import CiIngestionService
 from src.triage.service import TriageService
 from src.ci.models import CiRunArtifact
 from src.ci.webhook_auth import verify_signature
-from src.config import CI_MAX_BODY_BYTES, CI_SERVICE_ORG_ID, CI_SERVICE_USER_ID, CI_WEBHOOK_SECRET, multi_tenant_enabled
 from src.defects.ingestion_service import IngestionService
 from src.defects.repository import AssuranceRepository
 from src.assurance.narrator import LLMNarrator, Narrator
@@ -35,6 +43,9 @@ from src.multitenant_models import (
     AnalyzeV2Request,
     AnalyzeV2Response,
     AssuranceVerdictResponse,
+    CertificateResponse,
+    CertificateVerifyRequest,
+    CertificateVerifyResponse,
     CiWebhookResponse,
     CreateOrgRequest,
     DefectFamilyResponse,
@@ -80,6 +91,8 @@ _triage_service = None
 _action_service = None
 _action_repo = None
 _github_auth = None
+_cert_repo = None
+_certificate_service = None
 
 
 def get_repo() -> TenantKBRepository:
@@ -234,6 +247,20 @@ def get_action_service() -> ActionService:
             codehost_factory=_github_codehost_factory,
         )
     return _action_service
+
+
+def get_certificate_service() -> CertificateService:
+    if not multi_tenant_enabled():
+        raise HTTPException(status_code=503, detail="Multi-tenant KB not configured")
+    global _cert_repo, _certificate_service
+    if _certificate_service is None:
+        _cert_repo = CertificateRepository()
+        _certificate_service = CertificateService(
+            repo=get_assurance_repo(), cert_repo=_cert_repo,
+            private_key=MNEMO_SIGNING_PRIVATE_KEY, public_key=MNEMO_SIGNING_PUBLIC_KEY,
+            mnemo_version=MNEMO_VERSION, model_version=LLM_MODEL or "unknown",
+        )
+    return _certificate_service
 
 
 def _unique_scopes(contexts: List[Dict[str, Any]]) -> List[str]:
@@ -722,3 +749,63 @@ def reject_action_v2(
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail="Database error") from exc
     return ActionRejectResponse(rejected=ok)
+
+
+@router.post("/certificates/run/{run_id}", response_model=CertificateResponse)
+def generate_certificate_v2(
+    run_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+    service: CertificateService = Depends(get_certificate_service),
+) -> CertificateResponse:
+    try:
+        created_at = datetime.now(timezone.utc).isoformat()
+        return CertificateResponse(**service.generate(user_id=user.user_id, run_id=run_id,
+                                                      created_at=created_at))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except SigningKeyMissing as exc:
+        raise HTTPException(status_code=503, detail="Firma no configurada") from exc
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+
+
+@router.get("/certificates/{run_id}/html", response_class=HTMLResponse)
+def get_certificate_html_v2(
+    run_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+    service: CertificateService = Depends(get_certificate_service),
+) -> HTMLResponse:
+    try:
+        cert = service.get(user_id=user.user_id, run_id=run_id)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    if cert is None:
+        raise HTTPException(status_code=404, detail="certificate not found")
+    return HTMLResponse(render_html(cert["canonical_json"], cert["signature"]))
+
+
+@router.get("/certificates/{run_id}", response_model=CertificateResponse)
+def get_certificate_v2(
+    run_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+    service: CertificateService = Depends(get_certificate_service),
+) -> CertificateResponse:
+    try:
+        cert = service.get(user_id=user.user_id, run_id=run_id)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    if cert is None:
+        raise HTTPException(status_code=404, detail="certificate not found")
+    return CertificateResponse(run_id=cert["run_id"], verdict=cert["verdict"],
+                               risk_score=cert["risk_score"], canonical_json=cert["canonical_json"],
+                               signature=cert["signature"], created_at=cert["created_at"])
+
+
+@router.post("/certificates/verify", response_model=CertificateVerifyResponse)
+def verify_certificate_v2(
+    body: CertificateVerifyRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+    service: CertificateService = Depends(get_certificate_service),
+) -> CertificateVerifyResponse:
+    return CertificateVerifyResponse(
+        valido=service.verify_payload(cert=body.canonical_json, signature=body.signature))
