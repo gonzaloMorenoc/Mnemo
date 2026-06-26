@@ -51,6 +51,7 @@ from src.multitenant_models import (
     AskRequest,
     AskResponse,
     AssuranceVerdictResponse,
+    BriefingResponse,
     CalibrationMetricsResponse,
     CertificateResponse,
     CertificateVerifyRequest,
@@ -937,3 +938,37 @@ def defects_ask_v2(
         provider = None
     result = answer_question(question=req.question, families=families, provider=provider)
     return AskResponse(answer=result["answer"], citations=result["citations"], families=families)
+
+
+@router.get("/runs/{run_id}/briefing", response_model=BriefingResponse)
+def run_briefing_v2(
+    run_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+    repo: AssuranceRepository = Depends(get_assurance_repo),
+    cert_repo: CertificateRepository = Depends(get_certificate_repo),
+    actions_repo: ActionRepository = Depends(get_action_repo),
+) -> BriefingResponse:
+    from src.ai.briefing import build_run_data, generate_briefing
+    try:
+        data = repo.get_run_assurance_data(user_id=user.user_id, run_id=run_id)
+        if data["run"] is None:
+            raise HTTPException(status_code=404, detail="run not found")
+        cert = cert_repo.get_certificate(user_id=user.user_id, run_id=run_id)
+        actions = actions_repo.list_actions_for_run(user_id=user.user_id, run_id=run_id)
+    except HTTPException:
+        raise
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    run_data = build_run_data(assurance=data, certificate=cert, actions=actions)
+    try:
+        provider = get_llm_provider()
+    except Exception:  # noqa: BLE001 — sin LLM → generate_briefing degrada
+        provider = None
+    b = generate_briefing(run_data=run_data, provider=provider)
+    return BriefingResponse(
+        verdict=(cert or {}).get("verdict") or "sin certificar",
+        summary=b["summary"],
+        recommendation=b["recommendation"],
+        highlights=b["highlights"],
+        citations=b["citations"],
+    )

@@ -278,3 +278,11 @@ class AskResponse(BaseModel):
     answer: str
     citations: List[str]
     families: List[Dict[str, Any]]
+
+
+class BriefingResponse(BaseModel):
+    verdict: str
+    summary: str
+    recommendation: str
+    highlights: List[str]
+    citations: List[str]
