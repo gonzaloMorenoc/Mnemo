@@ -267,3 +267,14 @@ class CalibrationMetricsResponse(BaseModel):
     accuracy: float
     familias_calibradas: int
     por_categoria: dict
+
+
+class AskRequest(BaseModel):
+    org_id: str
+    question: str
+
+
+class AskResponse(BaseModel):
+    answer: str
+    citations: List[str]
+    families: List[Dict[str, Any]]

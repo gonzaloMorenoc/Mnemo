@@ -44,6 +44,8 @@ from src.multitenant_models import (
     ActionResponse,
     AnalyzeV2Request,
     AnalyzeV2Response,
+    AskRequest,
+    AskResponse,
     AssuranceVerdictResponse,
     CalibrationMetricsResponse,
     CertificateResponse,
@@ -100,6 +102,7 @@ _github_auth = None
 _cert_repo = None
 _certificate_service = None
 _gate_service = None
+_embedder = None
 
 
 def get_repo() -> TenantKBRepository:
@@ -291,6 +294,14 @@ def get_gate_service() -> GateService:
         _gate_service = GateService(repo=get_assurance_repo(), cert_repo=get_certificate_repo(),
                                     codehost_factory=_github_codehost_factory)
     return _gate_service
+
+
+def get_embedder():
+    from src.defects.embedder import LocalEmbedder
+    global _embedder
+    if _embedder is None:
+        _embedder = LocalEmbedder()
+    return _embedder
 
 
 def _unique_scopes(contexts: List[Dict[str, Any]]) -> List[str]:
@@ -895,3 +906,25 @@ def publish_gate_v2(
         raise HTTPException(status_code=502, detail="GitHub API error") from exc
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail="Database error") from exc
+
+
+@router.post("/defects/ask", response_model=AskResponse)
+def defects_ask_v2(
+    req: AskRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+    repo: AssuranceRepository = Depends(get_assurance_repo),
+    embedder=Depends(get_embedder),
+) -> AskResponse:
+    from src.ai.nl_query import answer_question
+    try:
+        emb = embedder.embed(req.question)
+        families = repo.search_families_semantic(user_id=user.user_id, org_id=req.org_id,
+                                                 query_embedding=emb, k=8)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    try:
+        provider = get_llm_provider()
+    except Exception:  # noqa: BLE001 — sin LLM → answer_question degrada
+        provider = None
+    result = answer_question(question=req.question, families=families, provider=provider)
+    return AskResponse(answer=result["answer"], citations=result["citations"], families=families)
