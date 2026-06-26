@@ -925,6 +925,31 @@ class AssuranceRepository:
                     for r in cur.fetchall()
                 ]
 
+    def search_families_semantic(self, *, user_id: str, org_id: str,
+                                 query_embedding: Sequence[float], k: int = 8) -> List[Dict[str, Any]]:
+        """Familias del tenant más similares a la consulta (coseno sobre el centroide).
+        Membership-gated; solo familias con centroide. [] si no es miembro."""
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute("select exists(select 1 from public.memberships"
+                            " where org_id = %s and user_id = %s) as ok", (org_id, user_id))
+                if not cur.fetchone()["ok"]:
+                    return []
+                cur.execute(
+                    "select id, signature, label, root_cause, occurrence_count, title"
+                    " from public.defect_families"
+                    " where scope = 'org' and org_id = %s and centroid is not null"
+                    " order by centroid <=> %s limit %s",
+                    (org_id, Vector(list(query_embedding)), k),
+                )
+                return [
+                    {"family_id": str(r["id"]), "signature": r["signature"], "label": r["label"],
+                     "root_cause": r["root_cause"], "occurrence_count": r["occurrence_count"],
+                     "title": r["title"]}
+                    for r in cur.fetchall()
+                ]
+
     def get_selfheal_context(self, *, user_id: str, failure_id: str) -> Optional[Dict[str, Any]]:
         """Contexto para el self-heal de un fallo: el error + los DOM verde/rojo del test.
         None si no es miembro / no existe el fallo."""
