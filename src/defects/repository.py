@@ -249,13 +249,22 @@ class AssuranceRepository:
 
                 if run_uid is not None:
                     cur.execute(
-                        "select id, summary from public.test_runs"
-                        " where org_id = %s and run_uid = %s",
-                        (org_id, run_uid),
+                        "insert into public.test_runs (org_id, project, source, commit_sha, run_uid)"
+                        " values (%s, %s, %s, %s, %s)"
+                        " on conflict (org_id, run_uid) where run_uid is not null do nothing"
+                        " returning id",
+                        (org_id, project, source, commit_sha, run_uid),
                     )
-                    existing = cur.fetchone()
-                    if existing is not None:
-                        summary = existing["summary"] or {}
+                    inserted = cur.fetchone()
+                    if inserted is None:
+                        # entrega duplicada concurrente o reintento → devolver el run existente
+                        cur.execute(
+                            "select id, summary from public.test_runs"
+                            " where org_id = %s and run_uid = %s",
+                            (org_id, run_uid),
+                        )
+                        existing = cur.fetchone()
+                        summary = (existing["summary"] if existing else None) or {}
                         return {
                             "run_id": str(existing["id"]),
                             "ingested": summary.get("ingested", 0),
@@ -265,13 +274,14 @@ class AssuranceRepository:
                             "snapshots_saved": summary.get("snapshots_saved", 0),
                             "deduplicated": True,
                         }
-
-                cur.execute(
-                    "insert into public.test_runs (org_id, project, source, commit_sha, run_uid)"
-                    " values (%s, %s, %s, %s, %s) returning id",
-                    (org_id, project, source, commit_sha, run_uid),
-                )
-                run_id = cur.fetchone()["id"]
+                    run_id = inserted["id"]
+                else:
+                    cur.execute(
+                        "insert into public.test_runs (org_id, project, source, commit_sha, run_uid)"
+                        " values (%s, %s, %s, %s, %s) returning id",
+                        (org_id, project, source, commit_sha, run_uid),
+                    )
+                    run_id = cur.fetchone()["id"]
 
                 for item in items:
                     if self._match_and_insert_failure(cur, org_id=org_id, run_id=run_id, item=item):
