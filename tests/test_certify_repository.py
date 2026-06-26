@@ -75,7 +75,7 @@ def test_save_certificate_non_member_rejected(repos, org):
 def test_signature_survives_jsonb_roundtrip(repos, org):
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-    from src.certify.certificate import build_certificate
+    from src.certify.certificate import build_certificate, compute_self_eval
     from src.certify.signing import canonical_json, sign, verify
     crepo, _ = repos
     u, o, r = org["user_id"], org["org_id"], org["run_id"]
@@ -84,11 +84,15 @@ def test_signature_survives_jsonb_roundtrip(repos, org):
                                   serialization.NoEncryption()).decode()
     pub_pem = priv.public_key().public_bytes(
         serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo).decode()
+    _verdicts = [{"failure_id": "f1", "category": "real", "confidence": 0.93333333333,
+                  "rule_applied": "R5_real_novel", "requires_approval": False}]
+    _se = compute_self_eval(calibration={"tenant_accuracy": 0.9, "n_corrections": 150},
+                            verdicts=_verdicts, created_at="2026-06-25T00:00:00Z")
     cert = build_certificate(
         run={"org_id": o, "project": "web", "commit_sha": "sha-cert", "run_id": r},
-        verdicts=[{"failure_id": "f1", "category": "real", "confidence": 0.93333333333,
-                   "rule_applied": "R5_real_novel", "requires_approval": False}],
-        sign_offs=[], mnemo_version="0.4.0", model_version="m", created_at="2026-06-25T00:00:00Z")
+        verdicts=_verdicts,
+        sign_offs=[], mnemo_version="0.4.0", model_version="m", created_at="2026-06-25T00:00:00Z",
+        self_eval=_se)
     sig = sign(canonical_json(cert), priv_pem)
     crepo.save_certificate(user_id=u, org_id=o, run_id=r, canonical_json=cert, signature=sig,
                            verdict=cert["verdict"], risk_score=cert["risk_score"],

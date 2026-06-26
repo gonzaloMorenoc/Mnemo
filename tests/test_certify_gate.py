@@ -5,9 +5,10 @@ import pytest
 from src.certify.gate import GateService
 
 
-def _service(*, meta, verdicts, codehost=None):
+def _service(*, meta, verdicts, codehost=None, calibration=None):
     repo = MagicMock()
     repo.get_triage_for_run.return_value = verdicts
+    repo.get_calibration_metrics.return_value = calibration  # None → or {} → confidence "low"
     cert_repo = MagicMock()
     cert_repo.get_run_meta.return_value = meta
     codehost = codehost or MagicMock()
@@ -40,7 +41,9 @@ def test_publish_neutral_for_recurrent_real():
 
 
 def test_publish_success_for_flaky():
-    svc, _, _ = _service(meta=_META, verdicts=[_v("flaky")])
+    # calibración alta para que confidence == "high" y verdicts solo flaky → "apto"
+    cal = {"accuracy": 0.85, "total": 150, "por_categoria": {}}
+    svc, _, _ = _service(meta=_META, verdicts=[_v("flaky")], calibration=cal)
     assert svc.publish(user_id="u", run_id="r")["conclusion"] == "success"
 
 

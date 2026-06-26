@@ -1,6 +1,6 @@
 from typing import Any, Dict, Optional
 
-from src.certify.certificate import build_certificate
+from src.certify.certificate import build_certificate, compute_self_eval
 from src.certify.signing import canonical_json, sign
 
 
@@ -23,11 +23,18 @@ class CertificateService:
         verdicts = self.repo.get_triage_for_run(user_id=user_id, run_id=run_id)
         if not verdicts:
             raise ValueError("run sin veredictos de triaje")
+        raw_cal = self.repo.get_calibration_metrics(user_id=user_id, org_id=meta["org_id"]) or {}
+        calibration = {
+            "tenant_accuracy": raw_cal.get("accuracy", 0.0),
+            "n_corrections": raw_cal.get("total", 0),
+            "por_categoria_humana": raw_cal.get("por_categoria", {}),
+        }
+        self_eval = compute_self_eval(calibration=calibration, verdicts=verdicts, created_at=created_at)
         cert = build_certificate(
             run={"org_id": meta["org_id"], "project": meta["project"],
                  "commit_sha": meta["commit_sha"], "run_id": run_id},
             verdicts=verdicts, sign_offs=[], mnemo_version=self._mnemo_version,
-            model_version=self._model_version, created_at=created_at,
+            model_version=self._model_version, created_at=created_at, self_eval=self_eval,
         )
         canonical = canonical_json(cert)
         signature = sign(canonical, self._private_key)  # SigningKeyMissing si falta

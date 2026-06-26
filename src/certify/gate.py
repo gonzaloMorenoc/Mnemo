@@ -1,6 +1,6 @@
 from typing import Any, Callable, Dict, List, Tuple
 
-from src.certify.certificate import compute_verdict
+from src.certify.certificate import compute_confidence, compute_verdict
 
 _CONCLUSION = {"no-apto": "failure", "apto-con-reservas": "neutral", "apto": "success"}
 _CATEGORIES = ("real", "flaky", "maintenance", "infra", "unknown")
@@ -40,7 +40,10 @@ class GateService:
         verdicts = self.repo.get_triage_for_run(user_id=user_id, run_id=run_id)
         if not verdicts:
             raise ValueError("run sin veredictos de triaje")
-        verdict = compute_verdict(verdicts)
+        raw_cal = self.repo.get_calibration_metrics(user_id=user_id, org_id=meta["org_id"]) or {}
+        confidence = compute_confidence({"tenant_accuracy": raw_cal.get("accuracy", 0.0),
+                                         "n_corrections": raw_cal.get("total", 0)})
+        verdict = compute_verdict(verdicts, confidence=confidence)
         conclusion = _CONCLUSION[verdict]
         title, summary = _render_output(verdict, verdicts)
         codehost = self.codehost_factory(meta["org_id"], user_id)
