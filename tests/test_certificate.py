@@ -63,13 +63,26 @@ def test_low_confidence_self_eval_downgrades_cert_verdict():
                              created_at="2026-06-26T00:00:00Z", self_eval=se)
     assert cert["verdict"] == "apto-con-reservas"
 
-def test_self_eval_includes_ai_eval_and_low_faithfulness_forces_low_confidence():
+def test_self_eval_includes_ai_eval_but_does_not_modulate_confidence():
     from src.certify.certificate import compute_self_eval
-    cal = {"tenant_accuracy": 0.9, "n_corrections": 200}   # de por sí "high"
+    cal = {"tenant_accuracy": 0.9, "n_corrections": 200}   # determinista: "high"
     ai = {"method": "llm_judge", "faithfulness": 0.3, "groundedness": 0.4, "n": 2, "evaluated_at": "t"}
     se = compute_self_eval(calibration=cal, verdicts=[{"llm_assisted": True}], created_at="t", ai_eval=ai)
-    assert se["ai_eval"] == ai
-    assert se["confidence"] == "low"   # IA poco fiel → degrada aunque la calibración sea alta
+    assert se["ai_eval"] == ai                 # ai_eval sigue presente (informativo, firmado)
+    assert se["confidence"] == "high"          # NO lo degrada: el confidence es el determinista
+
+
+def test_verdict_identical_with_and_without_ai_eval():
+    from src.certify.certificate import compute_self_eval, compute_verdict
+    cal = {"tenant_accuracy": 0.9, "n_corrections": 200}        # "high"
+    verdicts = [{"category": "flaky", "llm_assisted": True}]    # sin real/maintenance/approval → apto si confidence high
+    se_none = compute_self_eval(calibration=cal, verdicts=verdicts, created_at="t", ai_eval=None)
+    ai_bad = {"faithfulness": 0.1, "groundedness": 0.1, "n": 1}
+    se_ai = compute_self_eval(calibration=cal, verdicts=verdicts, created_at="t", ai_eval=ai_bad)
+    assert se_none["confidence"] == se_ai["confidence"] == "high"        # ai_eval no modula
+    v_none = compute_verdict(verdicts, confidence=se_none["confidence"])
+    v_ai = compute_verdict(verdicts, confidence=se_ai["confidence"])
+    assert v_none == v_ai == "apto"                                       # veredicto reproducible
 
 def test_self_eval_ai_eval_none_keeps_deterministic_confidence():
     from src.certify.certificate import compute_self_eval
