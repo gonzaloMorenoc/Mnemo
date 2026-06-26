@@ -119,7 +119,8 @@ class ActionRepository:
                     "  approved_by = %s, approved_at = now()"
                     " where a.id = %s and a.status = 'proposed'"
                     "   and exists (select 1 from public.memberships m"
-                    "     where m.org_id = a.org_id and m.user_id = %s)",
+                    "     where m.org_id = a.org_id and m.user_id = %s"
+                    "       and m.role in ('owner','admin'))",
                     (user_id, action_id, user_id),
                 )
                 ok = cur.rowcount > 0
@@ -135,7 +136,8 @@ class ActionRepository:
                     " set status = 'materialized', artifact_ref = %s, materializing_at = null"
                     " where a.id = %s and a.status = 'materializing'"
                     "   and exists (select 1 from public.memberships m"
-                    "     where m.org_id = a.org_id and m.user_id = %s)",
+                    "     where m.org_id = a.org_id and m.user_id = %s"
+                    "       and m.role in ('owner','admin'))",
                     (artifact_ref, action_id, user_id),
                 )
                 ok = cur.rowcount > 0
@@ -153,7 +155,8 @@ class ActionRepository:
                     "        or (a.status = 'materializing'"
                     "            and a.materializing_at < now() - interval '15 minutes'))"
                     "   and exists (select 1 from public.memberships m"
-                    "     where m.org_id = a.org_id and m.user_id = %s)",
+                    "     where m.org_id = a.org_id and m.user_id = %s"
+                    "       and m.role in ('owner','admin'))",
                     (action_id, user_id),
                 )
                 ok = cur.rowcount > 0
@@ -168,7 +171,8 @@ class ActionRepository:
                     "update public.actions a set status = 'approved', materializing_at = null"
                     " where a.id = %s and a.status = 'materializing'"
                     "   and exists (select 1 from public.memberships m"
-                    "     where m.org_id = a.org_id and m.user_id = %s)",
+                    "     where m.org_id = a.org_id and m.user_id = %s"
+                    "       and m.role in ('owner','admin'))",
                     (action_id, user_id),
                 )
                 ok = cur.rowcount > 0
@@ -183,7 +187,8 @@ class ActionRepository:
                     "update public.actions a set status = 'rejected', reject_reason = %s"
                     " where a.id = %s and a.status = 'proposed'"
                     "   and exists (select 1 from public.memberships m"
-                    "     where m.org_id = a.org_id and m.user_id = %s)",
+                    "     where m.org_id = a.org_id and m.user_id = %s"
+                    "       and m.role in ('owner','admin'))",
                     (reason, action_id, user_id),
                 )
                 ok = cur.rowcount > 0
