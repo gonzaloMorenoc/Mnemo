@@ -42,3 +42,10 @@ def test_degrades_without_test_source():
 
 def test_degrades_without_llm():
     assert AIRepairActuator(_Boom()).propose(_VERDICT, _CTX) is None
+
+
+def test_degrades_when_confidence_low():
+    blk = "await expect(page).toHaveTitle('Old');"
+    new = "await expect(page).toHaveTitle('New');"
+    out = '{"old_block":"%s","new_block":"%s","explanation":"x","confidence":0.2,"citations":[]}' % (blk, new)
+    assert AIRepairActuator(_Provider(out)).propose(_VERDICT, _CTX) is None

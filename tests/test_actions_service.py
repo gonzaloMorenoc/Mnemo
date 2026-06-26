@@ -224,9 +224,6 @@ def test_maintenance_uses_selfheal_context():
 
 
 def test_maintenance_falls_back_to_ai_repair_when_deterministic_returns_none():
-    from unittest.mock import MagicMock
-    from src.actions.service import ActionService
-    from src.actions.base import ActionProposal
     repo = MagicMock()
     repo.get_run_actionable_verdicts.return_value = [
         {"verdict_id": "v1", "category": "maintenance", "org_id": "o", "failure_id": "f1"}]
@@ -247,9 +244,6 @@ def test_maintenance_falls_back_to_ai_repair_when_deterministic_returns_none():
 
 
 def test_deterministic_cure_skips_ai_repair_and_file_read():
-    from unittest.mock import MagicMock
-    from src.actions.service import ActionService
-    from src.actions.base import ActionProposal
     repo = MagicMock()
     repo.get_run_actionable_verdicts.return_value = [
         {"verdict_id": "v1", "category": "maintenance", "org_id": "o", "failure_id": "f1"}]
@@ -272,3 +266,29 @@ def test_self_heal_body_ai_repair_note():
                             "reasoning": "r", "ai_repair": True})
     assert "no auto-validado" in body.lower() or "no validado" in body.lower()
     assert "IA" in body
+
+
+def test_ai_repair_proposal_materializes_via_open_draft_pr():
+    action = {
+        "id": "a5", "org_id": "o", "kind": "self_heal", "status": "approved",
+        "summary": "Reparación IA: t.spec.ts",
+        "payload": {
+            "file": "t.spec.ts",
+            "broken_locator": "OLD",
+            "suggested_locator": "NEW",
+            "reasoning": "r",
+            "ai_repair": True,
+        },
+    }
+    codehost = MagicMock()
+    codehost.open_draft_pr.return_value = "https://github.com/o/r/pull/42"
+    repo = MagicMock()
+    svc = ActionService(repo=repo, actuators={})
+    ref = svc._materialize(action, codehost)
+    codehost.open_draft_pr.assert_called_once()
+    kw = codehost.open_draft_pr.call_args.kwargs
+    assert kw["file_path"] == "t.spec.ts"
+    assert kw["old_str"] == "OLD"
+    assert kw["new_str"] == "NEW"
+    assert "no auto-validado" in kw["body"].lower()
+    assert ref == "https://github.com/o/r/pull/42"

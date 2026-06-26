@@ -10,7 +10,7 @@ _CATEGORIES = ("quarantine", "ticket", "self_heal")
 
 def _self_heal_body(payload: Dict[str, Any]) -> str:
     if payload.get("ai_repair"):
-        head = (
+        return (
             "**Reparación propuesta por IA** (Mnemo Autopilot, Nivel 2).\n\n"
             f"- Archivo: `{payload.get('file', '')}`\n"
             f"- Bloque actual: `{payload.get('broken_locator', '')}`\n"
@@ -20,7 +20,6 @@ def _self_heal_body(payload: Dict[str, Any]) -> str:
             "humano deben verificarlo antes de fusionar; puede enmascarar una regresión real.\n\n"
             "> PR borrador automático — requiere revisión humana; nunca auto-merge."
         )
-        return head
     return (
         "**Self-heal de locator** (Mnemo Autopilot, Nivel 2).\n\n"
         f"- Locator roto: `{payload.get('broken_locator', '')}`\n"

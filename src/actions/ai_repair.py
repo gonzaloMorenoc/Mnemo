@@ -4,7 +4,9 @@ from src.actions.base import ActionProposal
 from src.ai.generate import generate_structured
 
 _REPAIR_SCHEMA = {"old_block": "", "new_block": "", "explanation": "",
-                  "confidence": 0.0, "citations": []}
+                  "confidence": 0.0, "citations": ()}
+
+_MIN_CONFIDENCE = 0.5
 
 _PROMPT = (
     "Eres un ingeniero de QA. Un test de Playwright/TS falla por mantenimiento (no es solo un "
@@ -39,8 +41,13 @@ class AIRepairActuator:
                 return None
             old_block = res.get("old_block") or ""
             new_block = res.get("new_block") or ""
-            if not old_block or old_block not in source or old_block == new_block:
-                return None   # parche no aplicable / inútil → degrada
+            try:
+                conf = float(res.get("confidence"))
+            except (TypeError, ValueError):
+                conf = 0.0
+            if (not old_block or old_block not in source or old_block == new_block
+                    or conf < _MIN_CONFIDENCE):
+                return None   # parche no aplicable / inútil / poco fiable → degrada
             return ActionProposal(
                 kind="self_heal",
                 payload={"file": file, "broken_locator": old_block, "suggested_locator": new_block,
