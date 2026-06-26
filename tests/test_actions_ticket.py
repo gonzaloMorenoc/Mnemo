@@ -65,3 +65,18 @@ def test_ticket_rule_degrades_when_absent():
     v = _verdict(evidence_bundle={"family_id": "fam-1", "lineage_projects": []})
     p = TicketActuator(MagicMock()).propose(v, _ctx(root_cause="ya"))
     assert "regla desconocida" in p.payload["body"]
+
+
+def test_ticket_passes_lineage_to_analyzer():
+    from unittest.mock import MagicMock
+    from src.actions.ticket import TicketActuator
+    analyzer = MagicMock()
+    analyzer.analyze.return_value = "## Causa raíz\n500\n\n_Evidencia citada: failure:fl1_"
+    act = TicketActuator(analyzer)
+    verdict = {"confidence": 0.9, "evidence_bundle": {"lineage_projects": ["beta", "gamma"], "rule_applied": "R4"}}
+    context = {"test_name": "t_checkout", "family": {}, "failures": [{"id": "fl1"}]}
+    proposal = act.propose(verdict, context)
+    # el analyzer recibió el linaje
+    assert analyzer.analyze.call_args.kwargs.get("lineage") == ["beta", "gamma"]
+    # y el body lleva el análisis rico (con la cita)
+    assert "failure:fl1" in proposal.payload["body"]

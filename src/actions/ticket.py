@@ -24,6 +24,9 @@ class TicketActuator:
         root_cause = family.get("root_cause")
         if not root_cause and failures:
             try:
+                root_cause = self._analyzer.analyze(family, failures, lineage=lineage)
+            except TypeError:
+                # analyzer sin soporte de lineage (compat) → llamada antigua
                 root_cause = self._analyzer.analyze(family, failures)
             except Exception:  # noqa: BLE001 — degrada; el ticket se propone igual
                 root_cause = None

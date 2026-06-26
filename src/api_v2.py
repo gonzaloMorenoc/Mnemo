@@ -225,8 +225,8 @@ class _LazyRootCauseAnalyzer:
     singleton: una mala config del LLM degrada el ticket ('no disponible') en vez de
     tumbar el servicio de acciones con un 500."""
 
-    def analyze(self, family, failures):
-        return get_root_cause_analyzer().analyze(family, failures)
+    def analyze(self, family, failures, **kwargs):
+        return get_root_cause_analyzer().analyze(family, failures, **kwargs)
 
 
 class _LazySelfHealExplainer:
