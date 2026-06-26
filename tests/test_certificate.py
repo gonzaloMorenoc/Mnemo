@@ -98,3 +98,32 @@ def test_signature_covers_self_eval():
     assert verify(canonical_json(cert), sig, pub) is True
     cert["self_eval"]["confidence"] = "low"   # tamper
     assert verify(canonical_json(cert), sig, pub) is False
+
+
+def test_signature_covers_ai_eval():
+    """Mutating ai_eval inside self_eval must invalidate the signature."""
+    priv, pub = _keys()
+    verdicts = [{"category": "real", "requires_approval": False, "rule_applied": "R6_ambiguous",
+                 "llm_assisted": True, "failure_id": "f1", "confidence": 0.9}]
+    ai_eval = {
+        "method": "llm_judge",
+        "faithfulness": 0.9,
+        "groundedness": 0.9,
+        "n": 1,
+        "evaluated_at": "t",
+    }
+    se = compute_self_eval(
+        calibration={"tenant_accuracy": 0.9, "n_corrections": 200},
+        verdicts=verdicts,
+        created_at="2026-06-26T00:00:00Z",
+        ai_eval=ai_eval,
+    )
+    cert = build_certificate(
+        run={"org_id": "o", "project": "p", "commit_sha": "s", "run_id": "r"},
+        verdicts=verdicts, sign_offs=[], mnemo_version="1.0", model_version="x",
+        created_at="2026-06-26T00:00:00Z", self_eval=se,
+    )
+    sig = sign(canonical_json(cert), priv)
+    assert verify(canonical_json(cert), sig, pub) is True
+    cert["self_eval"]["ai_eval"]["faithfulness"] = 0.1   # tamper
+    assert verify(canonical_json(cert), sig, pub) is False
