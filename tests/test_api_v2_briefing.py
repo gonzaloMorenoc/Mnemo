@@ -1,13 +1,15 @@
 """Tests for GET /v2/runs/{run_id}/briefing.
 
 Dependency-override pattern mirrors tests/test_api_v2_defects_ask.py.
-All three key invariants are tested:
+All key invariants tested:
 - verdict comes from the certificate, NOT the LLM
 - 404 when the run doesn't exist (get_run_assurance_data → run: None)
 - "sin certificar" when get_certificate returns None
+- endpoint degrades to 200 when LLM raises (real patch, not inert override)
+- cert verdict wins even when an active LLM produces a different verdict_line
 """
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import FastAPI
@@ -27,19 +29,14 @@ def _run_data():
             "families": []}
 
 
-class _FakeProvider:
-    """Stub LLM provider: returns a fixed briefing JSON without loading any model."""
-
-    def complete(self, prompt: str) -> str:
-        return (
-            '{"summary":"s","verdict_line":"v","highlights":["h1"],'
-            '"recommendation":"r","citations":["cert"]}'
-        )
-
-
 @pytest.fixture
 def client_and_mocks():
-    """Build a TestClient with mocked repos; returns (client, namespace(assurance, cert, actions))."""
+    """Build a TestClient with mocked repos; returns (client, namespace(assurance, cert, actions)).
+
+    Note: get_llm_provider is NOT overridden via dependency_overrides — that override is inert
+    because the endpoint calls it as a direct function, not via Depends. Individual tests that need
+    to control the LLM use unittest.mock.patch("src.api_v2.get_llm_provider", ...).
+    """
     assurance_repo = MagicMock()
     cert_repo = MagicMock()
     actions_repo = MagicMock()
@@ -50,8 +47,6 @@ def client_and_mocks():
     app.dependency_overrides[api_v2.get_assurance_repo] = lambda: assurance_repo
     app.dependency_overrides[api_v2.get_certificate_repo] = lambda: cert_repo
     app.dependency_overrides[api_v2.get_action_repo] = lambda: actions_repo
-    # Stub LLM provider so no model is loaded; endpoint still degrades gracefully anyway
-    app.dependency_overrides[api_v2.get_llm_provider] = lambda: _FakeProvider()
 
     client = TestClient(app)
     mocks = SimpleNamespace(assurance=assurance_repo, cert=cert_repo, actions=actions_repo)
@@ -59,13 +54,28 @@ def client_and_mocks():
 
 
 def test_briefing_verdict_comes_from_certificate_not_llm(client_and_mocks):
+    """Cert verdict ('apto') must win; the LLM returns a different verdict_line ('NO-APTO-LLM')
+    but the response must expose the cert value, not the LLM value."""
     client, mocks = client_and_mocks
     mocks.assurance.get_run_assurance_data.return_value = _run_data()
-    mocks.cert.get_certificate.return_value = {"verdict": "apto", "risk_score": 0.1, "canonical_json": "{}"}
+    mocks.cert.get_certificate.return_value = {"verdict": "apto", "risk_score": 0.1,
+                                                "canonical_json": "{}"}
     mocks.actions.list_actions_for_run.return_value = []
-    r = client.get("/v2/runs/r1/briefing")
+
+    class _LLMWithDifferentVerdict:
+        def complete(self, prompt: str) -> str:
+            return (
+                '{"summary":"s","verdict_line":"NO-APTO-LLM","highlights":["h1"],'
+                '"recommendation":"r","citations":["cert"]}'
+            )
+
+    with patch("src.api_v2.get_llm_provider", return_value=_LLMWithDifferentVerdict()):
+        r = client.get("/v2/runs/r1/briefing")
+
     assert r.status_code == 200
-    assert r.json()["verdict"] == "apto"   # from the certificate, NOT the LLM
+    body = r.json()
+    assert body["verdict"] == "apto"          # from the certificate
+    assert body["verdict"] != "NO-APTO-LLM"  # not from the LLM
 
 
 def test_briefing_404_when_run_missing(client_and_mocks):
@@ -88,7 +98,8 @@ def test_briefing_response_schema(client_and_mocks):
     """Response contains all expected fields."""
     client, mocks = client_and_mocks
     mocks.assurance.get_run_assurance_data.return_value = _run_data()
-    mocks.cert.get_certificate.return_value = {"verdict": "no-apto", "risk_score": 5, "canonical_json": "{}"}
+    mocks.cert.get_certificate.return_value = {"verdict": "no-apto", "risk_score": 5,
+                                               "canonical_json": "{}"}
     mocks.actions.list_actions_for_run.return_value = [
         {"id": "a1", "kind": "ticket", "summary": "Fix checkout", "triage_verdict_id": "tv1",
          "run_id": "r1", "org_id": "o1", "payload": {}, "status": "proposed",
@@ -104,17 +115,17 @@ def test_briefing_response_schema(client_and_mocks):
 
 
 def test_briefing_degrades_when_llm_down(client_and_mocks):
-    """When LLM is unavailable the endpoint still returns 200 (degraded mode)."""
+    """When get_llm_provider raises (real patch, not inert dependency_override) the endpoint
+    still returns 200 with a non-empty degraded summary and the cert's verdict."""
     client, mocks = client_and_mocks
     mocks.assurance.get_run_assurance_data.return_value = _run_data()
-    mocks.cert.get_certificate.return_value = {"verdict": "apto", "risk_score": 0, "canonical_json": "{}"}
+    mocks.cert.get_certificate.return_value = {"verdict": "apto", "risk_score": 0,
+                                               "canonical_json": "{}"}
     mocks.actions.list_actions_for_run.return_value = []
 
-    # Override get_llm_provider to raise, forcing the endpoint to degrade
-    client.app.dependency_overrides[api_v2.get_llm_provider] = lambda: (_ for _ in ()).throw(
-        RuntimeError("LLM unavailable"))
+    with patch("src.api_v2.get_llm_provider", side_effect=RuntimeError("llm down")):
+        r = client.get("/v2/runs/r1/briefing")
 
-    r = client.get("/v2/runs/r1/briefing")
     assert r.status_code == 200
     body = r.json()
     assert body["verdict"] == "apto"

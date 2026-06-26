@@ -951,12 +951,14 @@ def run_briefing_v2(
     from src.ai.briefing import build_run_data, generate_briefing
     try:
         data = repo.get_run_assurance_data(user_id=user.user_id, run_id=run_id)
+        if data["run"] is None:
+            raise HTTPException(status_code=404, detail="run not found")
+        cert = cert_repo.get_certificate(user_id=user.user_id, run_id=run_id)
+        actions = actions_repo.list_actions_for_run(user_id=user.user_id, run_id=run_id)
+    except HTTPException:
+        raise
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail="Database error") from exc
-    if data["run"] is None:
-        raise HTTPException(status_code=404, detail="run not found")
-    cert = cert_repo.get_certificate(user_id=user.user_id, run_id=run_id)
-    actions = actions_repo.list_actions_for_run(user_id=user.user_id, run_id=run_id)
     run_data = build_run_data(assurance=data, certificate=cert, actions=actions)
     try:
         provider = get_llm_provider()
