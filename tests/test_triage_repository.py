@@ -3,6 +3,7 @@ import uuid
 
 import psycopg
 import pytest
+from psycopg.rows import dict_row
 
 pytestmark = pytest.mark.integration
 
@@ -416,8 +417,6 @@ def test_get_triage_inputs_wrong_org_isolation(repo, org):
 # Task 2 (F5a): triage_corrections + get_calibration_metrics
 # ---------------------------------------------------------------------------
 
-import uuid as _uuid
-
 
 @pytest.mark.integration
 def test_set_family_label_records_correction(assurance_repo, seeded_family):
@@ -437,14 +436,14 @@ def test_set_family_label_records_correction(assurance_repo, seeded_family):
 @pytest.mark.integration
 def test_set_family_label_non_member_returns_false(assurance_repo, seeded_family):
     repo, ctx = assurance_repo, seeded_family
-    assert repo.set_family_label(user_id=str(_uuid.uuid4()), family_id=ctx["family_id"],
+    assert repo.set_family_label(user_id=str(uuid.uuid4()), family_id=ctx["family_id"],
                                  label="flaky") is False
 
 
 @pytest.mark.integration
 def test_get_calibration_metrics_non_member_is_none(assurance_repo, seeded_family):
     repo, ctx = assurance_repo, seeded_family
-    assert repo.get_calibration_metrics(user_id=str(_uuid.uuid4()), org_id=ctx["org_id"]) is None
+    assert repo.get_calibration_metrics(user_id=str(uuid.uuid4()), org_id=ctx["org_id"]) is None
 
 
 @pytest.mark.integration
@@ -458,10 +457,9 @@ def test_set_family_label_invalid_label_raises(assurance_repo, seeded_family):
 # Task 3 (A3 + A4): métrica del foso honesta + firma exacta sin centroide
 # ---------------------------------------------------------------------------
 
-from psycopg.rows import dict_row as _dict_row
-
 
 def _set_recent_verdict(ctx: dict, *, category: str, llm_assisted: bool) -> None:
+    # rule_applied es irrelevante aquí; solo category/llm_assisted determinan engine_category
     """Inserta (o reemplaza el último) un triage_verdict para la familia del fixture.
 
     El fixture seeded_family ya sembró un failure y un veredicto; aquí insertamos
@@ -489,7 +487,7 @@ def _set_recent_verdict(ctx: dict, *, category: str, llm_assisted: bool) -> None
 
 def _last_correction(family_id: str) -> dict:
     """Devuelve la corrección más reciente de triage_corrections para la familia."""
-    with psycopg.connect(DBURL, row_factory=_dict_row) as conn:
+    with psycopg.connect(DBURL, row_factory=dict_row) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 "select * from public.triage_corrections"
@@ -527,12 +525,10 @@ def test_engine_category_is_verdict_when_not_llm(assurance_repo, seeded_family):
 def test_query_candidates_returns_null_centroid_family(assurance_repo, org):
     """Una familia con firma exacta pero centroid NULL debe ser devuelta por
     _query_candidates para evitar duplicados que romperían uq_defect_families_org_signature."""
-    import uuid as _uuid2
-    from psycopg.rows import dict_row as _dr2
-    from pgvector.psycopg import register_vector as _rv
+    from pgvector.psycopg import register_vector
     repo = assurance_repo
     u, o = org["user_id"], org["org_id"]
-    sig = f"null-centroid-{_uuid2.uuid4().hex[:8]}"
+    sig = f"null-centroid-{uuid.uuid4().hex[:8]}"
 
     # Insertar familia con centroid NULL
     with psycopg.connect(DBURL) as conn:
@@ -547,8 +543,8 @@ def test_query_candidates_returns_null_centroid_family(assurance_repo, org):
         conn.commit()
 
     # Llamar _query_candidates con la firma exacta → debe devolver la familia
-    with psycopg.connect(DBURL, row_factory=_dr2) as conn:
-        _rv(conn)
+    with psycopg.connect(DBURL, row_factory=dict_row) as conn:
+        register_vector(conn)
         with conn.cursor() as cur:
             candidates = repo._query_candidates(
                 cur, org_id=o, fingerprint=sig, embedding=[0.0] * 384

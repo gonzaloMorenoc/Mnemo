@@ -34,10 +34,10 @@ create index if not exists idx_certificates_org on public.certificates (org_id);
 
 -- A9: ivfflat parciales (el índice ya no almacena filas con NULL).
 drop index if exists public.idx_failures_embedding;
-create index idx_failures_embedding on public.failures
+create index if not exists idx_failures_embedding on public.failures
     using ivfflat (embedding vector_cosine_ops) with (lists = 100)
     where embedding is not null;
 drop index if exists public.idx_families_centroid;
-create index idx_families_centroid on public.defect_families
+create index if not exists idx_families_centroid on public.defect_families
     using ivfflat (centroid vector_cosine_ops) with (lists = 100)
     where centroid is not null;
