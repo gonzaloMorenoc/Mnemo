@@ -1,6 +1,7 @@
-from src.certify.certificate import build_certificate, compute_verdict
+from src.certify.certificate import build_certificate, compute_self_eval, compute_verdict
 
 _RUN = {"org_id": "o", "project": "web", "commit_sha": "abc123", "run_id": "r1"}
+_HIGH_CALIBRATION = {"tenant_accuracy": 0.9, "n_corrections": 200}
 
 
 def _v(category, *, rule="", approval=False, conf=0.9, fid="f1"):
@@ -15,8 +16,11 @@ def _vv(category, *, rule="", approval=False):
 
 
 def _cert(verdicts):
+    se = compute_self_eval(calibration=_HIGH_CALIBRATION, verdicts=verdicts,
+                           created_at="2026-06-25T00:00:00Z")
     return build_certificate(run=_RUN, verdicts=verdicts, sign_offs=[],
-                             mnemo_version="0.4.0", model_version="llama3", created_at="2026-06-25T00:00:00Z")
+                             mnemo_version="0.4.0", model_version="llama3",
+                             created_at="2026-06-25T00:00:00Z", self_eval=se)
 
 
 def test_no_apto_on_novel_real_high_confidence():
@@ -43,7 +47,7 @@ def test_breakdown_and_identity_and_evidence():
     c = _cert([_v("real", rule="R4_real_recurrent", fid="fa"), _v("flaky", fid="fb")])
     assert c["breakdown"]["real"] == 1 and c["breakdown"]["flaky"] == 1
     assert c["identity"]["commit_sha"] == "abc123" and c["identity"]["mnemo_version"] == "0.4.0"
-    assert c["schema"] == "mnemo.cert.v1" and c["sign_offs"] == [] and c["self_eval"] is None
+    assert c["schema"] == "mnemo.cert.v2" and c["sign_offs"] == [] and c["self_eval"] is not None
     assert {e["failure_id"] for e in c["evidence"]} == {"fa", "fb"}
 
 
