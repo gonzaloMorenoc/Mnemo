@@ -2,6 +2,13 @@ from typing import Any, Dict, List
 
 _CATEGORIES = ("real", "flaky", "maintenance", "infra", "unknown")
 
+_DISCLAIMER = (
+    "Este certificado es un acta de evidencia reproducible: registra los fallos observados, "
+    "la evaluación del motor de triaje (determinista, auditable) y las aprobaciones humanas. "
+    "La 'evaluación' es una señal asistida, no una garantía de ausencia de defectos ni una "
+    "certificación de aptitud legal."
+)
+
 _COLD_START_MIN_CORRECTIONS = 30
 _LOW_ACCURACY = 0.60
 _HIGH_MIN_CORRECTIONS = 100
@@ -56,9 +63,10 @@ def compute_verdict(verdicts: List[Dict[str, Any]], confidence: str = "high") ->
 
 def build_certificate(*, run: Dict[str, Any], verdicts: List[Dict[str, Any]],
                       sign_offs: List[Dict[str, Any]], mnemo_version: str,
-                      model_version: str, created_at: str) -> Dict[str, Any]:
+                      model_version: str, created_at: str,
+                      self_eval: Dict[str, Any]) -> Dict[str, Any]:
     """Certificado determinista de un run a partir de sus veredictos de triaje.
-    Puro: el timestamp se inyecta (created_at)."""
+    Puro: el timestamp se inyecta (created_at). Schema v2: acta de evidencia con self_eval firmado."""
     breakdown = {c: 0 for c in _CATEGORIES}
     for v in verdicts:
         cat = v.get("category")
@@ -75,7 +83,7 @@ def build_certificate(*, run: Dict[str, Any], verdicts: List[Dict[str, Any]],
         and v.get("rule_applied") != "R5_real_novel")
     flaky = breakdown["flaky"]
 
-    verdict = compute_verdict(verdicts)
+    verdict = compute_verdict(verdicts, confidence=self_eval["confidence"])
 
     risk_score = min(100, 40 * reales_novel_sin_approval + 20 * pendientes_approval
                      + 10 * reales_recurrentes + 2 * flaky)
@@ -87,7 +95,9 @@ def build_certificate(*, run: Dict[str, Any], verdicts: List[Dict[str, Any]],
         for v in verdicts
     ]
     return {
-        "schema": "mnemo.cert.v1",
+        "schema": "mnemo.cert.v2",
+        "attestation_type": "evidence_and_assessment",
+        "disclaimer": _DISCLAIMER,
         "identity": {"org_id": run["org_id"], "project": run["project"],
                      "commit_sha": run.get("commit_sha"), "run_id": run["run_id"],
                      "created_at": created_at, "mnemo_version": mnemo_version,
@@ -97,5 +107,5 @@ def build_certificate(*, run: Dict[str, Any], verdicts: List[Dict[str, Any]],
         "breakdown": breakdown,
         "evidence": evidence,
         "sign_offs": sign_offs,
-        "self_eval": None,
+        "self_eval": self_eval,
     }
