@@ -708,9 +708,10 @@ def root_cause_v2(
         cached = data["family"].get("root_cause")
         if cached and not regenerate:
             return RootCauseResponse(defect_id=defect_id, root_cause=cached, cached=True)
-        text = (analyzer.analyze(data["family"], data["failures"]) or "")[:8000]
-        if not text.strip():
+        r = analyzer.analyze_structured(data["family"], data["failures"])
+        if r.get("confidence", 0.0) == 0.0 and not r.get("citations"):
             raise HTTPException(status_code=503, detail="el análisis IA no produjo resultado")
+        text = analyzer.analyze(data["family"], data["failures"])[:8000]
         repo.save_root_cause(user_id=user.user_id, defect_id=defect_id, text=text)
         return RootCauseResponse(defect_id=defect_id, root_cause=text, cached=False)
     except HTTPException:

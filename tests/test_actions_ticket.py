@@ -68,8 +68,6 @@ def test_ticket_rule_degrades_when_absent():
 
 
 def test_ticket_passes_lineage_to_analyzer():
-    from unittest.mock import MagicMock
-    from src.actions.ticket import TicketActuator
     analyzer = MagicMock()
     analyzer.analyze.return_value = "## Causa raíz\n500\n\n_Evidencia citada: failure:fl1_"
     act = TicketActuator(analyzer)

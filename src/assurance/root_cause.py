@@ -91,16 +91,17 @@ class RootCauseAnalyzer:
                                   provider=provider or self._provider, on_failure="none")
         if out is None:
             return _fallback_rca()
-        # normaliza tipos
+        # normaliza tipos — retorno inmutable (no muta out en el lugar)
         try:
-            out["confidence"] = max(0.0, min(1.0, float(out.get("confidence", 0.0))))
+            conf = max(0.0, min(1.0, float(out.get("confidence", 0.0))))
         except (TypeError, ValueError):
-            out["confidence"] = 0.0
-        if not isinstance(out.get("suggested_fix_steps"), list):
-            out["suggested_fix_steps"] = []
-        if not isinstance(out.get("citations"), list):
-            out["citations"] = []
-        return out
+            conf = 0.0
+        return {
+            **out,
+            "confidence": conf,
+            "suggested_fix_steps": list(out.get("suggested_fix_steps") or []),
+            "citations": list(out.get("citations") or []),
+        }
 
     def analyze(self, family: Dict[str, Any], failures: List[Dict[str, Any]],
                 *, lineage: Optional[List[str]] = None) -> str:
