@@ -65,6 +65,20 @@ class ActionRepository:
     _COLS = ("id, triage_verdict_id, run_id, org_id, kind, payload, summary, status,"
              " artifact_ref, approved_by, approved_at, reject_reason")
 
+    def list_actions_for_run(self, *, user_id: str, run_id: str) -> List[Dict[str, Any]]:
+        """Acciones propuestas de un run (membership vía la propia fila). [] si no es miembro."""
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"select {self._COLS} from public.actions a"
+                    " where a.run_id = %s and exists (select 1 from public.memberships m"
+                    "   where m.org_id = a.org_id and m.user_id = %s)"
+                    " order by a.created_at desc",
+                    (run_id, user_id),
+                )
+                return self._rows(cur)
+
     def get_actions(self, *, user_id: str, org_id: str,
                     status: Optional[str] = None) -> List[Dict[str, Any]]:
         with self._connect() as conn:
