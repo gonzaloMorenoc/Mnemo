@@ -1,6 +1,7 @@
+import re
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class CreateOrgRequest(BaseModel):
@@ -133,6 +134,13 @@ class GitHubConfigRequest(BaseModel):
     org_id: str
     installation_id: str
     repo_full_name: str
+
+    @field_validator("repo_full_name")
+    @classmethod
+    def _valid_repo(cls, v: str) -> str:
+        if not re.match(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$", v):
+            raise ValueError("repo_full_name debe tener el formato 'owner/repo'")
+        return v
 
 
 class GitHubConfigResponse(BaseModel):

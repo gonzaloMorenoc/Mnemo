@@ -43,12 +43,21 @@ class IntegrationsRepository:
         if not cur.fetchone()["ok"]:
             raise PermissionError("user is not a member of the organization")
 
+    def _require_admin(self, cur: psycopg.Cursor, org_id: str, user_id: str) -> None:
+        cur.execute(
+            "select exists(select 1 from public.memberships"
+            " where org_id = %s and user_id = %s and role in ('owner','admin')) as ok",
+            (org_id, user_id),
+        )
+        if not cur.fetchone()["ok"]:
+            raise PermissionError("owner/admin role required to configure integrations")
+
     def upsert_jira_config(self, *, user_id: str, org_id: str, base_url: str,
                            email: str, token: str, jql: str) -> None:
         enc = encrypt_token(token)
         with self._connect() as conn:
             with conn.cursor() as cur:
-                self._require_member(cur, org_id, user_id)
+                self._require_admin(cur, org_id, user_id)
                 cur.execute(
                     """
                     insert into public.org_integrations
@@ -84,7 +93,7 @@ class IntegrationsRepository:
                              installation_id: str, repo_full_name: str) -> None:
         with self._connect() as conn:
             with conn.cursor() as cur:
-                self._require_member(cur, org_id, user_id)
+                self._require_admin(cur, org_id, user_id)
                 cur.execute(
                     """
                     insert into public.org_integrations

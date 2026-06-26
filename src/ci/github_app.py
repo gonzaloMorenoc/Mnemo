@@ -1,5 +1,6 @@
 import base64
 from typing import List, Optional
+from urllib.parse import quote
 
 import requests
 
@@ -101,7 +102,7 @@ class GitHubCodeHost:
 
     def _get_file(self, file_path: str, ref: str):
         resp = self._session.get(
-            f"{_API}/repos/{self._repo}/contents/{file_path}",
+            f"{_API}/repos/{self._repo}/contents/{quote(file_path, safe='/')}",
             params={"ref": ref}, headers=self._headers(), timeout=15,
         )
         if resp.status_code >= 300:
@@ -124,7 +125,7 @@ class GitHubCodeHost:
     def _put_file(self, file_path: str, new_content: str, file_sha: str,
                   branch: str, *, message: str) -> None:
         resp = self._session.put(
-            f"{_API}/repos/{self._repo}/contents/{file_path}",
+            f"{_API}/repos/{self._repo}/contents/{quote(file_path, safe='/')}",
             json={"message": message,
                   "content": base64.b64encode(new_content.encode("utf-8")).decode("utf-8"),
                   "sha": file_sha, "branch": branch},
