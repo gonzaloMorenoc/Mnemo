@@ -73,7 +73,7 @@ class AssuranceRepository:
             """
             select id, signature, centroid
             from public.defect_families
-            where scope = 'org' and org_id = %(org)s and centroid is not null
+            where scope = 'org' and org_id = %(org)s
               and (
                   signature = %(fp)s
                   or id in (
@@ -91,7 +91,7 @@ class AssuranceRepository:
             FamilyCandidate(
                 family_id=str(r["id"]),
                 signature=r["signature"],
-                centroid=list(r["centroid"]),
+                centroid=list(r["centroid"]) if r["centroid"] is not None else None,
             )
             for r in rows
         ]
@@ -853,13 +853,15 @@ class AssuranceRepository:
                 org_id = row["org_id"]
                 if org_id is not None:
                     cur.execute(
-                        "select tv.category from public.triage_verdicts tv"
+                        "select tv.category, tv.llm_assisted from public.triage_verdicts tv"
                         " join public.failures f on f.id = tv.failure_id"
                         " where f.defect_family_id = %s order by tv.created_at desc limit 1",
                         (family_id,),
                     )
                     er = cur.fetchone()
-                    engine_category = er["category"] if er else None
+                    engine_category = (
+                        ("unknown" if er["llm_assisted"] else er["category"]) if er else None
+                    )
                     cur.execute(
                         "insert into public.triage_corrections"
                         " (org_id, family_id, engine_category, human_category, source, reason, corrected_by)"

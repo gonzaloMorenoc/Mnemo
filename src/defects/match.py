@@ -7,7 +7,7 @@ from typing import List, Optional, Sequence
 class FamilyCandidate:
     family_id: str
     signature: str
-    centroid: Sequence[float]
+    centroid: Optional[List[float]] = None
 
 
 @dataclass
@@ -38,6 +38,8 @@ def decide_match(*, fingerprint: str, embedding: Sequence[float],
     best: Optional[FamilyCandidate] = None
     best_score = 0.0
     for cand in candidates:
+        if cand.centroid is None:
+            continue
         score = _cosine(embedding, cand.centroid)
         if score > best_score:
             best, best_score = cand, score
