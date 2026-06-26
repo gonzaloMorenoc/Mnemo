@@ -74,6 +74,14 @@ class GitHubCodeHost:
         pr_body = f"{body}\n\n<!-- {marker} -->" if marker else body
         return self._create_pr(title, pr_body, branch, default_branch)
 
+    def read_file(self, file_path: str) -> Optional[str]:
+        """Lee el contenido de un archivo del repo (rama por defecto). None si no existe/sin acceso."""
+        try:
+            content, _sha = self._get_file(file_path, self._default_branch())
+            return content
+        except Exception:  # noqa: BLE001 — sin acceso/archivo → degrada
+            return None
+
     def _find_pr_by_head(self, owner: str, branch: str) -> Optional[str]:
         resp = self._session.get(
             f"{_API}/repos/{self._repo}/pulls",
