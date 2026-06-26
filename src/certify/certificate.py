@@ -2,8 +2,43 @@ from typing import Any, Dict, List
 
 _CATEGORIES = ("real", "flaky", "maintenance", "infra", "unknown")
 
+_COLD_START_MIN_CORRECTIONS = 30
+_LOW_ACCURACY = 0.60
+_HIGH_MIN_CORRECTIONS = 100
+_HIGH_MIN_ACCURACY = 0.80
 
-def compute_verdict(verdicts: List[Dict[str, Any]]) -> str:
+
+def compute_confidence(calibration: Dict[str, Any]) -> str:
+    """Confianza del motor en este tenant a partir de su calibración acumulada."""
+    n = calibration.get("n_corrections", 0)
+    acc = calibration.get("tenant_accuracy", 0.0)
+    if n < _COLD_START_MIN_CORRECTIONS or acc < _LOW_ACCURACY:
+        return "low"
+    if n >= _HIGH_MIN_CORRECTIONS and acc >= _HIGH_MIN_ACCURACY:
+        return "high"
+    return "medium"
+
+
+def compute_self_eval(*, calibration: Dict[str, Any], verdicts: List[Dict[str, Any]],
+                      created_at: str) -> Dict[str, Any]:
+    """Auto-evaluación determinista del motor (deterministic_v1). Pura."""
+    total = len(verdicts)
+    llm_assisted = sum(1 for v in verdicts if v.get("llm_assisted"))
+    return {
+        "method": "deterministic_v1",
+        "engine_calibration": {
+            "tenant_accuracy": calibration.get("tenant_accuracy", 0.0),
+            "n_corrections": calibration.get("n_corrections", 0),
+            "por_categoria_humana": calibration.get("por_categoria_humana", {}),
+        },
+        "run_composition": {"total": total, "deterministic": total - llm_assisted,
+                            "llm_assisted": llm_assisted},
+        "confidence": compute_confidence(calibration),
+        "evaluated_at": created_at,
+    }
+
+
+def compute_verdict(verdicts: List[Dict[str, Any]], confidence: str = "high") -> str:
     """Veredicto de aseguramiento (política §7.1) sobre los veredictos de triaje.
     Compartido por el certificado (F4a) y el gate (F4b)."""
     reales_novel_sin_approval = sum(
@@ -14,6 +49,8 @@ def compute_verdict(verdicts: List[Dict[str, Any]]) -> str:
         return "no-apto"
     if any(v.get("category") in ("real", "maintenance") for v in verdicts):
         return "apto-con-reservas"
+    if confidence == "low":
+        return "apto-con-reservas"   # baja calibración del motor → no certificar apto rotundo
     return "apto"
 
 
