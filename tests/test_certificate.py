@@ -63,6 +63,28 @@ def test_low_confidence_self_eval_downgrades_cert_verdict():
                              created_at="2026-06-26T00:00:00Z", self_eval=se)
     assert cert["verdict"] == "apto-con-reservas"
 
+def test_self_eval_includes_ai_eval_and_low_faithfulness_forces_low_confidence():
+    from src.certify.certificate import compute_self_eval
+    cal = {"tenant_accuracy": 0.9, "n_corrections": 200}   # de por sí "high"
+    ai = {"method": "llm_judge", "faithfulness": 0.3, "groundedness": 0.4, "n": 2, "evaluated_at": "t"}
+    se = compute_self_eval(calibration=cal, verdicts=[{"llm_assisted": True}], created_at="t", ai_eval=ai)
+    assert se["ai_eval"] == ai
+    assert se["confidence"] == "low"   # IA poco fiel → degrada aunque la calibración sea alta
+
+def test_self_eval_ai_eval_none_keeps_deterministic_confidence():
+    from src.certify.certificate import compute_self_eval
+    cal = {"tenant_accuracy": 0.9, "n_corrections": 200}
+    se = compute_self_eval(calibration=cal, verdicts=[{"llm_assisted": False}], created_at="t", ai_eval=None)
+    assert se["ai_eval"] is None and se["confidence"] == "high"   # #27 intacto
+
+def test_high_faithfulness_does_not_inflate():
+    from src.certify.certificate import compute_self_eval
+    cal = {"tenant_accuracy": 0.0, "n_corrections": 0}   # cold-start → low
+    ai = {"faithfulness": 0.99, "groundedness": 0.99, "n": 1}
+    se = compute_self_eval(calibration=cal, verdicts=[{"llm_assisted": True}], created_at="t", ai_eval=ai)
+    assert se["confidence"] == "low"   # la IA NUNCA infla; el cold-start manda
+
+
 def test_signature_covers_self_eval():
     priv, pub = _keys()
     verdicts = [{"category": "flaky", "requires_approval": False, "rule_applied": "R1", "llm_assisted": False,
