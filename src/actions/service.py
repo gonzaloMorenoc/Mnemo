@@ -15,6 +15,9 @@ def _self_heal_body(payload: Dict[str, Any]) -> str:
         f"- Locator sugerido: `{payload.get('suggested_locator', '')}`\n"
         f"- Archivo: `{payload.get('file', '')}`\n\n"
         f"## Razonamiento\n{payload.get('reasoning', '')}\n\n"
+        "> ⚠️ **Verificar:** si este cambio de UI proviene de un cambio en el código de "
+        "producción, curar el locator podría enmascarar una regresión real. Confirmar que es "
+        "un cambio de UI legítimo antes de aprobar.\n\n"
         "> PR borrador automático — requiere revisión humana; nunca auto-merge."
     )
 
