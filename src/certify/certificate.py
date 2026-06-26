@@ -9,6 +9,7 @@ _DISCLAIMER = (
     "certificación de aptitud legal."
 )
 
+# Umbrales de confianza del motor (spec Bloque A): cold-start y precisión por tenant.
 _COLD_START_MIN_CORRECTIONS = 30
 _LOW_ACCURACY = 0.60
 _HIGH_MIN_CORRECTIONS = 100

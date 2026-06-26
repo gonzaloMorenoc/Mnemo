@@ -5,9 +5,9 @@ from src.certify.certificate import compute_confidence, compute_verdict
 _CONCLUSION = {"no-apto": "failure", "apto-con-reservas": "neutral", "apto": "success"}
 _CATEGORIES = ("real", "flaky", "maintenance", "infra", "unknown")
 _MOTIVO = {
-    "no-apto": "Defecto real novedoso de alta confianza o ítems pendientes de aprobación (Nivel 2).",
-    "apto-con-reservas": "Hay defectos reales recurrentes o mantenimiento; revisar antes de liberar.",
-    "apto": "Todo flaky en cuarentena, curado o infra reconocida.",
+    "no-apto": "El motor evaluó: defecto real sin precedente de alta confianza o ítems pendientes de aprobación (Nivel 2).",
+    "apto-con-reservas": "El motor evaluó: hay defectos reales recurrentes o mantenimiento; revisar antes de liberar.",
+    "apto": "El motor evaluó: todo flaky en cuarentena, curado o infra reconocida.",
 }
 
 
@@ -18,7 +18,7 @@ def _render_output(verdict: str, verdicts: List[Dict[str, Any]]) -> Tuple[str, s
         counts[cat if cat in _CATEGORIES else "unknown"] += 1
     desglose = ", ".join(f"{k}: {n}" for k, n in counts.items() if n) or "sin fallos"
     title = f"Mnemo Assurance: {verdict}"
-    summary = (f"**Veredicto:** {verdict}\n\n**Desglose:** {desglose}\n\n{_MOTIVO[verdict]}")
+    summary = (f"**Evaluación del motor:** {verdict}\n\n**Desglose:** {desglose}\n\n{_MOTIVO[verdict]}")
     return title, summary
 
 

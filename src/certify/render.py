@@ -22,7 +22,7 @@ def render_html(cert: Dict[str, Any], signature: str) -> str:
         f"<td>{'sí' if e.get('requires_approval') else 'no'}</td></tr>"
         for e in cert.get("evidence", [])
     )
-    breakdown = ", ".join(f"{k}: {v}" for k, v in bd.items())
+    breakdown = ", ".join(f"{_e(k)}: {_e(v)}" for k, v in bd.items())
 
     # Disclaimer paragraph
     disclaimer_html = f"<p style='font-size:0.9em;color:#57606a'>{_e(cert.get('disclaimer'))}</p>" if cert.get('disclaimer') else ""
