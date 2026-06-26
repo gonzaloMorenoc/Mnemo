@@ -8,6 +8,13 @@ logger = logging.getLogger(__name__)
 _CATEGORIES = ("quarantine", "ticket", "self_heal")
 
 
+def _sanitize_md(text: str, *, limit: int = 2000) -> str:
+    """Neutraliza el texto del LLM antes de meterlo en el markdown del PR/Issue:
+    rompe fences de código y markers HTML (que podrían colisionar con el marker de Mnemo)."""
+    t = (text or "")[:limit]
+    return t.replace("```", "ʼʼʼ").replace("<!--", "&lt;!--").replace("-->", "--&gt;")
+
+
 def _self_heal_body(payload: Dict[str, Any]) -> str:
     if payload.get("ai_repair"):
         return (
@@ -15,7 +22,7 @@ def _self_heal_body(payload: Dict[str, Any]) -> str:
             f"- Archivo: `{payload.get('file', '')}`\n"
             f"- Bloque actual: `{payload.get('broken_locator', '')}`\n"
             f"- Bloque propuesto: `{payload.get('suggested_locator', '')}`\n\n"
-            f"## Razonamiento\n{payload.get('reasoning', '')}\n\n"
+            f"## Razonamiento\n{_sanitize_md(payload.get('reasoning', ''))}\n\n"
             "> ⚠️ **Parche propuesto por IA — NO auto-validado.** El CI del proyecto y un revisor "
             "humano deben verificarlo antes de fusionar; puede enmascarar una regresión real.\n\n"
             "> PR borrador automático — requiere revisión humana; nunca auto-merge."
@@ -25,7 +32,7 @@ def _self_heal_body(payload: Dict[str, Any]) -> str:
         f"- Locator roto: `{payload.get('broken_locator', '')}`\n"
         f"- Locator sugerido: `{payload.get('suggested_locator', '')}`\n"
         f"- Archivo: `{payload.get('file', '')}`\n\n"
-        f"## Razonamiento\n{payload.get('reasoning', '')}\n\n"
+        f"## Razonamiento\n{_sanitize_md(payload.get('reasoning', ''))}\n\n"
         "> ⚠️ **Verificar:** si este cambio de UI proviene de un cambio en el código de "
         "producción, curar el locator podría enmascarar una regresión real. Confirmar que es "
         "un cambio de UI legítimo antes de aprobar.\n\n"

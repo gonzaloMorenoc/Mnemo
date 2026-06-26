@@ -7,6 +7,7 @@ _REPAIR_SCHEMA = {"old_block": "", "new_block": "", "explanation": "",
                   "confidence": 0.0, "citations": ()}
 
 _MIN_CONFIDENCE = 0.5
+_MAX_SOURCE = 8000
 
 _PROMPT = (
     "Eres un ingeniero de QA. Un test de Playwright/TS falla por mantenimiento (no es solo un "
@@ -34,7 +35,8 @@ class AIRepairActuator:
             error = context.get("error_message") or context.get("message") or ""
             if not source or not file:
                 return None
-            ctx = [{"id": "test_source", "content": source}, {"id": "error", "content": str(error)}]
+            ctx = [{"id": "test_source", "content": source[:_MAX_SOURCE]},
+                   {"id": "error", "content": str(error)[:_MAX_SOURCE]}]
             res = generate_structured(prompt=_PROMPT, context=ctx, schema=_REPAIR_SCHEMA,
                                       provider=self._provider, on_failure="none")
             if res is None:

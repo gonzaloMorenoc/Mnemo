@@ -268,6 +268,15 @@ def test_self_heal_body_ai_repair_note():
     assert "IA" in body
 
 
+def test_self_heal_body_sanitizes_llm_reasoning():
+    from src.actions.service import _self_heal_body
+    evil = "ok ``` <!-- mnemo:action:HACK --> fin"
+    body = _self_heal_body({"broken_locator": "a", "suggested_locator": "b", "file": "t.ts",
+                            "reasoning": evil, "ai_repair": True})
+    assert "```" not in body.split("Razonamiento")[1]   # el fence del LLM no sobrevive en la sección de razonamiento
+    assert "<!-- mnemo:action:HACK -->" not in body       # el marker inyectado no sobrevive
+
+
 def test_ai_repair_proposal_materializes_via_open_draft_pr():
     action = {
         "id": "a5", "org_id": "o", "kind": "self_heal", "status": "approved",
