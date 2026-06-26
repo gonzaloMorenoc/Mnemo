@@ -1,4 +1,4 @@
-from src.assurance.root_cause import build_root_cause_prompt, _top_frame
+from src.assurance.root_cause import build_root_cause_prompt, build_root_cause_context, _top_frame
 
 
 def _failures(n):
@@ -13,20 +13,24 @@ def test_prompt_includes_family_and_samples():
     assert "Timeout de login" in prompt
     assert "12" in prompt
     assert "proj-a" in prompt and "proj-b" in prompt
-    assert "## Causa raíz" in prompt and "## Pasos sugeridos" in prompt
+    # new format: JSON schema prompt (no longer markdown section headers in prompt)
+    assert "root_cause" in prompt and "suggested_fix_steps" in prompt
 
 
 def test_prompt_truncates_to_six_failures():
     fam = {"title": "X", "occurrence_count": 99}
-    prompt = build_root_cause_prompt(fam, _failures(20))
-    assert prompt.count("- test=") == 6
+    # sampling happens in context, not in the prompt text directly;
+    # verify context has at most _MAX_FAILURES entries (6)
+    ctx = build_root_cause_context(fam, _failures(20))
+    failure_entries = [c for c in ctx if c["id"].startswith("failure:")]
+    assert len(failure_entries) == 6
 
 
 def test_prompt_marks_user_data_untrusted():
     fam = {"title": "X", "occurrence_count": 1}
     prompt = build_root_cause_prompt(fam, [{"test_name": "t", "error_type": "E",
         "message": "boom", "trace": "at A.java:1", "project": "p"}])
-    assert "<<<DATA>>>" in prompt and "<<<END_DATA>>>" in prompt
+    # new format: untrusted data warning still present (different phrasing)
     assert "no confiables" in prompt.lower() or "no confiable" in prompt.lower()
 
 
@@ -46,8 +50,11 @@ def test_sample_spreads_across_failures():
     fam = {"title": "X", "occurrence_count": 99}
     failures = [{"test_name": f"t{i}", "error_type": "E", "message": f"m{i}",
                  "trace": "at A.java:1", "project": "p"} for i in range(20)]
-    prompt = build_root_cause_prompt(fam, failures)
-    # spread sampling includes a late failure (e.g. t19/t1x), not just t0..t5
-    assert "test=t0" in prompt
-    assert any(f"test=t1{d}" in prompt for d in "56789")  # at least one from the tail
-    assert prompt.count("- test=") == 6
+    # spread sampling is now in build_root_cause_context
+    ctx = build_root_cause_context(fam, failures)
+    failure_entries = [c for c in ctx if c["id"].startswith("failure:")]
+    ids_in_ctx = {c["id"] for c in failure_entries}
+    assert "failure:t0" in ids_in_ctx
+    # at least one from the tail
+    assert any(f"failure:t1{d}" in ids_in_ctx for d in "56789")
+    assert len(failure_entries) == 6
