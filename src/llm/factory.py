@@ -7,7 +7,7 @@ from src.llm.providers.openai import OpenAIProvider
 _DEFAULT_MODELS = {
     "ollama": "deepseek-r1:8b",
     "openai": "gpt-4o-mini",
-    "anthropic": "claude-3-5-haiku-latest",
+    "anthropic": "claude-haiku-4-5-20251001",
 }
 
 
