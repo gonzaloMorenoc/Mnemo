@@ -15,7 +15,7 @@ cuyo código vive en `src/api_v2.py` + `src/triage/`, `src/actions/`, `src/certi
 
 ## Archivado aquí
 - `DEMO.md` — guion de demo del flujo RAG anterior (no del Autopilot).
-- `seed_demo.py` — seed del flujo anterior.
+- `seed_demo.py` — seed del flujo anterior; todavía importa `src.defects.*` (ingestión del Autopilot), así que no es un artefacto congelado: puede requerir ajustes si cambian esas firmas.
 
 ## Follow-up (no en este PR)
 Extraer un entrypoint limpio del Autopilot (un `app` que monte solo `v2_router`) y mover los
