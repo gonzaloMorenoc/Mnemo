@@ -182,6 +182,25 @@ def test_reject_delegates_to_repo():
     assert svc.reject_action(user_id="u", action_id="a1", reason="dup") is True
 
 
+def test_approve_reverts_to_approved_on_codehost_error():
+    from unittest.mock import MagicMock
+    from src.actions.service import ActionService
+    repo = MagicMock()
+    actions_repo = MagicMock()
+    actions_repo.get_action.return_value = {"id": "a1", "org_id": "o1", "status": "approved",
+                                            "kind": "ticket", "payload": {"title": "t", "body": "b", "labels": []}}
+    actions_repo.mark_materializing.return_value = True
+    codehost = MagicMock()
+    codehost.create_issue.side_effect = RuntimeError("github down")
+    svc = ActionService(repo=repo, actuators={}, actions_repo=actions_repo,
+                        codehost_factory=lambda o, u: codehost)
+    import pytest
+    with pytest.raises(RuntimeError):
+        svc.approve_action(user_id="u", action_id="a1")
+    actions_repo.revert_to_approved.assert_called_once_with(user_id="u", action_id="a1")
+    actions_repo.materialize_action.assert_not_called()
+
+
 def test_maintenance_uses_selfheal_context():
     from unittest.mock import MagicMock
     from src.actions.base import ActionProposal

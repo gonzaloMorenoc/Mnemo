@@ -118,10 +118,40 @@ class ActionRepository:
             with conn.cursor() as cur:
                 cur.execute(
                     "update public.actions a set status = 'materialized', artifact_ref = %s"
-                    " where a.id = %s and a.status = 'approved'"
+                    " where a.id = %s and a.status = 'materializing'"
                     "   and exists (select 1 from public.memberships m"
                     "     where m.org_id = a.org_id and m.user_id = %s)",
                     (artifact_ref, action_id, user_id),
+                )
+                ok = cur.rowcount > 0
+            conn.commit()
+        return ok
+
+    def mark_materializing(self, *, user_id: str, action_id: str) -> bool:
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "update public.actions a set status = 'materializing'"
+                    " where a.id = %s and a.status = 'approved'"
+                    "   and exists (select 1 from public.memberships m"
+                    "     where m.org_id = a.org_id and m.user_id = %s)",
+                    (action_id, user_id),
+                )
+                ok = cur.rowcount > 0
+            conn.commit()
+        return ok
+
+    def revert_to_approved(self, *, user_id: str, action_id: str) -> bool:
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "update public.actions a set status = 'approved'"
+                    " where a.id = %s and a.status = 'materializing'"
+                    "   and exists (select 1 from public.memberships m"
+                    "     where m.org_id = a.org_id and m.user_id = %s)",
+                    (action_id, user_id),
                 )
                 ok = cur.rowcount > 0
             conn.commit()

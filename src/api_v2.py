@@ -80,7 +80,7 @@ from src.tenant_kb import TenantKBRepository
 
 router = APIRouter(prefix="/v2", tags=["v2"])
 
-_ACTION_STATUSES = {"proposed", "approved", "rejected", "materialized"}
+_ACTION_STATUSES = {"proposed", "approved", "rejected", "materialized", "materializing"}
 
 # Singletons perezosos (sin anotacion PEP 604 para compatibilidad <3.10)
 _repo = None
