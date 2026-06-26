@@ -20,9 +20,10 @@ class _StubEmbedder:
 
 
 class _StubProvider:
-    """Stub LLM provider that degrades answer_question to fallback mode."""
+    """Stub LLM provider that raises on complete() to simulate LLM down."""
 
-    pass
+    def complete(self, prompt):
+        raise RuntimeError("LLM unavailable")
 
 
 @pytest.fixture
@@ -54,3 +55,27 @@ def test_ask_empty_when_no_families(client_and_mocks):
     repo.search_families_semantic.return_value = []
     r = client.post("/v2/defects/ask", json={"org_id": "o1", "question": "¿algo?"})
     assert r.status_code == 200 and r.json()["families"] == []
+
+
+def test_ask_degrades_when_llm_down(client_and_mocks):
+    """When LLM provider is down, endpoint returns 200 with families and degraded answer."""
+    client, repo = client_and_mocks
+    repo.search_families_semantic.return_value = [
+        {"family_id": "fam1", "title": "checkout 500", "label": "real",
+         "occurrence_count": 3, "root_cause": "500"},
+        {"family_id": "fam2", "title": "login timeout", "label": "flaky",
+         "occurrence_count": 1, "root_cause": None}
+    ]
+    # Override get_llm_provider to raise an exception
+    import src.api_v2 as api_v2
+    client.app.dependency_overrides[api_v2.get_llm_provider] = lambda: _StubProvider()
+
+    r = client.post("/v2/defects/ask", json={"org_id": "o1", "question": "¿qué rompe checkout?"})
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body["families"]) == 2
+    assert "checkout 500" in body["answer"]  # degraded fallback mentions family title
+    assert body["citations"] == ["fam1", "fam2"]  # cites the found families
+
+    # Clean up override
+    del client.app.dependency_overrides[api_v2.get_llm_provider]
