@@ -54,6 +54,7 @@ def test_semantic_search_orders_by_similarity(org_with_families):
     assert len(res) == 2
     assert res[0]["title"] == "checkout 500"   # la más cercana primero
     assert res[0]["family_id"] and res[0]["label"] == "real"
+    assert res[1]["title"] == "login timeout"  # la lejana segunda
 
 
 def test_semantic_search_empty_for_non_member(org_with_families):

@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import psycopg
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
@@ -8,6 +8,9 @@ from fastapi.responses import HTMLResponse
 from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from src.defects.embedder import LocalEmbedder
 
 from src.certify.gate import GateService
 from src.certify.repository import CertificateRepository
@@ -913,7 +916,7 @@ def defects_ask_v2(
     req: AskRequest,
     user: AuthenticatedUser = Depends(get_current_user),
     repo: AssuranceRepository = Depends(get_assurance_repo),
-    embedder=Depends(get_embedder),
+    embedder: "LocalEmbedder" = Depends(get_embedder),
 ) -> AskResponse:
     from src.ai.nl_query import answer_question
     try:

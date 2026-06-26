@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from src.ai.generate import generate_structured
 
@@ -30,8 +30,7 @@ def answer_question(*, question: str, families: List[Dict[str, Any]], provider=N
         names = ", ".join(f.get("title") or f["family_id"] for f in top)
         return {"answer": f"LLM no accesible. Familias relevantes: {names}.",
                 "citations": [f["family_id"] for f in top]}
-    if not isinstance(res.get("citations"), list):
-        res["citations"] = []
-    if not isinstance(res.get("answer"), str):
-        res["answer"] = ""
-    return {"answer": res["answer"], "citations": res["citations"]}
+    return {
+        "answer": res["answer"] if isinstance(res.get("answer"), str) else "",
+        "citations": res["citations"] if isinstance(res.get("citations"), list) else [],
+    }
