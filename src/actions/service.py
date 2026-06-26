@@ -101,7 +101,10 @@ class ActionService:
         try:
             ref = self._materialize(action, codehost)
         except Exception:
-            self.actions_repo.revert_to_approved(user_id=user_id, action_id=action_id)
+            try:
+                self.actions_repo.revert_to_approved(user_id=user_id, action_id=action_id)
+            except Exception:
+                logger.exception("revert_to_approved falló tras error de materialización de %s", action_id)
             raise
         if ref is None:
             # self_heal degradó (sin file o locator no casa): revertir a approved (reintentable)

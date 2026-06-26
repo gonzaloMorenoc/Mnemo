@@ -4,3 +4,4 @@
 alter table public.actions drop constraint if exists actions_status_check;
 alter table public.actions add constraint actions_status_check
     check (status in ('proposed', 'approved', 'rejected', 'materialized', 'materializing'));
+alter table public.actions add column if not exists materializing_at timestamptz;

@@ -72,3 +72,39 @@ def test_revert_to_approved(approved_action):
     assert repo.revert_to_approved(user_id=ctx["user"], action_id=ctx["action_id"]) is True
     # tras revertir, se puede reclamar de nuevo
     assert repo.mark_materializing(user_id=ctx["user"], action_id=ctx["action_id"]) is True
+
+
+def test_stale_materializing_is_reclaimable(approved_action):
+    """Una fila en materializing con materializing_at antigua (>15 min) puede re-reclamarse."""
+    if not DBURL:
+        pytest.skip("DATABASE_URL not configured")
+    ctx = approved_action
+    with psycopg.connect(DBURL) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "update public.actions set status = 'materializing',"
+                " materializing_at = now() - interval '20 minutes'"
+                " where id = %s",
+                (ctx["action_id"],),
+            )
+        conn.commit()
+    repo = ActionRepository(DBURL)
+    assert repo.mark_materializing(user_id=ctx["user"], action_id=ctx["action_id"]) is True
+
+
+def test_fresh_materializing_is_not_stolen(approved_action):
+    """Una fila en materializing reciente (<15 min) no puede ser robada."""
+    if not DBURL:
+        pytest.skip("DATABASE_URL not configured")
+    ctx = approved_action
+    with psycopg.connect(DBURL) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "update public.actions set status = 'materializing',"
+                " materializing_at = now()"
+                " where id = %s",
+                (ctx["action_id"],),
+            )
+        conn.commit()
+    repo = ActionRepository(DBURL)
+    assert repo.mark_materializing(user_id=ctx["user"], action_id=ctx["action_id"]) is False

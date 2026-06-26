@@ -117,7 +117,8 @@ class ActionRepository:
             self._set_claims(conn, user_id)
             with conn.cursor() as cur:
                 cur.execute(
-                    "update public.actions a set status = 'materialized', artifact_ref = %s"
+                    "update public.actions a"
+                    " set status = 'materialized', artifact_ref = %s, materializing_at = null"
                     " where a.id = %s and a.status = 'materializing'"
                     "   and exists (select 1 from public.memberships m"
                     "     where m.org_id = a.org_id and m.user_id = %s)",
@@ -132,8 +133,11 @@ class ActionRepository:
             self._set_claims(conn, user_id)
             with conn.cursor() as cur:
                 cur.execute(
-                    "update public.actions a set status = 'materializing'"
-                    " where a.id = %s and a.status = 'approved'"
+                    "update public.actions a set status = 'materializing', materializing_at = now()"
+                    " where a.id = %s"
+                    "   and (a.status = 'approved'"
+                    "        or (a.status = 'materializing'"
+                    "            and a.materializing_at < now() - interval '15 minutes'))"
                     "   and exists (select 1 from public.memberships m"
                     "     where m.org_id = a.org_id and m.user_id = %s)",
                     (action_id, user_id),
@@ -147,7 +151,7 @@ class ActionRepository:
             self._set_claims(conn, user_id)
             with conn.cursor() as cur:
                 cur.execute(
-                    "update public.actions a set status = 'approved'"
+                    "update public.actions a set status = 'approved', materializing_at = null"
                     " where a.id = %s and a.status = 'materializing'"
                     "   and exists (select 1 from public.memberships m"
                     "     where m.org_id = a.org_id and m.user_id = %s)",
