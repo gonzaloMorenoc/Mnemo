@@ -9,6 +9,17 @@ _CATEGORIES = ("quarantine", "ticket", "self_heal")
 
 
 def _self_heal_body(payload: Dict[str, Any]) -> str:
+    if payload.get("ai_repair"):
+        return (
+            "**Reparación propuesta por IA** (Mnemo Autopilot, Nivel 2).\n\n"
+            f"- Archivo: `{payload.get('file', '')}`\n"
+            f"- Bloque actual: `{payload.get('broken_locator', '')}`\n"
+            f"- Bloque propuesto: `{payload.get('suggested_locator', '')}`\n\n"
+            f"## Razonamiento\n{payload.get('reasoning', '')}\n\n"
+            "> ⚠️ **Parche propuesto por IA — NO auto-validado.** El CI del proyecto y un revisor "
+            "humano deben verificarlo antes de fusionar; puede enmascarar una regresión real.\n\n"
+            "> PR borrador automático — requiere revisión humana; nunca auto-merge."
+        )
     return (
         "**Self-heal de locator** (Mnemo Autopilot, Nivel 2).\n\n"
         f"- Locator roto: `{payload.get('broken_locator', '')}`\n"
@@ -28,11 +39,13 @@ class ActionService:
 
     def __init__(self, *, repo, actuators: Dict[str, Actuator],
                  actions_repo=None,
-                 codehost_factory: Optional[Callable[[str, str], CodeHost]] = None):
+                 codehost_factory: Optional[Callable[[str, str], CodeHost]] = None,
+                 ai_repair: Optional[Actuator] = None):
         self.repo = repo                                  # lecturas de contexto (assurance)
         self.actions_repo = actions_repo or repo          # CRUD de acciones
         self.actuators = actuators
         self._codehost_factory = codehost_factory or (lambda org_id, user_id: NullCodeHost())
+        self._ai_repair = ai_repair
 
     def propose_actions(self, *, user_id: str, run_id: str) -> Dict[str, int]:
         verdicts = self.repo.get_run_actionable_verdicts(user_id=user_id, run_id=run_id)
@@ -42,11 +55,19 @@ class ActionService:
         org_id = None
         for v in verdicts:
             org_id = v.get("org_id") or org_id
-            actuator = self.actuators.get(v["category"])
+            category = v["category"]
+            actuator = self.actuators.get(category)
             if actuator is None:
                 counts["skipped"] += 1
                 continue
-            proposal = actuator.propose(v, self._context_for(user_id, v))
+            ctx = self._context_for(user_id, v)
+            proposal = actuator.propose(v, ctx)
+            if (proposal is None and category == "maintenance" and self._ai_repair is not None
+                    and ctx.get("file")):
+                codehost = self._codehost_factory(v.get("org_id"), user_id)
+                source = codehost.read_file(ctx["file"])
+                if source:
+                    proposal = self._ai_repair.propose(v, {**ctx, "test_source": source})
             if proposal is None:
                 counts["skipped"] += 1
                 continue

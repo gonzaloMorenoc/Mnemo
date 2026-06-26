@@ -20,6 +20,7 @@ from src.certify.signing import SigningKeyMissing, canonical_json, verify
 from src.config import (CI_MAX_BODY_BYTES, CI_SERVICE_ORG_ID, CI_SERVICE_USER_ID,
                         CI_WEBHOOK_SECRET, LLM_MODEL, MNEMO_SIGNING_PRIVATE_KEY,
                         MNEMO_SIGNING_PUBLIC_KEY, MNEMO_VERSION, multi_tenant_enabled)
+from src.actions.ai_repair import AIRepairActuator
 from src.actions.quarantine import QuarantineActuator
 from src.actions.repository import ActionRepository
 from src.actions.selfheal.selfheal import SelfHealActuator
@@ -249,6 +250,10 @@ def get_action_service() -> ActionService:
         raise HTTPException(status_code=503, detail="Multi-tenant KB not configured")
     global _action_service
     if _action_service is None:
+        try:
+            _ai_repair_provider = get_llm_provider()
+        except Exception:
+            _ai_repair_provider = None
         _action_service = ActionService(
             repo=get_assurance_repo(),
             actions_repo=get_action_repo(),
@@ -258,6 +263,7 @@ def get_action_service() -> ActionService:
                 "maintenance": SelfHealActuator(explainer=_LazySelfHealExplainer()),
             },
             codehost_factory=_github_codehost_factory,
+            ai_repair=AIRepairActuator(_ai_repair_provider),
         )
     return _action_service
 

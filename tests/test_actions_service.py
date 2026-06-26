@@ -221,3 +221,74 @@ def test_maintenance_uses_selfheal_context():
     _, ctx = sh.propose.call_args.args
     assert ctx["green_dom"] == "<a/>" and ctx["error_message"] == "e"
     assert counts.get("self_heal", 0) == 1 or counts == {"quarantine": 0, "ticket": 0, "self_heal": 1, "skipped": 0}
+
+
+def test_maintenance_falls_back_to_ai_repair_when_deterministic_returns_none():
+    repo = MagicMock()
+    repo.get_run_actionable_verdicts.return_value = [
+        {"verdict_id": "v1", "category": "maintenance", "org_id": "o", "failure_id": "f1"}]
+    repo.get_selfheal_context.return_value = {"error_message": "e", "file": "t.spec.ts",
+                                              "green_dom": "<a/>", "failure_dom": "<a/>"}
+    repo.save_actions.return_value = 1
+    deterministic = MagicMock(); deterministic.propose.return_value = None   # no cura
+    ai = MagicMock()
+    ai.propose.return_value = ActionProposal("self_heal", {"file": "t.spec.ts", "ai_repair": True}, "Reparación IA")
+    codehost = MagicMock(); codehost.read_file.return_value = "source code del test"
+    svc = ActionService(repo=repo, actuators={"maintenance": deterministic}, ai_repair=ai,
+                        codehost_factory=lambda o, u: codehost)
+    counts = svc.propose_actions(user_id="u", run_id="r")
+    codehost.read_file.assert_called_once_with("t.spec.ts")          # leyó el archivo
+    _, ctx = ai.propose.call_args.args
+    assert ctx["test_source"] == "source code del test"             # con el código
+    assert counts.get("self_heal", 0) == 1
+
+
+def test_deterministic_cure_skips_ai_repair_and_file_read():
+    repo = MagicMock()
+    repo.get_run_actionable_verdicts.return_value = [
+        {"verdict_id": "v1", "category": "maintenance", "org_id": "o", "failure_id": "f1"}]
+    repo.get_selfheal_context.return_value = {"file": "t.spec.ts", "green_dom": "<a/>", "failure_dom": "<a/>"}
+    repo.save_actions.return_value = 1
+    deterministic = MagicMock()
+    deterministic.propose.return_value = ActionProposal("self_heal", {"file": "t.spec.ts"}, "heal")
+    ai = MagicMock()
+    codehost = MagicMock()
+    svc = ActionService(repo=repo, actuators={"maintenance": deterministic}, ai_repair=ai,
+                        codehost_factory=lambda o, u: codehost)
+    svc.propose_actions(user_id="u", run_id="r")
+    ai.propose.assert_not_called()              # no se intentó la IA
+    codehost.read_file.assert_not_called()      # no se leyó el archivo (llamada evitada)
+
+
+def test_self_heal_body_ai_repair_note():
+    from src.actions.service import _self_heal_body
+    body = _self_heal_body({"broken_locator": "a", "suggested_locator": "b", "file": "t.ts",
+                            "reasoning": "r", "ai_repair": True})
+    assert "no auto-validado" in body.lower() or "no validado" in body.lower()
+    assert "IA" in body
+
+
+def test_ai_repair_proposal_materializes_via_open_draft_pr():
+    action = {
+        "id": "a5", "org_id": "o", "kind": "self_heal", "status": "approved",
+        "summary": "Reparación IA: t.spec.ts",
+        "payload": {
+            "file": "t.spec.ts",
+            "broken_locator": "OLD",
+            "suggested_locator": "NEW",
+            "reasoning": "r",
+            "ai_repair": True,
+        },
+    }
+    codehost = MagicMock()
+    codehost.open_draft_pr.return_value = "https://github.com/o/r/pull/42"
+    repo = MagicMock()
+    svc = ActionService(repo=repo, actuators={})
+    ref = svc._materialize(action, codehost)
+    codehost.open_draft_pr.assert_called_once()
+    kw = codehost.open_draft_pr.call_args.kwargs
+    assert kw["file_path"] == "t.spec.ts"
+    assert kw["old_str"] == "OLD"
+    assert kw["new_str"] == "NEW"
+    assert "no auto-validado" in kw["body"].lower()
+    assert ref == "https://github.com/o/r/pull/42"
