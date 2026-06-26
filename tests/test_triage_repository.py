@@ -3,6 +3,7 @@ import uuid
 
 import psycopg
 import pytest
+from psycopg.rows import dict_row
 
 pytestmark = pytest.mark.integration
 
@@ -416,8 +417,6 @@ def test_get_triage_inputs_wrong_org_isolation(repo, org):
 # Task 2 (F5a): triage_corrections + get_calibration_metrics
 # ---------------------------------------------------------------------------
 
-import uuid as _uuid
-
 
 @pytest.mark.integration
 def test_set_family_label_records_correction(assurance_repo, seeded_family):
@@ -437,14 +436,14 @@ def test_set_family_label_records_correction(assurance_repo, seeded_family):
 @pytest.mark.integration
 def test_set_family_label_non_member_returns_false(assurance_repo, seeded_family):
     repo, ctx = assurance_repo, seeded_family
-    assert repo.set_family_label(user_id=str(_uuid.uuid4()), family_id=ctx["family_id"],
+    assert repo.set_family_label(user_id=str(uuid.uuid4()), family_id=ctx["family_id"],
                                  label="flaky") is False
 
 
 @pytest.mark.integration
 def test_get_calibration_metrics_non_member_is_none(assurance_repo, seeded_family):
     repo, ctx = assurance_repo, seeded_family
-    assert repo.get_calibration_metrics(user_id=str(_uuid.uuid4()), org_id=ctx["org_id"]) is None
+    assert repo.get_calibration_metrics(user_id=str(uuid.uuid4()), org_id=ctx["org_id"]) is None
 
 
 @pytest.mark.integration
@@ -452,3 +451,106 @@ def test_set_family_label_invalid_label_raises(assurance_repo, seeded_family):
     repo, ctx = assurance_repo, seeded_family
     with pytest.raises(ValueError):
         repo.set_family_label(user_id=ctx["user_id"], family_id=ctx["family_id"], label="bogus")
+
+
+# ---------------------------------------------------------------------------
+# Task 3 (A3 + A4): métrica del foso honesta + firma exacta sin centroide
+# ---------------------------------------------------------------------------
+
+
+def _set_recent_verdict(ctx: dict, *, category: str, llm_assisted: bool) -> None:
+    # rule_applied es irrelevante aquí; solo category/llm_assisted determinan engine_category
+    """Inserta (o reemplaza el último) un triage_verdict para la familia del fixture.
+
+    El fixture seeded_family ya sembró un failure y un veredicto; aquí insertamos
+    uno nuevo más reciente para controlar category/llm_assisted en el test.
+    """
+    with psycopg.connect(DBURL) as conn:
+        with conn.cursor() as cur:
+            # Obtener un failure_id vinculado a la familia
+            cur.execute(
+                "select id, run_id from public.failures where defect_family_id = %s limit 1",
+                (ctx["family_id"],),
+            )
+            row = cur.fetchone()
+            assert row is not None, "seeded_family debe tener al menos un failure"
+            failure_id, run_id = row[0], row[1]
+            cur.execute(
+                "insert into public.triage_verdicts"
+                " (failure_id, run_id, org_id, category, confidence, rule_applied,"
+                "  requires_approval, llm_assisted, evidence_bundle, status)"
+                " values (%s, %s, %s, %s, 0.8, 'R4_real_recurrent', false, %s, '{}', 'resolved')",
+                (failure_id, run_id, ctx["org_id"], category, llm_assisted),
+            )
+        conn.commit()
+
+
+def _last_correction(family_id: str) -> dict:
+    """Devuelve la corrección más reciente de triage_corrections para la familia."""
+    with psycopg.connect(DBURL, row_factory=dict_row) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "select * from public.triage_corrections"
+                " where family_id = %s order by corrected_at desc limit 1",
+                (family_id,),
+            )
+            row = cur.fetchone()
+            assert row is not None, "debe existir al menos una corrección"
+            return dict(row)
+
+
+@pytest.mark.integration
+def test_engine_category_is_unknown_when_llm_assisted(assurance_repo, seeded_family):
+    repo, ctx = assurance_repo, seeded_family
+    _set_recent_verdict(ctx, category="flaky", llm_assisted=True)
+    repo.set_family_label(user_id=ctx["user_id"], family_id=ctx["family_id"],
+                          label="real", reason="r")
+    row = _last_correction(ctx["family_id"])
+    assert row["engine_category"] == "unknown"   # motor fue ambiguo; LLM decidió
+    assert row["human_category"] == "real"
+    assert row["reason"] == "r"
+    assert row["source"] == "family_label"
+    assert str(row["corrected_by"]) == ctx["user_id"]
+
+
+@pytest.mark.integration
+def test_engine_category_is_verdict_when_not_llm(assurance_repo, seeded_family):
+    repo, ctx = assurance_repo, seeded_family
+    _set_recent_verdict(ctx, category="real", llm_assisted=False)
+    repo.set_family_label(user_id=ctx["user_id"], family_id=ctx["family_id"], label="real")
+    assert _last_correction(ctx["family_id"])["engine_category"] == "real"
+
+
+@pytest.mark.integration
+def test_query_candidates_returns_null_centroid_family(assurance_repo, org):
+    """Una familia con firma exacta pero centroid NULL debe ser devuelta por
+    _query_candidates para evitar duplicados que romperían uq_defect_families_org_signature."""
+    from pgvector.psycopg import register_vector
+    repo = assurance_repo
+    u, o = org["user_id"], org["org_id"]
+    sig = f"null-centroid-{uuid.uuid4().hex[:8]}"
+
+    # Insertar familia con centroid NULL
+    with psycopg.connect(DBURL) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "insert into public.defect_families"
+                " (scope, org_id, signature, title, occurrence_count, centroid)"
+                " values ('org', %s, %s, 'No centroid yet', 1, NULL) returning id",
+                (o, sig),
+            )
+            fam_id = str(cur.fetchone()[0])
+        conn.commit()
+
+    # Llamar _query_candidates con la firma exacta → debe devolver la familia
+    with psycopg.connect(DBURL, row_factory=dict_row) as conn:
+        register_vector(conn)
+        with conn.cursor() as cur:
+            candidates = repo._query_candidates(
+                cur, org_id=o, fingerprint=sig, embedding=[0.0] * 384
+            )
+
+    ids = [c.family_id for c in candidates]
+    assert fam_id in ids, (
+        f"familia {fam_id} con centroid NULL no fue devuelta por _query_candidates: {ids}"
+    )

@@ -92,20 +92,30 @@ class ActionService:
                 if action.get("status") == "materialized":
                     return {"approved": True, "materialized": True,
                             "artifact_ref": action.get("artifact_ref")}
-        # aquí status == 'approved' (recién o de un intento previo)
+        # status == 'approved' aquí — reclamar la materialización de forma atómica
+        if not self.actions_repo.mark_materializing(user_id=user_id, action_id=action_id):
+            # otra request ya está materializando / lo hizo; re-leer
+            action = self.actions_repo.get_action(user_id=user_id, action_id=action_id)
+            if action and action.get("status") == "materialized":
+                return {"approved": True, "materialized": True,
+                        "artifact_ref": action.get("artifact_ref")}
+            return {"approved": True, "materialized": False, "artifact_ref": None}
         codehost = self._codehost_factory(action["org_id"], user_id)
-        ref = self._materialize(action, codehost)
+        try:
+            ref = self._materialize(action, codehost)
+        except Exception:
+            try:
+                self.actions_repo.revert_to_approved(user_id=user_id, action_id=action_id)
+            except Exception:
+                logger.exception("revert_to_approved falló tras error de materialización de %s", action_id)
+            raise
         if ref is None:
-            # self_heal degradó (sin file o locator no casa): decisión preservada, sin PR
+            # self_heal degradó (sin file o locator no casa): revertir a approved (reintentable)
+            self.actions_repo.revert_to_approved(user_id=user_id, action_id=action_id)
             logger.warning("self_heal de la acción %s no produjo PR (sin file o locator no casa)",
                            action_id)
             return {"approved": True, "materialized": False, "artifact_ref": None}
         ok = self.actions_repo.materialize_action(user_id=user_id, action_id=action_id, artifact_ref=ref)
-        if not ok:
-            logger.warning(
-                "materialize_action no actualizó la acción %s (estado ya no 'approved'); "
-                "posible doble materialización mitigada por el marcador", action_id,
-            )
         return {"approved": True, "materialized": ok, "artifact_ref": ref}
 
     def _materialize(self, action: Dict[str, Any], codehost: CodeHost) -> Optional[str]:

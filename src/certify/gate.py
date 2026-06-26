@@ -1,13 +1,13 @@
 from typing import Any, Callable, Dict, List, Tuple
 
-from src.certify.certificate import compute_verdict
+from src.certify.certificate import compute_confidence, compute_verdict
 
 _CONCLUSION = {"no-apto": "failure", "apto-con-reservas": "neutral", "apto": "success"}
 _CATEGORIES = ("real", "flaky", "maintenance", "infra", "unknown")
 _MOTIVO = {
-    "no-apto": "Defecto real novedoso de alta confianza o ítems pendientes de aprobación (Nivel 2).",
-    "apto-con-reservas": "Hay defectos reales recurrentes o mantenimiento; revisar antes de liberar.",
-    "apto": "Todo flaky en cuarentena, curado o infra reconocida.",
+    "no-apto": "El motor evaluó: defecto real sin precedente de alta confianza o ítems pendientes de aprobación (Nivel 2).",
+    "apto-con-reservas": "El motor evaluó: hay defectos reales recurrentes o mantenimiento; revisar antes de liberar.",
+    "apto": "El motor evaluó: todo flaky en cuarentena, curado o infra reconocida.",
 }
 
 
@@ -18,7 +18,7 @@ def _render_output(verdict: str, verdicts: List[Dict[str, Any]]) -> Tuple[str, s
         counts[cat if cat in _CATEGORIES else "unknown"] += 1
     desglose = ", ".join(f"{k}: {n}" for k, n in counts.items() if n) or "sin fallos"
     title = f"Mnemo Assurance: {verdict}"
-    summary = (f"**Veredicto:** {verdict}\n\n**Desglose:** {desglose}\n\n{_MOTIVO[verdict]}")
+    summary = (f"**Evaluación del motor:** {verdict}\n\n**Desglose:** {desglose}\n\n{_MOTIVO[verdict]}")
     return title, summary
 
 
@@ -40,7 +40,10 @@ class GateService:
         verdicts = self.repo.get_triage_for_run(user_id=user_id, run_id=run_id)
         if not verdicts:
             raise ValueError("run sin veredictos de triaje")
-        verdict = compute_verdict(verdicts)
+        raw_cal = self.repo.get_calibration_metrics(user_id=user_id, org_id=meta["org_id"]) or {}
+        confidence = compute_confidence({"tenant_accuracy": raw_cal.get("accuracy", 0.0),
+                                         "n_corrections": raw_cal.get("total", 0)})
+        verdict = compute_verdict(verdicts, confidence=confidence)
         conclusion = _CONCLUSION[verdict]
         title, summary = _render_output(verdict, verdicts)
         codehost = self.codehost_factory(meta["org_id"], user_id)
