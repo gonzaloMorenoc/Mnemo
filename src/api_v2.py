@@ -31,6 +31,7 @@ from src.ci.webhook_auth import verify_signature
 from src.defects.ingestion_service import IngestionService
 from src.defects.repository import AssuranceRepository
 from src.assurance.narrator import LLMNarrator, Narrator
+from src.llm.factory import get_llm_provider
 from src.assurance.verdict import build_verdict
 from src.jira.client import JiraApiError
 from src.jira.integrations_repository import IntegrationsRepository
@@ -269,10 +270,15 @@ def get_certificate_service() -> CertificateService:
         raise HTTPException(status_code=503, detail="Multi-tenant KB not configured")
     global _certificate_service
     if _certificate_service is None:
+        try:
+            _llm = get_llm_provider()
+        except Exception:
+            _llm = None
         _certificate_service = CertificateService(
             repo=get_assurance_repo(), cert_repo=get_certificate_repo(),
             private_key=MNEMO_SIGNING_PRIVATE_KEY, public_key=MNEMO_SIGNING_PUBLIC_KEY,
             mnemo_version=MNEMO_VERSION, model_version=LLM_MODEL or "unknown",
+            llm_provider=_llm,
         )
     return _certificate_service
 

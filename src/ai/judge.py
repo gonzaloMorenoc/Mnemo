@@ -1,3 +1,4 @@
+import json
 from typing import Any, Dict, List, Optional
 
 from src.ai.generate import generate_structured
@@ -23,7 +24,7 @@ def _clamp(x: Any) -> Optional[float]:
 def judge_output(*, claim: str, evidence: List[Dict[str, Any]], provider=None) -> Optional[Dict[str, float]]:
     """Puntúa faithfulness/groundedness de una afirmación vs su evidencia. None si no hay LLM."""
     res = generate_structured(prompt=_JUDGE_PROMPT.format(claim=claim), context=evidence,
-                              schema=_JUDGE_SCHEMA, provider=provider, on_failure="none")
+                              schema=dict(_JUDGE_SCHEMA), provider=provider, on_failure="none")
     if res is None:
         return None
     f, g = _clamp(res.get("faithfulness")), _clamp(res.get("groundedness"))
@@ -42,7 +43,7 @@ def compute_ai_eval(*, verdicts: List[Dict[str, Any]], created_at: str, provider
     scores = []
     for v in targets:
         eb = v.get("evidence_bundle") or {}
-        evidence = [{"id": k, "content": str(val)} for k, val in eb.items()] if isinstance(eb, dict) else []
+        evidence = [{"id": k, "content": json.dumps(val, ensure_ascii=False, default=str)} for k, val in eb.items()] if isinstance(eb, dict) else []
         claim = f"categoría={v.get('category')} (regla {v.get('rule_applied')})"
         s = judge_output(claim=claim, evidence=evidence, provider=provider)
         if s is not None:
