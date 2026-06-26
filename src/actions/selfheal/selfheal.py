@@ -56,7 +56,7 @@ class SelfHealActuator:
                 kind="self_heal",
                 payload={"broken_locator": broken_str, "suggested_locator": top.locator,
                          "candidates": cands, "reasoning": reasoning,
-                         "file": context.get("file")},
+                         "file": context.get("file"), "masking_risk": True},
                 summary=f"Self-heal: {broken_str} → {top.locator}",
             )
         except Exception:  # noqa: BLE001 — el self-heal nunca rompe propose_actions

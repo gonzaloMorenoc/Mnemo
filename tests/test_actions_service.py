@@ -182,6 +182,13 @@ def test_reject_delegates_to_repo():
     assert svc.reject_action(user_id="u", action_id="a1", reason="dup") is True
 
 
+def test_self_heal_body_includes_masking_warning():
+    from src.actions.service import _self_heal_body
+    body = _self_heal_body({"broken_locator": "a", "suggested_locator": "b", "file": "t.spec.ts", "reasoning": "r"})
+    assert "enmascarar una regresión" in body
+    assert "cambio de UI legítimo" in body
+
+
 def test_approve_reverts_to_approved_on_codehost_error():
     repo = MagicMock()
     actions_repo = MagicMock()

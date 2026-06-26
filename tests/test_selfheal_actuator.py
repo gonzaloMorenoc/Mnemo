@@ -102,3 +102,11 @@ def test_getbytext_suggested_with_exact():
 def test_payload_includes_file_from_context():
     p = SelfHealActuator().propose({}, _ctx(file="tests/checkout.spec.ts"))
     assert p is not None and p.payload["file"] == "tests/checkout.spec.ts"
+
+
+def test_proposal_payload_flags_masking_risk():
+    # reuse this file's existing green/failure DOM + context fixture that yields a proposal
+    actuator = SelfHealActuator()
+    proposal = actuator.propose({"category": "maintenance"}, _ctx())
+    assert proposal is not None
+    assert proposal.payload["masking_risk"] is True

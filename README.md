@@ -34,7 +34,7 @@ Python 3.13 · FastAPI · Postgres + pgvector (Supabase) · Supabase JWT · Olla
 3. **BD (Supabase):** configurar `DATABASE_URL` (cadena del **Session pooler**, no la directa IPv6-only) + `SUPABASE_URL`/`SUPABASE_JWKS_URL` en `.env`; aplicar **todas** las migraciones en orden (`db/migrations/001_*.sql` … `009_*.sql`).
 4. **Backend:** `uvicorn api:app`.
 5. **Frontend:** `cd frontend && npm install && npm run build` (proxy `/api/v2/*` → `NEXT_PUBLIC_API_BASE_URL`).
-6. **Datos de demo (opcional):** `python scripts/seed_demo.py` (siembra proyectos con una familia compartida).
+6. **Datos de demo (opcional, legacy):** `python legacy/seed_demo.py` (siembra proyectos del flujo anterior con una familia compartida).
 
 ## Endpoints `/v2`
 

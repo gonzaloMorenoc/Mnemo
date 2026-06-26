@@ -1,7 +1,7 @@
 import pytest
 
 from src import config
-from src.llm.factory import get_llm_provider
+from src.llm.factory import get_llm_provider, _DEFAULT_MODELS
 from src.llm.providers.ollama import OllamaProvider
 from src.llm.providers.openai import OpenAIProvider
 from src.llm.providers.anthropic import AnthropicProvider
@@ -66,3 +66,12 @@ def test_commercial_provider_with_optin_ok(monkeypatch):
     monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "k")
     monkeypatch.setattr(config, "ALLOW_EXTERNAL_LLM", True)
     assert isinstance(get_llm_provider(), AnthropicProvider)
+
+
+def test_anthropic_default_is_current_model():
+    assert _DEFAULT_MODELS["anthropic"] == "claude-haiku-4-5-20251001"
+    assert "3-5" not in _DEFAULT_MODELS["anthropic"]   # ya no el alias obsoleto
+
+
+def test_ollama_default_unchanged():
+    assert _DEFAULT_MODELS["ollama"] == "deepseek-r1:8b"   # el default on-prem no cambia
