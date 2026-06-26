@@ -2,19 +2,21 @@ from typing import Any, Dict, Optional
 
 from src.certify.certificate import build_certificate, compute_self_eval
 from src.certify.signing import canonical_json, sign
+from src.ai.judge import compute_ai_eval
 
 
 class CertificateService:
     """Genera y recupera Release Assurance Certificates. Determinista; firma Ed25519."""
 
     def __init__(self, *, repo, cert_repo, private_key: str, public_key: str,
-                 mnemo_version: str, model_version: str):
+                 mnemo_version: str, model_version: str, llm_provider=None):
         self.repo = repo               # AssuranceRepository (get_triage_for_run)
         self.cert_repo = cert_repo     # CertificateRepository
         self._private_key = private_key
         self._public_key = public_key
         self._mnemo_version = mnemo_version
         self._model_version = model_version
+        self._llm_provider = llm_provider
 
     def generate(self, *, user_id: str, run_id: str, created_at: str) -> Dict[str, Any]:
         meta = self.cert_repo.get_run_meta(user_id=user_id, run_id=run_id)
@@ -29,7 +31,13 @@ class CertificateService:
             "n_corrections": raw_cal.get("total", 0),
             "por_categoria_humana": raw_cal.get("por_categoria", {}),
         }
-        self_eval = compute_self_eval(calibration=calibration, verdicts=verdicts, created_at=created_at)
+        try:
+            ai_eval = compute_ai_eval(verdicts=verdicts, created_at=created_at,
+                                      provider=self._llm_provider, judge_model=self._model_version)
+        except Exception:  # noqa: BLE001 — el judge nunca rompe la emisión del certificado
+            ai_eval = None
+        self_eval = compute_self_eval(calibration=calibration, verdicts=verdicts,
+                                      created_at=created_at, ai_eval=ai_eval)
         cert = build_certificate(
             run={"org_id": meta["org_id"], "project": meta["project"],
                  "commit_sha": meta["commit_sha"], "run_id": run_id},
