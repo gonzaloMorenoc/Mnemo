@@ -25,12 +25,29 @@ class _Repo:
         return True
 
 
-class _Analyzer:
-    def __init__(self, out="## Causa raíz\nx"):
-        self.calls = 0
-        self.out = out
+_DEGRADED = {"root_cause": "no determinable", "why_it_happened": "", "how_to_fix": "",
+             "suggested_fix_steps": [], "confidence": 0.0, "citations": []}
+_GOOD_STRUCT = {"root_cause": "x", "why_it_happened": "", "how_to_fix": "",
+                "suggested_fix_steps": [], "confidence": 0.7, "citations": ["failure:fl1"]}
 
-    def analyze(self, family, failures):
+
+class _Analyzer:
+    def __init__(self, out="## Causa raíz\nx", structured=None):
+        self.calls = 0
+        self.save_calls = 0
+        self.out = out
+        # structured: None → derive from out; explicit dict → return that
+        self._structured = structured
+
+    def analyze_structured(self, family, failures, **kwargs):
+        if self._structured is not None:
+            return self._structured
+        if self.out is None:
+            raise RuntimeError("LLM down")
+        # non-degraded: return something with confidence>0
+        return {**_GOOD_STRUCT}
+
+    def analyze(self, family, failures, **kwargs):
         self.calls += 1
         if self.out is None:
             raise RuntimeError("LLM down")
@@ -77,8 +94,20 @@ def test_llm_down_503():
     assert r.status_code == 503
 
 
-def test_empty_analysis_returns_503_and_does_not_cache():
-    repo, analyzer = _Repo(cached=None), _Analyzer(out="   ")
+def test_degraded_analysis_returns_503_and_does_not_cache():
+    """analyze_structured with confidence==0.0 and no citations → 503, save never called."""
+    repo = _Repo(cached=None)
+    analyzer = _Analyzer(structured=_DEGRADED)
     r = _client(repo, analyzer).post("/v2/defects/d1/root-cause")
     assert r.status_code == 503
     assert repo.saved is None
+
+
+def test_good_structured_result_saves_and_returns_200():
+    """analyze_structured with confidence>0 → analyze text is saved, 200 returned."""
+    repo = _Repo(cached=None)
+    analyzer = _Analyzer(structured=_GOOD_STRUCT)
+    r = _client(repo, analyzer).post("/v2/defects/d1/root-cause")
+    assert r.status_code == 200
+    assert repo.saved is not None
+    assert analyzer.calls == 1
