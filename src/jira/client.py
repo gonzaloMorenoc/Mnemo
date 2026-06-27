@@ -2,7 +2,7 @@ from typing import List
 
 from atlassian import Jira
 
-from src.jira.models import JiraBug, adf_to_text
+from src.jira.models import JiraBug, JiraIssue, adf_to_text
 
 
 class JiraApiError(Exception):
@@ -45,3 +45,22 @@ class JiraApiClient:
         except Exception as exc:  # noqa: BLE001 — envolvemos cualquier fallo de la librería
             raise JiraApiError(str(exc)) from exc
         return bugs
+
+    def fetch_issue(self, key: str) -> "JiraIssue":
+        """Obtiene un issue por clave (ej. DIA-1234) y devuelve un JiraIssue.
+
+        Los campos solicitados son summary, description y customfield_10016
+        (criterios de aceptación — campo estándar en Jira Cloud). La descripción
+        puede llegar como ADF (dict) o texto plano; se aplana con adf_to_text.
+        """
+        try:
+            raw = self._jira.issue(key, fields="summary,description,customfield_10016")
+        except Exception as exc:  # noqa: BLE001
+            raise JiraApiError(str(exc)) from exc
+        fields = raw.get("fields") or {}
+        return JiraIssue(
+            key=raw.get("key") or key,
+            summary=(fields.get("summary") or "").strip(),
+            description=adf_to_text(fields.get("description")),
+            acceptance_criteria=adf_to_text(fields.get("customfield_10016")),
+        )

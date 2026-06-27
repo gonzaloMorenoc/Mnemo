@@ -3,6 +3,15 @@ from typing import Any
 
 
 @dataclass
+class JiraIssue:
+    """Issue genérico de Jira (HU, tarea, etc.) para ingesta en el plan de pruebas."""
+    key: str
+    summary: str
+    description: str
+    acceptance_criteria: str = ""
+
+
+@dataclass
 class JiraBug:
     key: str
     summary: str
