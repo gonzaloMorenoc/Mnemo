@@ -104,6 +104,10 @@ def test_requires_auth():
     assert _client(service=MagicMock(), with_user=False).post("/v2/certificates/run/r1").status_code == 401
 
 
+def test_pdf_requires_auth():
+    assert _client(service=MagicMock(), with_user=False).get("/v2/certificates/r1/pdf").status_code == 401
+
+
 def test_certificate_pdf_endpoint_returns_pdf():
     svc = MagicMock()
     svc.get.return_value = {
