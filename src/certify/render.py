@@ -1,4 +1,5 @@
 import html as _html
+from io import BytesIO
 from typing import Any, Dict
 
 _VERDICT_COLOR = {"apto": "#1a7f37", "apto-con-reservas": "#9a6700", "no-apto": "#cf222e"}
@@ -39,9 +40,22 @@ def render_html(cert: Dict[str, Any], signature: str) -> str:
 
     return (
         "<!doctype html><html lang='es'><head><meta charset='utf-8'>"
-        "<title>Release Assurance Certificate</title></head><body>"
+        "<title>Release Assurance Certificate</title>"
+        "<style>"
+        "@page { margin: 1.8cm; }"
+        "body { font-family: Helvetica, Arial, sans-serif; color: #24292f; font-size: 11pt; }"
+        ".brand { font-size: 9pt; letter-spacing: 2px; color: #57606a; text-transform: uppercase; }"
+        "h1 { font-size: 18pt; margin: 2px 0 10px 0; }"
+        "h2 { font-size: 13pt; border-bottom: 1px solid #d0d7de; padding-bottom: 3px; margin-top: 18px; }"
+        ".verdict { font-size: 15pt; font-weight: bold; }"
+        "table { border-collapse: collapse; width: 100%; font-size: 10pt; }"
+        "th, td { border: 1px solid #d0d7de; padding: 4px 6px; text-align: left; }"
+        "code { font-family: Courier, monospace; font-size: 10pt; }"
+        "pre { white-space: pre-wrap; font-size: 9pt; background: #f6f8fa; padding: 6px; }"
+        "</style></head><body>"
+        "<p class='brand'>Mnemo &middot; Release Assurance</p>"
         "<h1>Release Assurance Certificate</h1>"
-        f"<p><strong>Evaluación del motor:</strong> <span style='color:{color}'>{_e(cert.get('verdict'))}</span>"
+        f"<p><strong>Evaluación del motor:</strong> <span class='verdict' style='color:{color}'>{_e(cert.get('verdict'))}</span>"
         f" &middot; <strong>Risk score:</strong> {_e(cert.get('risk_score'))}</p>"
         f"<p>Proyecto <code>{_e(idn.get('project'))}</code> &middot; commit <code>{_e(idn.get('commit_sha'))}</code>"
         f" &middot; run <code>{_e(idn.get('run_id'))}</code> &middot; {_e(idn.get('created_at'))}</p>"
@@ -56,3 +70,13 @@ def render_html(cert: Dict[str, Any], signature: str) -> str:
         "<p>Verificable con <code>POST /v2/certificates/verify</code> y la clave pública.</p>"
         "</body></html>"
     )
+
+
+def render_pdf(cert: Dict[str, Any], signature: str) -> bytes:
+    from xhtml2pdf import pisa  # import local: solo se carga al generar PDF
+    html = render_html(cert, signature)
+    buffer = BytesIO()
+    status = pisa.CreatePDF(html, dest=buffer)
+    if status.err:
+        raise RuntimeError("No se pudo generar el PDF del certificado")
+    return buffer.getvalue()

@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import psycopg
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 from src.certify.gate import GateService
 from src.certify.repository import CertificateRepository
-from src.certify.render import render_html
+from src.certify.render import render_html, render_pdf
 from src.certify.service import CertificateService
 from src.certify.signing import SigningKeyMissing, canonical_json, verify
 from src.config import (CI_MAX_BODY_BYTES, CI_SERVICE_ORG_ID, CI_SERVICE_USER_ID,
@@ -790,6 +790,29 @@ def get_certificate_html_v2(
     if cert is None:
         raise HTTPException(status_code=404, detail="certificate not found")
     return HTMLResponse(render_html(cert["canonical_json"], cert["signature"]))
+
+
+@router.get("/certificates/{run_id}/pdf")
+def get_certificate_pdf_v2(
+    run_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+    service: CertificateService = Depends(get_certificate_service),
+) -> Response:
+    try:
+        cert = service.get(user_id=user.user_id, run_id=run_id)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    if cert is None:
+        raise HTTPException(status_code=404, detail="certificate not found")
+    try:
+        pdf = render_pdf(cert["canonical_json"], cert["signature"])
+    except Exception as exc:  # noqa: BLE001 — generación de PDF
+        raise HTTPException(status_code=500, detail="No se pudo generar el PDF") from exc
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="certificate-{run_id}.pdf"'},
+    )
 
 
 @router.get("/certificates/{run_id}", response_model=CertificateResponse)

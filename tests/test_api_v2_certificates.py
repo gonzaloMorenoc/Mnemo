@@ -102,3 +102,27 @@ def test_verify_endpoint_real_crypto_true_and_false():
 
 def test_requires_auth():
     assert _client(service=MagicMock(), with_user=False).post("/v2/certificates/run/r1").status_code == 401
+
+
+def test_pdf_requires_auth():
+    assert _client(service=MagicMock(), with_user=False).get("/v2/certificates/r1/pdf").status_code == 401
+
+
+def test_certificate_pdf_endpoint_returns_pdf():
+    svc = MagicMock()
+    svc.get.return_value = {
+        "run_id": "r1", "verdict": "apto", "risk_score": 0, "signature": "sig",
+        "canonical_json": {"verdict": "apto", "identity": {}, "breakdown": {}, "evidence": []},
+        "created_at": "2026-06-25T00:00:00Z"}
+    resp = _client(service=svc).get("/v2/certificates/r1/pdf")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/pdf"
+    assert resp.headers["content-disposition"].startswith("attachment")
+    assert resp.content[:5] == b"%PDF-"
+
+
+def test_certificate_pdf_404_when_missing():
+    svc = MagicMock()
+    svc.get.return_value = None
+    resp = _client(service=svc).get("/v2/certificates/nope/pdf")
+    assert resp.status_code == 404

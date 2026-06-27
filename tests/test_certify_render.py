@@ -13,6 +13,28 @@ _CERT = {
 }
 
 
+def test_render_pdf_returns_pdf_bytes():
+    from src.certify.render import render_pdf
+    cert = {
+        "verdict": "apto", "risk_score": 12,
+        "identity": {"project": "demo", "commit_sha": "abc123", "run_id": "r1",
+                     "created_at": "2026-06-27", "mnemo_version": "1.0", "model_version": "m1"},
+        "breakdown": {"real": 1}, "evidence": [], "self_eval": {},
+    }
+    out = render_pdf(cert, "SIG==")
+    assert isinstance(out, bytes)
+    assert out[:5] == b"%PDF-"
+
+
+def test_render_html_pulido_mantiene_contenido_y_marca():
+    from src.certify.render import render_html
+    html = render_html({"verdict": "apto", "risk_score": 12, "identity": {}, "breakdown": {},
+                        "evidence": [], "self_eval": {}}, "SIG==")
+    assert "Mnemo" in html
+    assert "apto" in html
+    assert "SIG==" in html  # la firma
+
+
 def test_render_contains_key_fields():
     html = render_html(_CERT, "sig-b64")
     assert "<html" in html.lower()
