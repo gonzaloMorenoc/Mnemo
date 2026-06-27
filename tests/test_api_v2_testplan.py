@@ -66,7 +66,7 @@ def test_generate_with_hu_text_200():
     arepo.search_families_semantic.return_value = []
 
     with patch("src.api_v2.generate_test_plan", return_value=plan) as mock_gen:
-        client = make_client(krepo=krepo, arepo=arepo)
+        client = make_client(krepo=krepo, arepo=arepo, integrations=MagicMock())
         r = client.post(
             "/v2/test-plan/generate",
             data={"org_id": "org-1", "hu_text": "Como usuario quiero X para Y"},
@@ -121,7 +121,7 @@ def test_generate_with_file_200():
 
     with patch("src.api_v2.resolve_hu_from_upload", return_value="HU desde archivo") as mock_ingest, \
          patch("src.api_v2.generate_test_plan", return_value=plan):
-        client = make_client(krepo=krepo, arepo=arepo)
+        client = make_client(krepo=krepo, arepo=arepo, integrations=MagicMock())
         r = client.post(
             "/v2/test-plan/generate",
             data={"org_id": "org-1"},
@@ -140,7 +140,7 @@ def test_generate_case_format_gherkin():
     arepo.search_families_semantic.return_value = []
 
     with patch("src.api_v2.generate_test_plan", return_value=plan) as mock_gen:
-        client = make_client(krepo=krepo, arepo=arepo)
+        client = make_client(krepo=krepo, arepo=arepo, integrations=MagicMock())
         r = client.post(
             "/v2/test-plan/generate",
             data={
@@ -188,7 +188,7 @@ def test_generate_non_member_403():
 def test_generate_empty_hu_400():
     krepo = MagicMock()
     arepo = MagicMock()
-    client = make_client(krepo=krepo, arepo=arepo)
+    client = make_client(krepo=krepo, arepo=arepo, integrations=MagicMock())
 
     r = client.post(
         "/v2/test-plan/generate",
@@ -201,7 +201,7 @@ def test_generate_empty_hu_400():
 def test_generate_no_source_400():
     krepo = MagicMock()
     arepo = MagicMock()
-    client = make_client(krepo=krepo, arepo=arepo)
+    client = make_client(krepo=krepo, arepo=arepo, integrations=MagicMock())
 
     r = client.post(
         "/v2/test-plan/generate",
@@ -216,7 +216,7 @@ def test_generate_unsupported_file_400():
     arepo = MagicMock()
 
     with patch("src.api_v2.resolve_hu_from_upload", side_effect=ValueError("extensión no soportada: '.xls'")):
-        client = make_client(krepo=krepo, arepo=arepo)
+        client = make_client(krepo=krepo, arepo=arepo, integrations=MagicMock())
         r = client.post(
             "/v2/test-plan/generate",
             data={"org_id": "org-1"},
