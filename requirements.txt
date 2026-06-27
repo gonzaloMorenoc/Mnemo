@@ -31,3 +31,4 @@ openai==2.43.0
 anthropic==0.111.0
 beautifulsoup4==4.14.3
 xhtml2pdf==0.2.16
+python-docx==1.1.2
