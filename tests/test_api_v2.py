@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import src.api_v2 as api_v2
+from src.orgs.repository import OrganizationRepository  # noqa: F401 — orgs endpoints now use this
 from src.security import AuthenticatedUser
 from src.tenant_kb import IngestionResult
 

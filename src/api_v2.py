@@ -85,6 +85,7 @@ from src.multitenant_models import (
 from src.security import AuthenticatedUser, get_current_user
 from src.structured_analyzer import StructuredAnalyzer
 from src.tenant_kb import TenantKBRepository
+from src.orgs.repository import OrganizationRepository
 
 router = APIRouter(prefix="/v2", tags=["v2"])
 
@@ -110,12 +111,12 @@ _gate_service = None
 _embedder = None
 
 
-def get_repo() -> TenantKBRepository:
+def get_repo() -> OrganizationRepository:
     if not multi_tenant_enabled():
         raise HTTPException(status_code=503, detail="Multi-tenant KB not configured")
     global _repo
     if _repo is None:
-        _repo = TenantKBRepository()
+        _repo = OrganizationRepository()
     return _repo
 
 
@@ -372,7 +373,7 @@ def _org_to_response(org: Dict[str, Any]) -> OrganizationResponse:
 @router.get("/orgs", response_model=List[OrganizationResponse])
 def list_orgs(
     user: AuthenticatedUser = Depends(get_current_user),
-    repo: TenantKBRepository = Depends(get_repo),
+    repo: OrganizationRepository = Depends(get_repo),
 ) -> List[OrganizationResponse]:
     try:
         orgs = repo.list_user_organizations(user_id=user.user_id)
@@ -385,7 +386,7 @@ def list_orgs(
 def create_org(
     req: CreateOrgRequest,
     user: AuthenticatedUser = Depends(get_current_user),
-    repo: TenantKBRepository = Depends(get_repo),
+    repo: OrganizationRepository = Depends(get_repo),
 ) -> OrganizationResponse:
     try:
         org = repo.create_organization(user_id=user.user_id, name=req.name)
@@ -400,7 +401,7 @@ def create_org(
 def join_org(
     req: JoinOrgRequest,
     user: AuthenticatedUser = Depends(get_current_user),
-    repo: TenantKBRepository = Depends(get_repo),
+    repo: OrganizationRepository = Depends(get_repo),
 ) -> OrganizationResponse:
     try:
         org = repo.join_organization(user_id=user.user_id, join_code=req.join_code)
