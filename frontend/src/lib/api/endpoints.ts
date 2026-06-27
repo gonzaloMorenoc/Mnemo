@@ -6,6 +6,7 @@ import type {
   AnalyzeV2Request,
   AnalyzeV2Response,
   AssuranceVerdictResponse,
+  BriefingResponse,
   CalibrationMetrics,
   Certificate,
   DefectFamilyResponse,
@@ -159,4 +160,12 @@ export function getCalibrationMetrics(token: string, orgId: string) {
 export function setFamilyLabel(token: string, familyId: string, label: string, reason = "") {
   return apiRequest<FamilyLabel>(
     `/api/v2/defects/${encodeURIComponent(familyId)}/label`, "PATCH", { token, body: { label, reason } });
+}
+
+export function getBriefing(token: string, runId: string) {
+  return apiRequest<BriefingResponse>(
+    `/api/v2/runs/${encodeURIComponent(runId)}/briefing`,
+    "GET",
+    { token },
+  );
 }

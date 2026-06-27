@@ -189,3 +189,11 @@ export interface FamilyLabel {
   family_id: string;
   label: string;
 }
+
+export interface BriefingResponse {
+  verdict: string;
+  summary: string;
+  recommendation: string;
+  highlights: string[];
+  citations: string[];
+}
