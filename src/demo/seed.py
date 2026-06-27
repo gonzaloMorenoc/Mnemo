@@ -68,10 +68,7 @@ def seed_demo(*, db_url: str, demo_user_id: str) -> Dict[str, Any]:
     ingest = CiIngestionService(repo=repo, embedder=embedder)
     triage = TriageService(repo=repo)
 
-    try:
-        llm = None  # sin LLM en el entorno de seed (degrada bien en CertificateService)
-    except Exception:
-        llm = None
+    llm = None  # sin ai_eval en el seed
 
     cert_svc = CertificateService(
         repo=repo,
