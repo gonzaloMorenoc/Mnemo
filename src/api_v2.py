@@ -307,6 +307,8 @@ def get_embedder():
 
 
 def get_knowledge_repo() -> QaKnowledgeRepository:
+    if not multi_tenant_enabled():
+        raise HTTPException(status_code=503, detail="Multi-tenant KB not configured")
     global _knowledge_repo
     if _knowledge_repo is None:
         _knowledge_repo = QaKnowledgeRepository()
