@@ -10,6 +10,8 @@ import { TriageVerdictList } from "@/components/autopilot/TriageVerdictList";
 import { ActionsPanel } from "@/components/autopilot/ActionsPanel";
 import { CertificateCard } from "@/components/autopilot/CertificateCard";
 import { GateCard } from "@/components/autopilot/GateCard";
+import { BriefingCard } from "@/components/autopilot/BriefingCard";
+import { RoiPanel } from "@/components/autopilot/RoiPanel";
 
 export default function AutopilotPage() {
   const { accessToken } = useAuth();
@@ -31,10 +33,12 @@ export default function AutopilotPage() {
       <RunSelector orgId={orgId} onRunId={setRunId} />
       {runId && (
         <div key={runId} className="space-y-4">
+          <BriefingCard runId={runId} />
           <TriageVerdictList runId={runId} />
           <ActionsPanel runId={runId} orgId={orgId} />
           <CertificateCard runId={runId} />
           <GateCard runId={runId} />
+          <RoiPanel runId={runId} />
         </div>
       )}
     </div>
