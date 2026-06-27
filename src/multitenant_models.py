@@ -254,3 +254,28 @@ class BriefingResponse(BaseModel):
     recommendation: str
     highlights: List[str]
     citations: List[str]
+
+
+class KnowledgeCreateRequest(BaseModel):
+    org_id: str
+    kind: str
+    title: str = Field(max_length=300)
+    challenge: Optional[str] = Field(default=None, max_length=4000)
+    approach: Optional[str] = Field(default=None, max_length=4000)
+    outcome: Optional[str] = Field(default=None, max_length=4000)
+    domain: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
+    project: Optional[str] = None
+    defect_family_id: Optional[str] = None
+    run_id: Optional[str] = None
+
+
+class KnowledgeSearchRequest(BaseModel):
+    org_id: str
+    query: str = Field(max_length=2000)
+    k: int = 8
+
+
+class KnowledgeAskRequest(BaseModel):
+    org_id: str
+    question: str = Field(max_length=2000)

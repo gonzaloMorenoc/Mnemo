@@ -41,6 +41,8 @@ from src.jira.client import JiraApiError
 from src.jira.integrations_repository import IntegrationsRepository
 from src.jira.ingestion_service import JiraIngestionService
 from src.jira.safe_url import validate_base_url
+from src.knowledge.repository import QaKnowledgeRepository
+from src.knowledge.service import KnowledgeService
 from src.multitenant_models import (
     ActionApproveResponse,
     ActionRejectRequest,
@@ -71,6 +73,9 @@ from src.multitenant_models import (
     JiraIngestResponse,
     JiraPullRequest,
     JoinOrgRequest,
+    KnowledgeAskRequest,
+    KnowledgeCreateRequest,
+    KnowledgeSearchRequest,
     OrganizationResponse,
     ProposeActionsResponse,
     RootCauseResponse,
@@ -101,6 +106,7 @@ _cert_repo = None
 _certificate_service = None
 _gate_service = None
 _embedder = None
+_knowledge_repo = None
 
 
 def get_repo() -> OrganizationRepository:
@@ -298,6 +304,13 @@ def get_embedder():
     if _embedder is None:
         _embedder = LocalEmbedder()
     return _embedder
+
+
+def get_knowledge_repo() -> QaKnowledgeRepository:
+    global _knowledge_repo
+    if _knowledge_repo is None:
+        _knowledge_repo = QaKnowledgeRepository()
+    return _knowledge_repo
 
 
 def _org_to_response(org: Dict[str, Any]) -> OrganizationResponse:
@@ -917,3 +930,87 @@ def run_briefing_v2(
         highlights=b["highlights"],
         citations=b["citations"],
     )
+
+
+# ---------------------------------------------------------------------------
+# /v2/knowledge endpoints
+# ---------------------------------------------------------------------------
+
+@router.post("/knowledge", response_model=Dict[str, Any])
+def create_knowledge(
+    req: KnowledgeCreateRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+    repo: QaKnowledgeRepository = Depends(get_knowledge_repo),
+) -> Dict[str, Any]:
+    try:
+        item = repo.create_item(
+            user_id=user.user_id, org_id=req.org_id, kind=req.kind, title=req.title,
+            challenge=req.challenge, approach=req.approach, outcome=req.outcome,
+            domain=req.domain, tags=req.tags, project=req.project,
+            defect_family_id=req.defect_family_id, run_id=req.run_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    if item is None:
+        raise HTTPException(status_code=403, detail="No es miembro de la organización")
+    return item
+
+
+@router.get("/knowledge", response_model=List[Dict[str, Any]])
+def list_knowledge(
+    org_id: str,
+    kind: Optional[str] = None,
+    domain: Optional[str] = None,
+    user: AuthenticatedUser = Depends(get_current_user),
+    repo: QaKnowledgeRepository = Depends(get_knowledge_repo),
+) -> List[Dict[str, Any]]:
+    try:
+        return repo.list_items(user_id=user.user_id, org_id=org_id, kind=kind, domain=domain)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+
+
+@router.get("/knowledge/{item_id}", response_model=Dict[str, Any])
+def get_knowledge(
+    item_id: str,
+    org_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+    repo: QaKnowledgeRepository = Depends(get_knowledge_repo),
+) -> Dict[str, Any]:
+    try:
+        item = repo.get_item(user_id=user.user_id, org_id=org_id, item_id=item_id)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    if item is None:
+        raise HTTPException(status_code=404, detail="knowledge item not found")
+    return item
+
+
+@router.post("/knowledge/search", response_model=List[Dict[str, Any]])
+def search_knowledge(
+    req: KnowledgeSearchRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+    krepo: QaKnowledgeRepository = Depends(get_knowledge_repo),
+    arepo: AssuranceRepository = Depends(get_assurance_repo),
+) -> List[Dict[str, Any]]:
+    svc = KnowledgeService(krepo, arepo)
+    try:
+        return svc.search_unified(user_id=user.user_id, org_id=req.org_id, query=req.query, k=req.k)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+
+
+@router.post("/knowledge/ask", response_model=Dict[str, Any])
+def ask_knowledge(
+    req: KnowledgeAskRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+    krepo: QaKnowledgeRepository = Depends(get_knowledge_repo),
+    arepo: AssuranceRepository = Depends(get_assurance_repo),
+) -> Dict[str, Any]:
+    svc = KnowledgeService(krepo, arepo)
+    try:
+        return svc.ask(user_id=user.user_id, org_id=req.org_id, question=req.question)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
