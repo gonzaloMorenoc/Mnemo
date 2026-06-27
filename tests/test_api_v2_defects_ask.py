@@ -79,3 +79,9 @@ def test_ask_degrades_when_llm_down(client_and_mocks):
 
     # Clean up override
     del client.app.dependency_overrides[api_v2.get_llm_provider]
+
+
+def test_ask_rejects_overlong_question(client_and_mocks):
+    client, _ = client_and_mocks
+    r = client.post("/v2/defects/ask", json={"org_id": "o1", "question": "x" * 5000})
+    assert r.status_code == 422   # Pydantic rechaza > max_length antes de tocar el repo

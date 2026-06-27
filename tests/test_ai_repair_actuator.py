@@ -49,3 +49,17 @@ def test_degrades_when_confidence_low():
     new = "await expect(page).toHaveTitle('New');"
     out = '{"old_block":"%s","new_block":"%s","explanation":"x","confidence":0.2,"citations":[]}' % (blk, new)
     assert AIRepairActuator(_Provider(out)).propose(_VERDICT, _CTX) is None
+
+
+def test_source_is_truncated_before_llm():
+    captured = {}
+    class _Spy:
+        def complete(self, prompt):
+            captured["prompt"] = prompt
+            return '{"old_block":"x","new_block":"y","confidence":0.9}'
+    big = "A" * 20000
+    ctx = {"file": "t.spec.ts", "test_source": big, "error_message": "e"}
+    AIRepairActuator(_Spy()).propose({"category": "maintenance"}, ctx)
+    # el prompt no debe contener el source completo (truncado a _MAX_SOURCE=8000;
+    # el template _PROMPT aporta ~3 'A' propias, por eso se tolera hasta 8010)
+    assert captured["prompt"].count("A") <= 8010
