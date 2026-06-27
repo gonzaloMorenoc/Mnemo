@@ -181,3 +181,33 @@ def test_pr_502_falsy_url():
 
     assert r.status_code == 502
     assert "PR" in r.json()["detail"]
+
+
+def test_pr_422_path_traversal_filename():
+    """Path traversal filenames are rejected at model validation → 422 (never reach GitHub)."""
+    client = make_client()
+
+    # Classic path traversal — escapes tests/ directory
+    r = client.post("/v2/automation/pr", json=_pr_payload(filename="../../app.py"))
+    assert r.status_code == 422
+
+    # Traversal disguised as .spec.ts
+    r = client.post("/v2/automation/pr", json=_pr_payload(filename="../evil.spec.ts"))
+    assert r.status_code == 422
+
+    # Plain directory separator — also blocked
+    r = client.post("/v2/automation/pr", json=_pr_payload(filename="subdir/evil.spec.ts"))
+    assert r.status_code == 422
+
+
+def test_pr_200_valid_spects_filename():
+    """A valid .spec.ts filename passes the pattern and reaches GitHub."""
+    mock_host = MagicMock()
+    mock_host.open_pr_with_new_file.return_value = "https://github.com/acme/repo/pull/99"
+
+    with patch("src.api_v2._github_codehost_factory", return_value=mock_host):
+        client = make_client()
+        r = client.post("/v2/automation/pr", json=_pr_payload(filename="login.spec.ts"))
+
+    assert r.status_code == 200
+    assert r.json()["pr_url"] == "https://github.com/acme/repo/pull/99"
