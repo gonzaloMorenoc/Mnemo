@@ -41,6 +41,8 @@ from src.jira.client import JiraApiError
 from src.jira.integrations_repository import IntegrationsRepository
 from src.jira.ingestion_service import JiraIngestionService
 from src.jira.safe_url import validate_base_url
+from src.graph.service import GraphService
+from src.graph.gaps import detect_gaps
 from src.knowledge.repository import QaKnowledgeRepository
 from src.knowledge.service import KnowledgeService
 from src.multitenant_models import (
@@ -944,6 +946,33 @@ def run_briefing_v2(
         highlights=b["highlights"],
         citations=b["citations"],
     )
+
+
+# ---------------------------------------------------------------------------
+# /v2/graph endpoints
+# ---------------------------------------------------------------------------
+
+@router.get("/graph", response_model=Dict[str, Any])
+def get_graph(
+    org_id: str,
+    focus: Optional[str] = None,
+    limit: int = 200,
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> Dict[str, Any]:
+    return GraphService().build_graph(
+        user_id=user.user_id,
+        org_id=org_id,
+        focus=focus,
+        limit=min(limit, 500),
+    )
+
+
+@router.get("/graph/gaps", response_model=List[Dict[str, Any]])
+def get_graph_gaps(
+    org_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> List[Dict[str, Any]]:
+    return detect_gaps(user_id=user.user_id, org_id=org_id)
 
 
 # ---------------------------------------------------------------------------

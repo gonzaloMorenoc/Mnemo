@@ -245,3 +245,31 @@ export interface GeneratedTest {
   filename: string;
   notes: string;
 }
+
+export interface GraphNode {
+  id: string;
+  type: "knowledge" | "defect" | "domain";
+  label: string;
+  kind?: string;
+  domain?: string;
+  count?: number;
+}
+
+export interface GraphEdge {
+  source: string;
+  target: string;
+  relation: "documenta" | "pertenece" | "tag";
+}
+
+export interface Graph {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
+export interface CoverageGap {
+  kind: string;
+  title: string;
+  severity: "alta" | "media" | "baja";
+  affected: string[];
+  recommendation: string;
+}

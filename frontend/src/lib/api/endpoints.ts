@@ -7,12 +7,14 @@ import type {
   BriefingResponse,
   CalibrationMetrics,
   Certificate,
+  CoverageGap,
   DefectFamilyResponse,
   DefectLineageResponse,
   DomainSummary,
   FamilyLabel,
   GateResult,
   GeneratedTest,
+  Graph,
   HealthResponse,
   IngestReportResponse,
   JiraConfigResponse,
@@ -217,6 +219,24 @@ export function openAutomationPr(
   body: { org_id: string; code: string; filename: string; title?: string },
 ) {
   return apiRequest<{ pr_url: string }>("/api/v2/automation/pr", "POST", { token, body });
+}
+
+export function getGraph(
+  token: string,
+  params: { org_id: string; focus?: string; limit?: number },
+) {
+  const q = new URLSearchParams({ org_id: params.org_id });
+  if (params.focus) q.set("focus", params.focus);
+  if (params.limit) q.set("limit", String(params.limit));
+  return apiRequest<Graph>(`/api/v2/graph?${q.toString()}`, "GET", { token });
+}
+
+export function getGaps(token: string, params: { org_id: string }) {
+  return apiRequest<CoverageGap[]>(
+    `/api/v2/graph/gaps?org_id=${encodeURIComponent(params.org_id)}`,
+    "GET",
+    { token },
+  );
 }
 
 export async function getCertificatePdf(token: string, runId: string): Promise<Blob> {
