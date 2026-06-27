@@ -155,3 +155,13 @@ export function getBriefing(token: string, runId: string) {
     { token },
   );
 }
+
+export async function getCertificatePdf(token: string, runId: string): Promise<Blob> {
+  const res = await fetch(`/api/v2/certificates/${encodeURIComponent(runId)}/pdf`, {
+    method: "GET",
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Descarga fallida (${res.status})`);
+  return res.blob();
+}

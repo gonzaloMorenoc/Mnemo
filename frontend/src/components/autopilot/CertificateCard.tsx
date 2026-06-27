@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { useAuth } from "@/components/providers/auth-provider";
-import { generateCertificate, getCertificate } from "@/lib/api/endpoints";
+import { generateCertificate, getCertificate, getCertificatePdf } from "@/lib/api/endpoints";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,21 @@ export function CertificateCard({ runId }: { runId: string }) {
   });
 
   const cert = query.data;
+
+  async function handleDownloadPdf() {
+    try {
+      const blob = await getCertificatePdf(accessToken!, runId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `certificate-${runId}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error("No se pudo descargar el PDF.");
+    }
+  }
+
   return (
     <Card className="space-y-3 p-5">
       <div className="flex items-center justify-between">
@@ -41,6 +56,7 @@ export function CertificateCard({ runId }: { runId: string }) {
             <span>risk score <strong className="text-zinc-900">{cert.risk_score}</strong></span>
           </div>
           <p className="font-mono text-xs text-zinc-400 break-all">firma: {cert.signature.slice(0, 32)}…</p>
+          <Button size="sm" variant="outline" onClick={handleDownloadPdf}>Descargar PDF</Button>
         </div>
       ) : (
         <p className="text-sm text-zinc-500">Aún no hay certificado para este run.</p>
