@@ -6,8 +6,8 @@ import { toast } from "sonner";
 
 import { useAuth } from "@/components/providers/auth-provider";
 import { useActiveOrg } from "@/components/providers/org-provider";
-import { generateTestPlan, exportTestPlanXray } from "@/lib/api/endpoints";
-import type { TestPlan } from "@/lib/api/types";
+import { generateTestPlan, exportTestPlanXray, generatePlaywrightTest, openAutomationPr } from "@/lib/api/endpoints";
+import type { GeneratedTest, TestCase, TestPlan } from "@/lib/api/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -75,6 +75,93 @@ function downloadMarkdown(plan: TestPlan, citations: string[]) {
   URL.revokeObjectURL(url);
 }
 
+function downloadSpecTs(code: string, filename: string) {
+  const blob = new Blob([code], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+interface CasePlaywrightSectionProps {
+  tc: TestCase;
+  accessToken: string;
+  activeOrgId: string;
+  styleSample: string;
+}
+
+function CasePlaywrightSection({ tc, accessToken, activeOrgId, styleSample }: CasePlaywrightSectionProps) {
+  const [generated, setGenerated] = useState<GeneratedTest | null>(null);
+
+  const generateMut = useMutation({
+    mutationFn: () =>
+      generatePlaywrightTest(accessToken, {
+        case: tc,
+        ...(styleSample.trim() ? { style_sample: styleSample.trim() } : {}),
+      }),
+    onSuccess: (data) => setGenerated(data),
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const prMut = useMutation({
+    mutationFn: () => {
+      if (!generated) throw new Error("Sin código generado");
+      return openAutomationPr(accessToken, {
+        org_id: activeOrgId,
+        code: generated.code,
+        filename: generated.filename,
+      });
+    },
+    onSuccess: (data) => toast.success(data.pr_url),
+    onError: (err: Error) => {
+      const msg = err.message.includes("503") ? "Configura GitHub" : err.message;
+      toast.error(msg);
+    },
+  });
+
+  return (
+    <div className="pt-2 space-y-2">
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => generateMut.mutate()}
+        disabled={generateMut.isPending}
+      >
+        {generateMut.isPending ? "Generando…" : "Generar test Playwright"}
+      </Button>
+
+      {generated && (
+        <div className="space-y-2 rounded-lg border border-zinc-200 bg-white p-3">
+          {generated.notes && (
+            <p className="text-xs text-zinc-500">{generated.notes}</p>
+          )}
+          <pre className="rounded bg-zinc-900 text-zinc-100 p-3 text-xs overflow-x-auto whitespace-pre-wrap">
+            {generated.code}
+          </pre>
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => downloadSpecTs(generated.code, generated.filename)}
+            >
+              Descargar
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => prMut.mutate()}
+              disabled={prMut.isPending}
+            >
+              {prMut.isPending ? "Abriendo PR…" : "Abrir draft PR"}
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TestPlanPage() {
   const { accessToken } = useAuth();
   const { activeOrgId } = useActiveOrg();
@@ -87,6 +174,9 @@ export default function TestPlanPage() {
 
   const [plan, setPlan] = useState<TestPlan | null>(null);
   const [citations, setCitations] = useState<string[]>([]);
+
+  // Playwright generation state
+  const [styleSample, setStyleSample] = useState("");
 
   // Plan editable fields
   const [editSummary, setEditSummary] = useState("");
@@ -318,6 +408,22 @@ export default function TestPlanPage() {
             </Button>
           </div>
 
+          {/* Style sample for Playwright generation */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Ejemplo de estilo (opcional)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <textarea
+                aria-label="Ejemplo de estilo Playwright"
+                className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm font-mono shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-400 min-h-[80px] resize-y"
+                placeholder="Pega aquí un test Playwright de referencia para que el generador siga tu estilo…"
+                value={styleSample}
+                onChange={(e) => setStyleSample(e.target.value)}
+              />
+            </CardContent>
+          </Card>
+
           {/* Summary */}
           <Card>
             <CardHeader>
@@ -439,6 +545,15 @@ export default function TestPlanPage() {
                         </p>
                       )}
                     </>
+                  )}
+
+                  {accessToken && activeOrgId && (
+                    <CasePlaywrightSection
+                      tc={tc}
+                      accessToken={accessToken}
+                      activeOrgId={activeOrgId}
+                      styleSample={styleSample}
+                    />
                   )}
                 </div>
               ))}
