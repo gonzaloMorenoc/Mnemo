@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Network } from "lucide-react";
@@ -56,13 +57,18 @@ export default function GraphPage() {
     enabled: !!accessToken && !!activeOrgId,
   });
 
-  // Degrade on errors — toast, no crash
-  if (graphQuery.isError) {
-    toast.error((graphQuery.error as Error).message ?? "Error al cargar el grafo");
-  }
-  if (gapsQuery.isError) {
-    toast.error((gapsQuery.error as Error).message ?? "Error al cargar los gaps");
-  }
+  // Degrade on errors — toast once (not on every re-render)
+  useEffect(() => {
+    if (graphQuery.isError) {
+      toast.error((graphQuery.error as Error).message ?? "Error al cargar el grafo");
+    }
+  }, [graphQuery.isError, graphQuery.error]);
+
+  useEffect(() => {
+    if (gapsQuery.isError) {
+      toast.error((gapsQuery.error as Error).message ?? "Error al cargar los gaps");
+    }
+  }, [gapsQuery.isError, gapsQuery.error]);
 
   if (isLoading) {
     return (
@@ -137,8 +143,8 @@ export default function GraphPage() {
             </Card>
           )}
 
-          {sortedGaps.map((gap, idx) => (
-            <Card key={idx} className="p-4">
+          {sortedGaps.map((gap) => (
+            <Card key={`${gap.kind}-${gap.title}`} className="p-4">
               <div className="mb-2 flex items-center gap-2">
                 <span
                   className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${severityClass(gap.severity)}`}
