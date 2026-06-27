@@ -10,6 +10,7 @@ import { truncate } from "@/lib/utils";
 
 const pageTitles: Record<string, string> = {
   "/app/knowledge": "Conocimiento",
+  "/app/onboarding": "Onboarding",
   "/app/org": "Organization",
   "/app/settings": "Settings",
   "/app/test-plan": "Plan de pruebas",
