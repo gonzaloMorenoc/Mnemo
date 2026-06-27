@@ -512,7 +512,23 @@ async def ci_webhook(request: Request) -> CiWebhookResponse:
             )
         except Exception:  # noqa: BLE001 — el triaje degrada; la ingesta ya está commiteada
             logger.exception("triage failed for run %s", result["run_id"])
-    return CiWebhookResponse(**result, triage=triage_summary)
+    verdict = None
+    gate = None
+    if not result.get("deduplicated") and triage_summary is not None:
+        try:
+            created_at = datetime.now(timezone.utc).isoformat()
+            cert = get_certificate_service().generate(
+                user_id=CI_SERVICE_USER_ID, run_id=result["run_id"], created_at=created_at)
+            verdict = cert.get("verdict")
+        except Exception:  # noqa: BLE001 — el cert degrada; la ingesta/triaje ya están commiteados
+            logger.exception("certificate failed for run %s", result["run_id"])
+        try:
+            gate_res = get_gate_service().publish(
+                user_id=CI_SERVICE_USER_ID, run_id=result["run_id"])
+            gate = gate_res.get("conclusion")
+        except Exception:  # noqa: BLE001 — el gate degrada (p.ej. sin GitHub App)
+            logger.exception("gate failed for run %s", result["run_id"])
+    return CiWebhookResponse(**result, triage=triage_summary, verdict=verdict, gate=gate)
 
 
 @router.get("/triage/run/{run_id}", response_model=List[TriageVerdictResponse])
