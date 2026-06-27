@@ -30,3 +30,35 @@ body {
 ::selection {
   background: rgba(15, 23, 42, 0.14);
 }
+
+/* ── react-flow node type colours ────────────────────────────────────────── */
+
+.react-flow__node.node-knowledge .react-flow__node-default,
+.react-flow__node.node-knowledge > div {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  color: #1e40af;
+}
+
+.react-flow__node.node-defect .react-flow__node-default,
+.react-flow__node.node-defect > div {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+
+.react-flow__node.node-domain .react-flow__node-default,
+.react-flow__node.node-domain > div {
+  background: #f4f4f5;
+  border-color: #a1a1aa;
+  color: #3f3f46;
+}
+
+.react-flow__node.node-selected > div {
+  box-shadow: 0 0 0 3px #6366f1;
+  border-color: #6366f1;
+}
+
+.react-flow__node.node-dimmed {
+  opacity: 0.3;
+}
