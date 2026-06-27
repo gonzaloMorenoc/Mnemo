@@ -167,3 +167,29 @@ export interface BriefingResponse {
   highlights: string[];
   citations: string[];
 }
+
+export interface KnowledgeItem {
+  id: string;
+  kind: string;
+  title: string;
+  challenge?: string;
+  approach?: string;
+  outcome?: string;
+  domain?: string;
+  tags: string[];
+  confidence: string;
+  created_at: string;
+}
+
+export interface KnowledgeSource {
+  id: string;
+  type: "knowledge" | "defect";
+  title?: string;
+  content: string;
+  confidence?: string;
+}
+
+export interface KnowledgeAnswer {
+  answer: string;
+  citations: string[];
+}
