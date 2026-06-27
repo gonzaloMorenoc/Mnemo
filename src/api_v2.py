@@ -76,6 +76,7 @@ from src.multitenant_models import (
     KnowledgeAskRequest,
     KnowledgeCreateRequest,
     KnowledgeSearchRequest,
+    OnboardingRequest,
     OrganizationResponse,
     ProposeActionsResponse,
     RootCauseResponse,
@@ -84,6 +85,7 @@ from src.multitenant_models import (
     TestPlanXrayExportRequest,
     TriageVerdictResponse,
 )
+from src.onboarding.agent import summarize_domain, learning_path
 from src.testplan.agent import generate_test_plan
 from src.testplan.ingest import resolve_hu_from_upload
 from src.testplan.jira_source import hu_text_from_jira
@@ -1023,6 +1025,32 @@ def ask_knowledge(
         return svc.ask(user_id=user.user_id, org_id=req.org_id, question=req.question)
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail="Database error") from exc
+
+
+# ---------------------------------------------------------------------------
+# /v2/onboarding endpoints
+# ---------------------------------------------------------------------------
+
+@router.post("/onboarding/domain-summary", response_model=Dict[str, Any])
+def onboarding_domain_summary(
+    req: OnboardingRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+    krepo: QaKnowledgeRepository = Depends(get_knowledge_repo),
+    arepo: AssuranceRepository = Depends(get_assurance_repo),
+) -> Dict[str, Any]:
+    svc = KnowledgeService(krepo, arepo)
+    return summarize_domain(knowledge_service=svc, user_id=user.user_id, org_id=req.org_id, topic=req.topic)
+
+
+@router.post("/onboarding/learning-path", response_model=Dict[str, Any])
+def onboarding_learning_path(
+    req: OnboardingRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+    krepo: QaKnowledgeRepository = Depends(get_knowledge_repo),
+    arepo: AssuranceRepository = Depends(get_assurance_repo),
+) -> Dict[str, Any]:
+    svc = KnowledgeService(krepo, arepo)
+    return learning_path(knowledge_service=svc, user_id=user.user_id, org_id=req.org_id, topic=req.topic)
 
 
 # ---------------------------------------------------------------------------

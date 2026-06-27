@@ -281,6 +281,11 @@ class KnowledgeAskRequest(BaseModel):
     question: str = Field(max_length=2000)
 
 
+class OnboardingRequest(BaseModel):
+    org_id: str
+    topic: str = Field(max_length=2000)
+
+
 class TestPlanGenerateRequest(BaseModel):
     """Documentation model for the multipart generate endpoint.
 
