@@ -80,8 +80,15 @@ from src.multitenant_models import (
     ProposeActionsResponse,
     RootCauseResponse,
     SetFamilyLabelRequest,
+    TestPlanGenerateRequest,
+    TestPlanXrayExportRequest,
     TriageVerdictResponse,
 )
+from src.testplan.agent import generate_test_plan
+from src.testplan.ingest import resolve_hu_from_upload
+from src.testplan.jira_source import hu_text_from_jira
+from src.xray.client import XrayClient, XrayImportError, XrayNotConfigured
+from src.xray.config import XrayConfig
 from src.security import AuthenticatedUser, get_current_user
 from src.orgs.repository import OrganizationRepository
 
@@ -1016,3 +1023,91 @@ def ask_knowledge(
         return svc.ask(user_id=user.user_id, org_id=req.org_id, question=req.question)
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail="Database error") from exc
+
+
+# ---------------------------------------------------------------------------
+# /v2/test-plan endpoints
+# ---------------------------------------------------------------------------
+
+@router.post("/test-plan/generate")
+async def generate_test_plan_v2(
+    org_id: str = Form(...),
+    case_format: str = Form("manual"),
+    hu_text: Optional[str] = Form(None),
+    jira_url: Optional[str] = Form(None),
+    file: Optional[UploadFile] = File(None),
+    user: AuthenticatedUser = Depends(get_current_user),
+    krepo: QaKnowledgeRepository = Depends(get_knowledge_repo),
+    arepo: AssuranceRepository = Depends(get_assurance_repo),
+    integrations: IntegrationsRepository = Depends(get_integrations_repo),
+) -> Dict[str, Any]:
+    """Generate a test plan from a user story (HU).
+
+    HU source priority: direct text > Jira URL > uploaded file.
+    """
+    try:
+        if hu_text is not None:
+            resolved_hu = hu_text
+        elif jira_url is not None:
+            resolved_hu = hu_text_from_jira(
+                url=jira_url, org_id=org_id, user_id=user.user_id, repo=integrations
+            )
+        elif file is not None:
+            data = await file.read()
+            resolved_hu = resolve_hu_from_upload(file.filename, data)
+        else:
+            raise ValueError(
+                "No se proporcionó HU: adjunta un fichero, una URL de Jira o texto directo"
+            )
+
+        if not resolved_hu or not resolved_hu.strip():
+            raise ValueError("La HU está vacía")
+
+        ks = KnowledgeService(krepo, arepo)
+        result = generate_test_plan(
+            knowledge_service=ks,
+            user_id=user.user_id,
+            org_id=org_id,
+            hu_text=resolved_hu,
+            case_format=case_format,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return {"plan": result, "citations": result.get("citations", [])}
+
+
+@router.post("/test-plan/export/xray")
+def export_xray_v2(
+    body: TestPlanXrayExportRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Export a test plan to Jira/Xray.
+
+    Membership is enforced first via XrayConfig.get() before the client
+    is instantiated.  Passing the returned creds as _creds= bypasses the
+    internal get_raw() call that skips membership checks.
+    """
+    try:
+        config = XrayConfig()
+        creds = config.get(user_id=user.user_id, org_id=body.org_id)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    if creds is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Xray no configurado para esta organización",
+        )
+
+    try:
+        client = XrayClient(org_id=body.org_id, _creds=creds)
+        keys = client.import_plan(plan=body.plan, case_format=body.case_format)
+    except XrayNotConfigured as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except XrayImportError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return {"keys": keys}
