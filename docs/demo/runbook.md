@@ -205,7 +205,7 @@ del seed cubren el mismo discurso:
 **Guion adaptado para Plan B:**
 
 - **Acto 1:** seleccionar directamente el run `maintenance_red` pre-sembrado. Decir: "Este es el run que acaba de llegar del CI — ya triado en tiempo real". El gate rojo y el triaje de mantenimiento están ahí; solo se omite el curl en vivo.
-- **Acto 2:** el run pre-sembrado ya tiene acciones propuestas si el seed corrió correctamente con el self-heal activado. Si no, describir el flujo verbalmente y mostrar el certificado pre-generado.
+- **Acto 2:** el seed **nunca** propone acciones automáticamente — `seed_demo` solo ingesta, triaja y certifica. Con el run `maintenance_red` seleccionado, hacer clic en **"Proponer acciones"** en vivo (mismo botón del panel `ActionsPanel` → `POST /v2/actions/run/{run_id}/propose`); esperar el toast "Acciones propuestas." y la aparición de la acción `self_heal`; luego clic en **"Aprobar"**. Si el sistema está caído por completo, describir el flujo proponer→aprobar verbalmente y mostrar el certificado pre-generado del run.
 - **Acto 3:** no depende del push en vivo — el re-run apto (`perfil_green.json`), la calibración y el cambio de org son independientes.
 
 El Acto 3 (calibración + Org B + ROI) **no depende del push en vivo** en ningún escenario.
