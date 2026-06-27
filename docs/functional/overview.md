@@ -6,7 +6,6 @@
 
 El nombre viene de *Mnemosyne*, la personificación de la memoria. La idea central: una organización de QA **olvida lo que ya aprendió** — el conocimiento de por qué falló algo y cómo se resolvió vive en la cabeza de un sénior y se evapora cuando rota de proyecto. Mnemo lo retiene, lo agrupa y lo pone donde el equipo trabaja.
 
-> Mnemo evolucionó de **SmartErrorDebugger** (un "AI debugger" al que pegabas trazas). Se reposicionó porque el valor real no está en depurar un error fácil, sino en **no perder el conocimiento de QA** en una consultora multi-cliente. Depurar es ahora una función, no el producto. Ver `docs/adr/0001-pivote-a-mnemo.md`.
 
 ## Propuesta de valor
 
