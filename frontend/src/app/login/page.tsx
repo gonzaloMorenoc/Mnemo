@@ -63,7 +63,7 @@ function LoginForm() {
   return (
     <AuthCard
       title="Sign in"
-      description="Continue to your TraceFix workspace."
+      description="Accede a tu espacio de trabajo en Mnemo."
       footerText="Need an account?"
       footerLinkHref="/signup"
       footerLinkLabel="Create one"

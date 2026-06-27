@@ -42,7 +42,7 @@ export function SidebarNav({ mobile = false, onClose }: SidebarNavProps) {
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-900 text-white">
             <Home size={16} />
           </span>
-          <span className="font-semibold tracking-tight text-zinc-900">TraceFix</span>
+          <span className="font-semibold tracking-tight text-zinc-900">Mnemo</span>
         </Link>
         {mobile && (
           <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close menu">
@@ -75,7 +75,7 @@ export function SidebarNav({ mobile = false, onClose }: SidebarNavProps) {
       </nav>
 
       <p className="mt-auto px-5 py-4 text-xs text-zinc-500">
-        Built for fast triage with org-aware context retrieval.
+        QA Autopilot · privado · on-premise · 0 € de API
       </p>
     </div>
   );

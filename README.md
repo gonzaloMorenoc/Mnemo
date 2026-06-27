@@ -2,7 +2,6 @@
 
 **Mnemo** es una plataforma **privada y on-premise** que convierte los fallos de los runs de test en **conocimiento reutilizable** (Defect DNA) y en **veredictos de aseguramiento** automáticos. Pensada para una consultora de QA multi-cliente: retiene el conocimiento que de otro modo se evapora con la rotación de personal.
 
-
 ## Qué hace
 
 - **Ingesta viva (CI)**: un **webhook** (`POST /v2/ci/webhook`, HMAC) recibe los runs del CI en tiempo real — fallos, resultados por test y snapshots de DOM — producidos por el **reporter de Playwright** (`packages/mnemo-playwright-reporter`). También ingesta reportes **Allure** (JSON) / **JUnit** (XML). Sanitiza y calcula una huella (**fingerprint**).

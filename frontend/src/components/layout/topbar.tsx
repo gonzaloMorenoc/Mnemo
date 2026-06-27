@@ -21,7 +21,7 @@ export function Topbar({ onOpenMobileMenu }: TopbarProps) {
   const router = useRouter();
   const { signOut, user } = useAuth();
 
-  const title = pageTitles[pathname] ?? "TraceFix";
+  const title = pageTitles[pathname] ?? "Mnemo";
 
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-zinc-200/80 bg-[color:var(--surface)]/90 px-4 backdrop-blur md:px-6">
@@ -38,7 +38,7 @@ export function Topbar({ onOpenMobileMenu }: TopbarProps) {
         <div>
           <h1 className="text-lg font-semibold tracking-tight text-zinc-900">{title}</h1>
           <p className="hidden text-xs text-zinc-500 sm:block">
-            Time-to-value under 30s starts with clear context.
+            Triaje determinista · aprobación humana · aseguramiento firmado
           </p>
         </div>
       </div>
