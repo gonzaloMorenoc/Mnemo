@@ -10,7 +10,6 @@ _DISCLAIMER = (
 )
 
 # Umbrales de confianza del motor (spec Bloque A): cold-start y precisión por tenant.
-_LOW_FAITHFULNESS = 0.5
 _COLD_START_MIN_CORRECTIONS = 30
 _LOW_ACCURACY = 0.60
 _HIGH_MIN_CORRECTIONS = 100
@@ -31,12 +30,11 @@ def compute_confidence(calibration: Dict[str, Any]) -> str:
 def compute_self_eval(*, calibration: Dict[str, Any], verdicts: List[Dict[str, Any]],
                       created_at: str, ai_eval: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Auto-evaluación del motor (deterministic_v1) + ai_eval opcional del LLM-judge. Pura.
-    ai_eval con faithfulness bajo DEGRADA confidence a 'low' (nunca lo infla)."""
+    ai_eval es INFORMATIVO: se firma dentro del self_eval pero NO modula el veredicto
+    (el confidence depende solo de la calibración determinista — "determinismo donde firmo")."""
     total = len(verdicts)
     llm_assisted = sum(1 for v in verdicts if v.get("llm_assisted"))
     confidence = compute_confidence(calibration)
-    if ai_eval is not None and ai_eval.get("faithfulness", 1.0) < _LOW_FAITHFULNESS:
-        confidence = "low"
     return {
         "method": "deterministic_v1",
         "engine_calibration": {
