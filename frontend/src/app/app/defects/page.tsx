@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { useAuth } from "@/components/providers/auth-provider";
-import { getDefects, getDefectLineage, getOrganizations, analyzeRootCause } from "@/lib/api/endpoints";
+import { useActiveOrg } from "@/components/providers/org-provider";
+import { getDefects, getDefectLineage, analyzeRootCause } from "@/lib/api/endpoints";
 import { FamilyLabelControl } from "@/components/autopilot/FamilyLabelControl";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -48,21 +49,13 @@ function RootCausePanel({ token, defectId }: { token: string; defectId: string }
 
 export default function DefectsPage() {
   const { accessToken } = useAuth();
-  const [orgId, setOrgId] = useState<string>("");
+  const { activeOrgId } = useActiveOrg();
   const [selected, setSelected] = useState<string | null>(null);
 
-  const orgsQuery = useQuery({
-    queryKey: ["organizations", accessToken],
-    queryFn: () => getOrganizations(accessToken!),
-    enabled: Boolean(accessToken),
-  });
-
-  const activeOrg = orgId || orgsQuery.data?.[0]?.id || "";
-
   const defectsQuery = useQuery({
-    queryKey: ["defects", activeOrg],
-    queryFn: () => getDefects(accessToken!, activeOrg),
-    enabled: Boolean(accessToken && activeOrg),
+    queryKey: ["defects", activeOrgId],
+    queryFn: () => getDefects(accessToken!, activeOrgId),
+    enabled: Boolean(accessToken && activeOrgId),
   });
 
   const lineageQuery = useQuery({
@@ -77,18 +70,6 @@ export default function DefectsPage() {
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Defect DNA</h1>
         <p className="text-sm text-zinc-500">Familias de defecto y su linaje a través de proyectos.</p>
       </div>
-
-      {orgsQuery.data && orgsQuery.data.length > 1 && (
-        <select
-          className="rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-          value={activeOrg}
-          onChange={(e) => setOrgId(e.target.value)}
-        >
-          {orgsQuery.data.map((o) => (
-            <option key={o.id} value={o.id}>{o.name}</option>
-          ))}
-        </select>
-      )}
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card className="p-4">

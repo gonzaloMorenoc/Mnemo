@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { Topbar } from "@/components/layout/topbar";
+import { OrgProvider } from "@/components/providers/org-provider";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -17,8 +18,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </aside>
 
         <main className="relative min-w-0">
-          <Topbar onOpenMobileMenu={() => setMobileOpen(true)} />
-          <div className="mx-auto w-full max-w-6xl px-4 py-6 md:px-8">{children}</div>
+          <OrgProvider>
+            <Topbar onOpenMobileMenu={() => setMobileOpen(true)} />
+            <div className="mx-auto w-full max-w-6xl px-4 py-6 md:px-8">{children}</div>
+          </OrgProvider>
         </main>
       </div>
 
