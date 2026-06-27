@@ -15,6 +15,9 @@ import type {
   IngestReportResponse,
   JiraConfigResponse,
   JiraIngestResponse,
+  KnowledgeAnswer,
+  KnowledgeItem,
+  KnowledgeSource,
   OrganizationResponse,
   ProposeActionsResult,
   RootCauseResponse,
@@ -154,6 +157,27 @@ export function getBriefing(token: string, runId: string) {
     "GET",
     { token },
   );
+}
+
+export function createKnowledge(token: string, body: Record<string, unknown>) {
+  return apiRequest<KnowledgeItem>("/api/v2/knowledge", "POST", { token, body });
+}
+
+export function listKnowledge(token: string, orgId: string, kind?: string) {
+  const qs = new URLSearchParams({ org_id: orgId });
+  if (kind) qs.set("kind", kind);
+  return apiRequest<KnowledgeItem[]>(`/api/v2/knowledge?${qs.toString()}`, "GET", { token });
+}
+
+export function searchKnowledge(
+  token: string,
+  body: { org_id: string; query: string; k?: number },
+) {
+  return apiRequest<KnowledgeSource[]>("/api/v2/knowledge/search", "POST", { token, body });
+}
+
+export function askKnowledge(token: string, body: { org_id: string; question: string }) {
+  return apiRequest<KnowledgeAnswer>("/api/v2/knowledge/ask", "POST", { token, body });
 }
 
 export async function getCertificatePdf(token: string, runId: string): Promise<Blob> {

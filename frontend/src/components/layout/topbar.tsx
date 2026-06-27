@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { truncate } from "@/lib/utils";
 
 const pageTitles: Record<string, string> = {
+  "/app/knowledge": "Conocimiento",
   "/app/org": "Organization",
   "/app/settings": "Settings",
 };

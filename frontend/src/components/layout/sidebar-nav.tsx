@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Bot,
+  BrainCircuit,
   Building2,
   Dna,
   Gauge,
@@ -22,6 +23,7 @@ const navItems = [
   { href: "/app/autopilot", label: "Autopilot", icon: Bot },
   { href: "/app/calibration", label: "Calibración", icon: Gauge },
   { href: "/app/defects", label: "Defect DNA", icon: Dna },
+  { href: "/app/knowledge", label: "Conocimiento", icon: BrainCircuit },
   { href: "/app/integrations", label: "Integrations", icon: Plug },
   { href: "/app/org", label: "Organization", icon: Building2 },
   { href: "/app/settings", label: "Settings", icon: Settings },
