@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/components/providers/auth-provider", () => ({ useAuth: () => ({ accessToken: "tok" }) }));
@@ -10,13 +10,17 @@ vi.mock("@/lib/api/endpoints", () => ({
 }));
 
 import { getCalibrationMetrics } from "@/lib/api/endpoints";
+import { OrgProvider } from "@/components/providers/org-provider";
 import CalibrationPage from "@/app/app/calibration/page";
 
-afterEach(() => vi.clearAllMocks());
+afterEach(() => {
+  vi.clearAllMocks();
+  cleanup();
+});
 
 function renderWithClient(ui: React.ReactNode) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+  return render(<QueryClientProvider client={client}><OrgProvider>{ui}</OrgProvider></QueryClientProvider>);
 }
 
 describe("CalibrationPage", () => {

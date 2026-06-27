@@ -4,6 +4,7 @@ import { Menu, Sparkles } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { useAuth } from "@/components/providers/auth-provider";
+import { OrgSwitcher } from "@/components/layout/org-switcher";
 import { Button } from "@/components/ui/button";
 import { truncate } from "@/lib/utils";
 
@@ -44,6 +45,7 @@ export function Topbar({ onOpenMobileMenu }: TopbarProps) {
       </div>
 
       <div className="flex items-center gap-2">
+        <OrgSwitcher />
         <span className="hidden items-center gap-1 rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs text-zinc-600 sm:inline-flex">
           <Sparkles size={12} />
           {truncate(user?.email ?? "unknown-user")}

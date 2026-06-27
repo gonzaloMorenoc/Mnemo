@@ -1,10 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 
-import { useAuth } from "@/components/providers/auth-provider";
-import { getOrganizations } from "@/lib/api/endpoints";
+import { useActiveOrg } from "@/components/providers/org-provider";
 import { RunSelector } from "@/components/autopilot/RunSelector";
 import { TriageVerdictList } from "@/components/autopilot/TriageVerdictList";
 import { ActionsPanel } from "@/components/autopilot/ActionsPanel";
@@ -14,15 +12,8 @@ import { BriefingCard } from "@/components/autopilot/BriefingCard";
 import { RoiPanel } from "@/components/autopilot/RoiPanel";
 
 export default function AutopilotPage() {
-  const { accessToken } = useAuth();
+  const { activeOrgId: orgId } = useActiveOrg();
   const [runId, setRunId] = useState<string | null>(null);
-
-  const orgsQuery = useQuery({
-    queryKey: ["organizations", accessToken],
-    queryFn: () => getOrganizations(accessToken!),
-    enabled: Boolean(accessToken),
-  });
-  const orgId = orgsQuery.data?.[0]?.id ?? "";
 
   return (
     <div className="space-y-6">

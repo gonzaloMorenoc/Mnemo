@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { useAuth } from "@/components/providers/auth-provider";
-import { getAssuranceVerdict, getOrganizations, ingestReport } from "@/lib/api/endpoints";
+import { useActiveOrg } from "@/components/providers/org-provider";
+import { getAssuranceVerdict, ingestReport } from "@/lib/api/endpoints";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,19 +14,13 @@ import { Badge } from "@/components/ui/badge";
 
 export default function AssurancePage() {
   const { accessToken } = useAuth();
+  const { activeOrgId: orgId } = useActiveOrg();
   const [project, setProject] = useState("");
   const [source, setSource] = useState("auto");
   const [file, setFile] = useState<File | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-
-  const orgsQuery = useQuery({
-    queryKey: ["organizations", accessToken],
-    queryFn: () => getOrganizations(accessToken!),
-    enabled: Boolean(accessToken),
-  });
-  const orgId = orgsQuery.data?.[0]?.id ?? "";
 
   const verdictQuery = useQuery({
     queryKey: ["verdict", runId],

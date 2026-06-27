@@ -1,29 +1,22 @@
 "use client";
 
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { useAuth } from "@/components/providers/auth-provider";
-import { getCalibrationMetrics, getOrganizations } from "@/lib/api/endpoints";
+import { useActiveOrg } from "@/components/providers/org-provider";
+import { getCalibrationMetrics } from "@/lib/api/endpoints";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function CalibrationPage() {
   const { accessToken } = useAuth();
-  const [orgId, setOrgId] = useState("");
-
-  const orgsQuery = useQuery({
-    queryKey: ["organizations", accessToken],
-    queryFn: () => getOrganizations(accessToken!),
-    enabled: Boolean(accessToken),
-  });
-  const activeOrg = orgId || orgsQuery.data?.[0]?.id || "";
+  const { activeOrgId } = useActiveOrg();
 
   const metricsQuery = useQuery({
-    queryKey: ["calibration", activeOrg],
-    queryFn: () => getCalibrationMetrics(accessToken!, activeOrg),
-    enabled: Boolean(accessToken && activeOrg),
+    queryKey: ["calibration", activeOrgId],
+    queryFn: () => getCalibrationMetrics(accessToken!, activeOrgId),
+    enabled: Boolean(accessToken && activeOrgId),
   });
 
   const m = metricsQuery.data;
@@ -33,16 +26,6 @@ export default function CalibrationPage() {
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Calibración</h1>
         <p className="text-sm text-zinc-500">Precisión del motor de triaje con tus correcciones (el foso).</p>
       </div>
-
-      {orgsQuery.data && orgsQuery.data.length > 1 && (
-        <select
-          className="rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-          value={activeOrg}
-          onChange={(e) => setOrgId(e.target.value)}
-        >
-          {orgsQuery.data.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-        </select>
-      )}
 
       {metricsQuery.isLoading && <Skeleton className="h-40 w-full max-w-xl" />}
       {metricsQuery.isError && (
