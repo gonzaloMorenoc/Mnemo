@@ -3,6 +3,7 @@
 Idempotente: re-ejecutar no duplica. Pensado para correr como el servicio `init`.
 """
 
+import glob
 import os
 import time
 
@@ -15,14 +16,7 @@ SERVICE_ROLE_KEY = os.environ["SERVICE_ROLE_KEY"]
 DEMO_EMAIL = os.environ["DEMO_EMAIL"]
 DEMO_PASSWORD = os.environ["DEMO_PASSWORD"]
 
-MIGRATIONS = [
-    "db/migrations/001_multitenant_kb.sql",
-    "db/migrations/002_assurance.sql",
-    "db/migrations/003_assurance_indexes.sql",
-    "db/migrations/004_more_sources.sql",
-    "db/migrations/005_jira_integration.sql",
-    "db/migrations/006_failures_external_ref_index.sql",
-]
+MIGRATIONS = sorted(glob.glob("db/migrations/*.sql"))
 
 
 def _wait_db():
