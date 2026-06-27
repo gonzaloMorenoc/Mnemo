@@ -74,6 +74,27 @@ class GitHubCodeHost:
         pr_body = f"{body}\n\n<!-- {marker} -->" if marker else body
         return self._create_pr(title, pr_body, branch, default_branch)
 
+    def open_pr_with_new_file(self, *, title: str, body: str, file_path: str,
+                              content: str, marker: str = "") -> Optional[str]:
+        """Crea un fichero NUEVO (o actualiza si existe) en una rama y abre un draft PR. Idempotente."""
+        owner = self._repo.split("/")[0]
+        slug = marker.rsplit(":", 1)[-1] if marker else "test"
+        branch = f"mnemo/automation/{slug}"
+        existing = self._find_pr_by_head(owner, branch)
+        if existing:
+            return existing
+        default_branch = self._default_branch()
+        base_sha = self._ref_sha(default_branch)
+        try:
+            _existing, file_sha = self._get_file(file_path, default_branch)
+        except Exception:  # noqa: BLE001 — fichero no existe → creación
+            file_sha = None
+        self._create_ref(branch, base_sha)
+        self._put_file(file_path, content, file_sha, branch,
+                       message=f"test(automation): {file_path}")
+        pr_body = f"{body}\n\n<!-- {marker} -->" if marker else body
+        return self._create_pr(title, pr_body, branch, default_branch)
+
     def read_file(self, file_path: str) -> Optional[str]:
         """Lee el contenido de un archivo del repo (rama por defecto). None si no existe/sin acceso."""
         try:
@@ -130,13 +151,18 @@ class GitHubCodeHost:
         if resp.status_code >= 300:
             raise GitHubError(f"create ref falló: HTTP {resp.status_code}")
 
-    def _put_file(self, file_path: str, new_content: str, file_sha: str,
+    def _put_file(self, file_path: str, new_content: str, file_sha: Optional[str],
                   branch: str, *, message: str) -> None:
+        payload: dict = {
+            "message": message,
+            "content": base64.b64encode(new_content.encode("utf-8")).decode("utf-8"),
+            "branch": branch,
+        }
+        if file_sha:  # omit sha when creating a new file (GitHub rejects sha=null)
+            payload["sha"] = file_sha
         resp = self._session.put(
             f"{_API}/repos/{self._repo}/contents/{quote(file_path, safe='/')}",
-            json={"message": message,
-                  "content": base64.b64encode(new_content.encode("utf-8")).decode("utf-8"),
-                  "sha": file_sha, "branch": branch},
+            json=payload,
             headers=self._headers(), timeout=15,
         )
         if resp.status_code >= 300:
