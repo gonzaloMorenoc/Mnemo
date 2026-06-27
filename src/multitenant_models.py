@@ -177,6 +177,8 @@ class CiWebhookResponse(BaseModel):
     snapshots_saved: int
     deduplicated: bool = False
     triage: Optional[Dict[str, int]] = None
+    verdict: Optional[str] = None
+    gate: Optional[str] = None
 
 
 class TriageVerdictResponse(BaseModel):
