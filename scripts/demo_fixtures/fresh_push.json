@@ -1,0 +1,5 @@
+{"project": "checkout-suite", "org_id": "__ORG__", "commit_sha": "demo-fresh-push", "source": "playwright",
+ "tests": [{"test_name": "test_perfil", "status": "fail",
+            "error_type": "NoSuchElementError", "message": "locator not found: #guardar",
+            "file": "tests/perfil.spec.ts", "line": 21,
+            "dom": "<form id=\"perfil\"><button id=\"guardar-cambios\">Guardar</button></form>"}]}

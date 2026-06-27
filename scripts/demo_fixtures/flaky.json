@@ -1,0 +1,4 @@
+{"project": "checkout-suite", "org_id": "__ORG__", "commit_sha": "demo-flaky-001", "source": "playwright",
+ "tests": [{"test_name": "test_checkout_flujo", "status": "flaky", "retried": true,
+            "error_type": "TimeoutError", "message": "Timeout 30000ms waiting for #cart",
+            "file": "tests/checkout.spec.ts", "line": 42}]}

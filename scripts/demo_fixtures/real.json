@@ -1,0 +1,4 @@
+{"project": "checkout-suite", "org_id": "__ORG__", "commit_sha": "demo-real-001", "source": "playwright",
+ "tests": [{"test_name": "test_export_csv", "status": "fail",
+            "error_type": "AssertionError", "message": "expected status 200 but got 500",
+            "trace": "at ExportService.export (export.ts:88)", "file": "tests/export.spec.ts", "line": 88}]}

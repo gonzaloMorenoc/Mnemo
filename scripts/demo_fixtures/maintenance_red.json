@@ -1,0 +1,5 @@
+{"project": "checkout-suite", "org_id": "__ORG__", "commit_sha": "demo-maint-red", "source": "playwright",
+ "tests": [{"test_name": "test_login", "status": "fail",
+            "error_type": "NoSuchElementError", "message": "locator not found: #submit",
+            "file": "tests/login.spec.ts", "line": 10,
+            "dom": "<form id=\"login\"><input name=\"user\"/><button id=\"send\">Entrar</button></form>"}]}
