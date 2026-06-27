@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/components/providers/auth-provider", () => ({
   useAuth: () => ({ accessToken: "tok" }),
@@ -209,5 +209,47 @@ describe("TestPlanPage — empty state sin organización", () => {
     expect(screen.getByText(/selecciona una organización para generar/i)).toBeInTheDocument();
     // The form inputs are NOT present when no org
     expect(screen.queryByPlaceholderText(/pega aquí la historia/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("TestPlanPage — Exportar Markdown", () => {
+  const mockCreateObjectURL = vi.fn().mockReturnValue("blob:fake");
+  const mockRevokeObjectURL = vi.fn();
+  const mockClick = vi.fn();
+
+  beforeAll(() => {
+    global.URL.createObjectURL = mockCreateObjectURL;
+    global.URL.revokeObjectURL = mockRevokeObjectURL;
+  });
+
+  it("llama a URL.createObjectURL con un Blob y luego a URL.revokeObjectURL al pulsar Exportar Markdown", async () => {
+    (generateTestPlan as ReturnType<typeof vi.fn>).mockResolvedValue(MOCK_RESULT);
+
+    const actualCreateElement = document.createElement.bind(document);
+    vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+      if (tag === "a") {
+        const a = actualCreateElement(tag) as HTMLAnchorElement;
+        a.click = mockClick;
+        return a;
+      }
+      return actualCreateElement(tag);
+    });
+
+    renderWithClient(<TestPlanPage />);
+
+    // Generate a plan first
+    const textarea = screen.getByPlaceholderText(/pega aquí la historia/i);
+    fireEvent.change(textarea, { target: { value: "Como usuario quiero exportar" } });
+    fireEvent.click(screen.getByRole("button", { name: /^Generar$/i }));
+
+    await waitFor(() => expect(generateTestPlan).toHaveBeenCalled());
+    await screen.findByText("Happy path checkout");
+
+    // Click Exportar Markdown
+    const exportBtn = screen.getByRole("button", { name: /exportar markdown/i });
+    fireEvent.click(exportBtn);
+
+    expect(mockCreateObjectURL).toHaveBeenCalledWith(expect.any(Blob));
+    expect(mockRevokeObjectURL).toHaveBeenCalled();
   });
 });
