@@ -12,6 +12,7 @@ const pageTitles: Record<string, string> = {
   "/app/knowledge": "Conocimiento",
   "/app/org": "Organization",
   "/app/settings": "Settings",
+  "/app/test-plan": "Plan de pruebas",
 };
 
 interface TopbarProps {
