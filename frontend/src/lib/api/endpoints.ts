@@ -9,6 +9,7 @@ import type {
   Certificate,
   DefectFamilyResponse,
   DefectLineageResponse,
+  DomainSummary,
   FamilyLabel,
   GateResult,
   HealthResponse,
@@ -18,6 +19,7 @@ import type {
   KnowledgeAnswer,
   KnowledgeItem,
   KnowledgeSource,
+  LearningPath,
   OrganizationResponse,
   ProposeActionsResult,
   RootCauseResponse,
@@ -184,6 +186,14 @@ export function askKnowledge(token: string, body: { org_id: string; question: st
 
 export function generateTestPlan(token: string, form: FormData) {
   return apiRequest<TestPlanResult>("/api/v2/test-plan/generate", "POST", { token, body: form });
+}
+
+export function domainSummary(token: string, body: { org_id: string; topic: string }) {
+  return apiRequest<DomainSummary>("/api/v2/onboarding/domain-summary", "POST", { token, body });
+}
+
+export function learningPath(token: string, body: { org_id: string; topic: string }) {
+  return apiRequest<LearningPath>("/api/v2/onboarding/learning-path", "POST", { token, body });
 }
 
 export function exportTestPlanXray(

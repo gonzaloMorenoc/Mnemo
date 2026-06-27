@@ -220,3 +220,22 @@ export interface TestPlanResult {
   plan: TestPlan;
   citations: string[];
 }
+
+export interface DomainSummary {
+  rules: string[];
+  systems: string[];
+  existing_tests: string[];
+  historical_bugs: string[];
+  risks: string[];
+  citations: string[];
+}
+
+export interface LearningDay {
+  day: number;
+  items: string[];
+}
+
+export interface LearningPath {
+  days: LearningDay[];
+  citations: string[];
+}
