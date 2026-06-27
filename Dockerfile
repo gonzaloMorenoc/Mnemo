@@ -11,10 +11,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/ src/
 COPY api.py .
+COPY asgi.py .
 COPY db/ db/
 COPY scripts/ scripts/
 
 EXPOSE 8080
 HEALTHCHECK --interval=15s --timeout=5s --retries=10 \
     CMD curl -fsS http://localhost:8080/v2/health || exit 1
-CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "asgi:app", "--host", "0.0.0.0", "--port", "8080"]
