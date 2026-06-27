@@ -10,6 +10,7 @@ import type { OrganizationResponse } from "@/lib/api/types";
 interface OrgContextValue {
   orgs: OrganizationResponse[];
   activeOrgId: string;
+  isLoading: boolean;
   setActiveOrgId: (id: string) => void;
 }
 const OrgContext = createContext<OrgContextValue | null>(null);
@@ -37,7 +38,11 @@ export function OrgProvider({ children }: PropsWithChildren) {
     if (typeof window !== "undefined") window.localStorage.setItem(STORAGE_KEY, id);
   }
 
-  return <OrgContext.Provider value={{ orgs, activeOrgId, setActiveOrgId }}>{children}</OrgContext.Provider>;
+  return (
+    <OrgContext.Provider value={{ orgs, activeOrgId, isLoading: orgsQuery.isLoading, setActiveOrgId }}>
+      {children}
+    </OrgContext.Provider>
+  );
 }
 
 export function useActiveOrg(): OrgContextValue {

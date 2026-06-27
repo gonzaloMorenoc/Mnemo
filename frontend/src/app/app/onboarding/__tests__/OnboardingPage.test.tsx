@@ -7,12 +7,13 @@ vi.mock("@/components/providers/auth-provider", () => ({
   useAuth: () => ({ accessToken: "tok" }),
 }));
 
-const mockActiveOrgId: { value: string | null } = { value: "o1" };
+const mockActiveOrg: { value: string | null; isLoading: boolean } = { value: "o1", isLoading: false };
 
 vi.mock("@/components/providers/org-provider", () => ({
   useActiveOrg: () => ({
-    activeOrgId: mockActiveOrgId.value,
-    orgs: mockActiveOrgId.value
+    activeOrgId: mockActiveOrg.value,
+    isLoading: mockActiveOrg.isLoading,
+    orgs: mockActiveOrg.value
       ? [{ id: "o1", name: "Test Org", join_code: "ABC", role: "owner", created_at: null }]
       : [],
     setActiveOrgId: vi.fn(),
@@ -34,7 +35,8 @@ import OnboardingPage from "@/app/app/onboarding/page";
 afterEach(() => {
   vi.clearAllMocks();
   cleanup();
-  mockActiveOrgId.value = "o1";
+  mockActiveOrg.value = "o1";
+  mockActiveOrg.isLoading = false;
 });
 
 function renderWithClient(ui: React.ReactNode) {
@@ -172,11 +174,22 @@ describe("OnboardingPage — degradación ante fallo del agente", () => {
 
 describe("OnboardingPage — empty state sin organización", () => {
   it("muestra mensaje de selecciona organización cuando no hay activeOrgId", () => {
-    mockActiveOrgId.value = null;
+    mockActiveOrg.value = null;
 
     renderWithClient(<OnboardingPage />);
 
     expect(screen.getByText(/selecciona una organización para comenzar el onboarding/i)).toBeInTheDocument();
     expect(screen.queryByPlaceholderText(/p\.ej\. pagos/i)).not.toBeInTheDocument();
+  });
+
+  // I2: while loading, should NOT show "Selecciona organización"
+  it("I2 — no muestra empty state de org mientras isLoading=true", () => {
+    mockActiveOrg.value = "";
+    mockActiveOrg.isLoading = true;
+
+    renderWithClient(<OnboardingPage />);
+
+    expect(screen.queryByText(/selecciona una organización para comenzar el onboarding/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/cargando…/i)).toBeInTheDocument();
   });
 });
