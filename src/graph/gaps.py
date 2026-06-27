@@ -192,7 +192,7 @@ def _detect_gaps_inner(
             "kind": "defecto_sin_conocimiento",
             "title": title,
             "severity": _severity_by_count(count),
-            "affected": row.get("id", ""),
+            "affected": [row["id"]],
             "recommendation": _recommendation("defecto_sin_conocimiento", title, provider),
         })
 
@@ -202,7 +202,7 @@ def _detect_gaps_inner(
             "kind": "dominio_sin_leccion",
             "title": domain,
             "severity": "media",
-            "affected": domain,
+            "affected": [domain],
             "recommendation": _recommendation("dominio_sin_leccion", domain, provider),
         })
 
@@ -212,7 +212,7 @@ def _detect_gaps_inner(
             "kind": "riesgo_sin_mitigacion",
             "title": title,
             "severity": "alta",
-            "affected": row.get("domain") or "",
+            "affected": [row["domain"]],
             "recommendation": _recommendation("riesgo_sin_mitigacion", title, provider),
         })
 

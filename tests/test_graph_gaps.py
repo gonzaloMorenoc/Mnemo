@@ -108,6 +108,12 @@ class TestDefectoSinConocimiento:
         for field in ("kind", "title", "severity", "affected", "recommendation"):
             assert field in gap, f"Missing field: {field}"
 
+    def test_affected_is_list_of_strings(self):
+        gaps = self._run_with([DEFECT_ROW_HIGH])
+        gap = [g for g in gaps if g["kind"] == "defecto_sin_conocimiento"][0]
+        assert isinstance(gap["affected"], list), "affected must be list[str]"
+        assert gap["affected"] == ["f1"], f"Expected ['f1'], got {gap['affected']}"
+
     def test_llm_recommendation_used_when_available(self):
         gaps = self._run_with([DEFECT_ROW_HIGH])
         gap = [g for g in gaps if g["kind"] == "defecto_sin_conocimiento"][0]
@@ -146,6 +152,12 @@ class TestDominioSinLeccion:
         for field in ("kind", "title", "severity", "affected", "recommendation"):
             assert field in gap, f"Missing field: {field}"
 
+    def test_affected_is_list_of_strings(self):
+        gaps = self._run_with([DOMAIN_ROW_NO_LESSON])
+        gap = [g for g in gaps if g["kind"] == "dominio_sin_leccion"][0]
+        assert isinstance(gap["affected"], list), "affected must be list[str]"
+        assert gap["affected"] == ["facturacion"], f"Expected ['facturacion'], got {gap['affected']}"
+
     def test_no_domain_gaps_when_result_empty(self):
         gaps = self._run_with([])
         dsl = [g for g in gaps if g["kind"] == "dominio_sin_leccion"]
@@ -183,6 +195,12 @@ class TestRiesgoSinMitigacion:
         gap = [g for g in gaps if g["kind"] == "riesgo_sin_mitigacion"][0]
         for field in ("kind", "title", "severity", "affected", "recommendation"):
             assert field in gap, f"Missing field: {field}"
+
+    def test_affected_is_list_of_strings(self):
+        gaps = self._run_with([RIESGO_ROW])
+        gap = [g for g in gaps if g["kind"] == "riesgo_sin_mitigacion"][0]
+        assert isinstance(gap["affected"], list), "affected must be list[str]"
+        assert gap["affected"] == ["seguridad"], f"Expected ['seguridad'], got {gap['affected']}"
 
     def test_no_riesgo_gaps_when_result_empty(self):
         gaps = self._run_with([])
