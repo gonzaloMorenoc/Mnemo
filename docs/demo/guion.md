@@ -75,11 +75,13 @@ curl -s -X POST http://localhost:8000/v2/ci/webhook \
 
 ### Qué se teclea / qué se hace en la UI
 
-1. En el panel **Acción Nivel 2** (`ActionsPanel`), se despliega la acción propuesta por el `SelfHealActuator`:
-   - Tipo: `self_heal`
-   - Parche: `locator #guardar → #guardar-cambios`
-   - Evidencia: texto del DOM (`id="guardar-cambios"`) + diagnóstico del triaje.
-2. El presentador hace clic en **"Aprobar"** (botón en `ActionsPanel` → `POST /v2/actions/{id}/approve`).
+1. En el panel **Acción Nivel 2** (`ActionsPanel`), el panel muestra "Sin acciones para este run." Hacer clic en el botón **"Proponer acciones"** (esquina superior derecha del panel → `POST /v2/actions/run/{run_id}/propose`).
+   - Mientras se procesa, el botón muestra "Proponiendo…".
+   - Al completarse aparece el toast **"Acciones propuestas."** y la acción `self_heal` aparece en la lista:
+     - Tipo: `self_heal`
+     - Parche: `locator #guardar → #guardar-cambios`
+     - Evidencia: texto del DOM (`id="guardar-cambios"`) + diagnóstico del triaje.
+2. El presentador hace clic en **"Aprobar"** (botón en la fila de la acción → `POST /v2/actions/{action_id}/approve`).
 3. El estado pasa a `approved` / `materializing`.
 
 4. Se hace clic en **"Certificado"** (`CertificateCard`):
