@@ -46,8 +46,6 @@ from src.multitenant_models import (
     ActionRejectRequest,
     ActionRejectResponse,
     ActionResponse,
-    AnalyzeV2Request,
-    AnalyzeV2Response,
     AskRequest,
     AskResponse,
     AssuranceVerdictResponse,
@@ -76,15 +74,10 @@ from src.multitenant_models import (
     OrganizationResponse,
     ProposeActionsResponse,
     RootCauseResponse,
-    ScopeSource,
     SetFamilyLabelRequest,
-    StructuredAnalysisPayload,
     TriageVerdictResponse,
-    UploadResponse,
 )
 from src.security import AuthenticatedUser, get_current_user
-from src.structured_analyzer import StructuredAnalyzer
-from src.tenant_kb import TenantKBRepository
 from src.orgs.repository import OrganizationRepository
 
 router = APIRouter(prefix="/v2", tags=["v2"])
@@ -93,7 +86,6 @@ _ACTION_STATUSES = {"proposed", "approved", "rejected", "materialized", "materia
 
 # Singletons perezosos (sin anotacion PEP 604 para compatibilidad <3.10)
 _repo = None
-_analyzer = None
 _assurance_repo = None
 _ingestion_service = None
 _narrator = None
@@ -118,13 +110,6 @@ def get_repo() -> OrganizationRepository:
     if _repo is None:
         _repo = OrganizationRepository()
     return _repo
-
-
-def get_analyzer() -> StructuredAnalyzer:
-    global _analyzer
-    if _analyzer is None:
-        _analyzer = StructuredAnalyzer()
-    return _analyzer
 
 
 def get_assurance_repo() -> AssuranceRepository:
@@ -315,51 +300,6 @@ def get_embedder():
     return _embedder
 
 
-def _unique_scopes(contexts: List[Dict[str, Any]]) -> List[str]:
-    seen: List[str] = []
-    for c in contexts:
-        if c["scope"] not in seen:
-            seen.append(c["scope"])
-    return seen
-
-
-@router.post("/analyze", response_model=AnalyzeV2Response)
-def analyze_v2(
-    req: AnalyzeV2Request,
-    user: AuthenticatedUser = Depends(get_current_user),
-    repo: TenantKBRepository = Depends(get_repo),
-    analyzer: StructuredAnalyzer = Depends(get_analyzer),
-) -> AnalyzeV2Response:
-    try:
-        contexts = repo.retrieve_context(
-            user_id=user.user_id, query=req.error_log, org_id=req.org_id, top_k=req.top_k
-        )
-        analysis = analyzer.analyze(error_log=req.error_log, contexts=contexts)
-        source_scopes = _unique_scopes(contexts)
-        analysis_id = repo.save_analysis(
-            user_id=user.user_id,
-            org_id=req.org_id,
-            input_error=req.error_log,
-            output=analysis,
-            confidence=float(analysis["confidence"]),
-            source_scopes=source_scopes,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except psycopg.Error as exc:
-        raise HTTPException(status_code=502, detail="Database error") from exc
-
-    return AnalyzeV2Response(
-        analysis=StructuredAnalysisPayload(**analysis),
-        sources=[
-            ScopeSource(scope=c["scope"], source_title=c["source_title"], similarity=c["similarity"])
-            for c in contexts
-        ],
-        source_scopes=source_scopes,
-        analysis_id=analysis_id,
-    )
-
-
 def _org_to_response(org: Dict[str, Any]) -> OrganizationResponse:
     return OrganizationResponse(
         id=str(org["id"]),
@@ -412,41 +352,6 @@ def join_org(
     if org is None:
         raise HTTPException(status_code=502, detail="Joined organization could not be loaded")
     return _org_to_response(org)
-
-
-@router.post("/upload", response_model=UploadResponse)
-def upload_v2(
-    file: UploadFile = File(...),
-    scope: str = Form("user"),
-    org_id: Optional[str] = Form(None),
-    contribute_global: bool = Form(False),
-    user: AuthenticatedUser = Depends(get_current_user),
-    repo: TenantKBRepository = Depends(get_repo),
-) -> UploadResponse:
-    try:
-        data = file.file.read()
-        result = repo.ingest_file(
-            user_id=user.user_id,
-            filename=file.filename or "upload.txt",
-            data=data,
-            scope=scope,
-            org_id=org_id,
-            contribute_global=contribute_global,
-            mime_type=file.content_type,
-        )
-    except OSError as exc:
-        raise HTTPException(status_code=400, detail="Could not read uploaded file") from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except psycopg.Error as exc:
-        raise HTTPException(status_code=502, detail="Database error") from exc
-
-    return UploadResponse(
-        document_id=str(result.document_id),
-        global_document_id=str(result.global_document_id) if result.global_document_id else None,
-        chunk_count=result.chunk_count,
-        storage_path=result.storage_path,
-    )
 
 
 @router.get("/health")
