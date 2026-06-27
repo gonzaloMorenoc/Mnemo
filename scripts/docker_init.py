@@ -60,46 +60,9 @@ def _ensure_demo_user() -> str:
 
 
 def _seed(user_id: str):
-    from src.defects.embedder import LocalEmbedder
-    from src.defects.ingestion_service import IngestionService
-    from src.defects.repository import AssuranceRepository
-    import json
-
-    with psycopg.connect(DBURL) as conn:
-        with conn.cursor() as cur:
-            cur.execute("select id from public.organizations where created_by = %s limit 1", (user_id,))
-            row = cur.fetchone()
-            if row:
-                print("demo ya sembrada; nada que hacer")
-                return
-            cur.execute(
-                "insert into public.organizations (name, created_by) values (%s, %s) returning id",
-                ("Demo MTP", user_id),
-            )
-            org_id = str(cur.fetchone()[0])
-        conn.commit()
-
-    repo = AssuranceRepository(DBURL)
-    service = IngestionService(repo=repo, embedder=LocalEmbedder())
-
-    def allure(*cases):
-        return json.dumps(list(cases)).encode("utf-8")
-
-    def failed(name, message, trace):
-        return {"name": name, "status": "failed", "statusDetails": {"message": message, "trace": trace}}
-
-    reports = {
-        "cliente-alpha": allure(
-            failed("test_login", "TimeoutException: esperando elemento tras 30000ms", "at Login.java:42"),
-            failed("test_export", "NullPointerException en ExportService", "at Export.java:11"),
-        ),
-        "cliente-beta": allure(
-            failed("test_checkout", "TimeoutException: esperando elemento tras 12000ms", "at Checkout.java:88"),
-        ),
-    }
-    for project, data in reports.items():
-        service.ingest_report(user_id=user_id, org_id=org_id, project=project, source="allure", data=data)
-    print(f"demo sembrada: org={org_id} user={user_id}")
+    from src.demo.seed import seed_demo
+    summary = seed_demo(db_url=DBURL, demo_user_id=user_id)
+    print(f"demo sembrada: {summary}")
 
 
 def main():
