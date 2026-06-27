@@ -2,8 +2,6 @@
 
 **Mnemo** es una plataforma **privada y on-premise** que convierte los fallos de los runs de test en **conocimiento reutilizable** (Defect DNA) y en **veredictos de aseguramiento** automáticos. Pensada para una consultora de QA multi-cliente: retiene el conocimiento que de otro modo se evapora con la rotación de personal.
 
-> Evolución de *SmartErrorDebugger* (un "AI debugger" de pegar trazas). Se reposicionó porque el valor real no es depurar un error, sino **no perder el conocimiento de QA**. Depurar es una función, no el producto. Ver [`docs/adr/0001-pivote-a-mnemo.md`](docs/adr/0001-pivote-a-mnemo.md).
-
 ## Qué hace
 
 - **Ingesta viva (CI)**: un **webhook** (`POST /v2/ci/webhook`, HMAC) recibe los runs del CI en tiempo real — fallos, resultados por test y snapshots de DOM — producidos por el **reporter de Playwright** (`packages/mnemo-playwright-reporter`). También ingesta reportes **Allure** (JSON) / **JUnit** (XML). Sanitiza y calcula una huella (**fingerprint**).
@@ -24,7 +22,6 @@ Python 3.13 · FastAPI · Postgres + pgvector (Supabase) · Supabase JWT · Olla
 | [`docs/technical/arquitectura.md`](docs/technical/arquitectura.md) | Arquitectura, capas, componentes, flujo de datos, despliegue |
 | [`docs/technical/modelo-datos.md`](docs/technical/modelo-datos.md) | Esquema (runs/failures/defect_families) y **aislamiento** (RLS vs filtros de membership) |
 | [`docs/technical/api.md`](docs/technical/api.md) | Referencia de endpoints `/v2` |
-| [`docs/adr/0001-pivote-a-mnemo.md`](docs/adr/0001-pivote-a-mnemo.md) | ADR del pivote (qué se reutiliza/poda) |
 | [`doc/AUDITORIA_CONCURSO_MTP.md`](doc/AUDITORIA_CONCURSO_MTP.md) | Auditoría y encaje con el concurso MTP AI Innovation Award |
 
 ## Puesta en marcha (resumen)
@@ -38,7 +35,7 @@ Python 3.13 · FastAPI · Postgres + pgvector (Supabase) · Supabase JWT · Olla
 
 ## Endpoints `/v2`
 
-`POST /v2/ci/webhook` (HMAC) · `GET /v2/triage/run/{id}` · `POST /v2/triage/run/{id}/resolve` · `POST /v2/ingest/report` · `GET /v2/defects` · `GET /v2/defects/{id}` · `GET /v2/assurance/run/{id}` · `GET/POST /v2/orgs` · `POST /v2/orgs/join` · `POST /v2/analyze` · `POST /v2/upload` · `GET /v2/health`. Detalle en [`docs/technical/api.md`](docs/technical/api.md).
+`POST /v2/ci/webhook` (HMAC) · `GET /v2/triage/run/{id}` · `POST /v2/triage/run/{id}/resolve` · `POST /v2/ingest/report` · `GET /v2/defects` · `GET /v2/defects/{id}` · `GET /v2/assurance/run/{id}` · `GET/POST /v2/orgs` · `POST /v2/orgs/join` · `GET /v2/health`. Detalle en [`docs/technical/api.md`](docs/technical/api.md).
 
 ## Despliegue
 
@@ -55,6 +52,3 @@ python3 -m pytest -m integration         # integración (requiere DATABASE_URL)
 cd frontend && npm test                  # vitest
 ```
 
-## Nota sobre el legacy
-
-El camino RAG single-tenant original (`ui.py` Streamlit, `vector_store.py` Chroma, endpoints `/analyze`, `/sync`…) **coexiste** con el camino `/v2` de Mnemo hasta que sea sustituido por completo (ver ADR 0001).

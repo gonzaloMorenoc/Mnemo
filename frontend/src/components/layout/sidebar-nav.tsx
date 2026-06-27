@@ -6,13 +6,11 @@ import {
   Bot,
   Building2,
   Dna,
-  FileSearch,
   Gauge,
   Home,
   Plug,
   Settings,
   ShieldCheck,
-  Upload,
   X,
 } from "lucide-react";
 
@@ -20,12 +18,10 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { href: "/app/analyze", label: "Analyze", icon: FileSearch },
   { href: "/app/assurance", label: "Assurance", icon: ShieldCheck },
   { href: "/app/autopilot", label: "Autopilot", icon: Bot },
   { href: "/app/calibration", label: "Calibración", icon: Gauge },
   { href: "/app/defects", label: "Defect DNA", icon: Dna },
-  { href: "/app/knowledge", label: "Knowledge", icon: Upload },
   { href: "/app/integrations", label: "Integrations", icon: Plug },
   { href: "/app/org", label: "Organization", icon: Building2 },
   { href: "/app/settings", label: "Settings", icon: Settings },
@@ -46,7 +42,7 @@ export function SidebarNav({ mobile = false, onClose }: SidebarNavProps) {
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-900 text-white">
             <Home size={16} />
           </span>
-          <span className="font-semibold tracking-tight text-zinc-900">TraceFix</span>
+          <span className="font-semibold tracking-tight text-zinc-900">Mnemo</span>
         </Link>
         {mobile && (
           <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close menu">
@@ -79,7 +75,7 @@ export function SidebarNav({ mobile = false, onClose }: SidebarNavProps) {
       </nav>
 
       <p className="mt-auto px-5 py-4 text-xs text-zinc-500">
-        Built for fast triage with org-aware context retrieval.
+        QA Autopilot · privado · on-premise · 0 € de API
       </p>
     </div>
   );

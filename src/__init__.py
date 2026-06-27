@@ -1,1 +1,1 @@
-# Smart Error Debugger src package
+# Mnemo src package

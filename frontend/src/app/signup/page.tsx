@@ -53,7 +53,7 @@ export default function SignupPage() {
     onSuccess: ({ session }) => {
       if (session) {
         toast.success("Account created.");
-        router.replace("/app/analyze");
+        router.replace("/app/assurance");
         return;
       }
 
@@ -74,7 +74,7 @@ export default function SignupPage() {
 
         <AuthCard
           title="Create account"
-          description="Start triaging incidents with TraceFix."
+          description="Empieza a analizar runs de test con Mnemo."
           footerText="Already have an account?"
           footerLinkHref="/login"
           footerLinkLabel="Sign in"

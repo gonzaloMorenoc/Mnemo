@@ -1,4 +1,4 @@
-# Deep Dive Tecnico: Arquitectura de Smart Error Debugger
+# Deep Dive Tecnico: Arquitectura del pipeline RAG legacy (pre-Mnemo)
 
 Este documento desglosa la implementacion tecnica del proyecto a nivel de codigo, explicando los componentes criticos y los patrones de diseño utilizados en cada modulo.
 
@@ -262,4 +262,4 @@ El archivo `src/config.py` centraliza los parametros criticos:
 
 ## Conclusion
 
-La arquitectura de Smart Error Debugger esta diseñada bajo el principio de "calidad sobre cantidad". Cada componente (BM25, Reranker, RAGAS Evaluator) ha sido seleccionado para mitigar los fallos comunes de los sistemas RAG basicos. La integracion de RAGAS con 4 metricas reales, respaldada por una suite de tests automatizados, convierte la evaluacion en un proceso medible y repetible, proporcionando confianza objetiva en la calidad de las respuestas del sistema.
+La arquitectura del pipeline RAG legacy esta diseñada bajo el principio de "calidad sobre cantidad". Cada componente (BM25, Reranker, RAGAS Evaluator) ha sido seleccionado para mitigar los fallos comunes de los sistemas RAG basicos. La integracion de RAGAS con 4 metricas reales, respaldada por una suite de tests automatizados, convierte la evaluacion en un proceso medible y repetible, proporcionando confianza objetiva en la calidad de las respuestas del sistema.

@@ -27,7 +27,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { session, configured } = useAuth();
-  const nextPath = searchParams.get("next") || "/app/analyze";
+  const nextPath = searchParams.get("next") || "/app/assurance";
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(schema),
@@ -63,7 +63,7 @@ function LoginForm() {
   return (
     <AuthCard
       title="Sign in"
-      description="Continue to your TraceFix workspace."
+      description="Accede a tu espacio de trabajo en Mnemo."
       footerText="Need an account?"
       footerLinkHref="/signup"
       footerLinkLabel="Create one"

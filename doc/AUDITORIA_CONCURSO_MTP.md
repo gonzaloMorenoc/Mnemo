@@ -1,6 +1,6 @@
 # Auditoría de proyecto y plan para el MTP AI Innovation Award
 
-**Proyecto:** SmartErrorDebugger (rama `redesign`)
+**Proyecto:** Mnemo
 **Fecha de auditoría:** 2026-06-19
 **Plazo del concurso:** 30 de octubre de 2026 · Resolución: 27 de noviembre de 2026
 **Método:** auditoría multi-agente del código real (núcleo RAG, multitenancy/seguridad, frontend/producto, testing/DevOps), contrastada con las bases del premio.

@@ -5,8 +5,8 @@ import { AppProviders } from "@/components/providers/app-providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "TraceFix",
-  description: "Modern error triage workspace powered by TraceFix v2 APIs.",
+  title: "Mnemo",
+  description: "Autopilot de QA: ingesta CI, triaje determinista y aseguramiento firmado — privado, on-premise.",
 };
 
 export default function RootLayout({
