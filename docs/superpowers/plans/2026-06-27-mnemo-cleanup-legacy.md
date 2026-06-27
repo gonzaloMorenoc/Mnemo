@@ -48,9 +48,9 @@ Claude-Session: https://claude.ai/code/session_0198KfgRWvAM8BhiVz24uTok"
 
 **Files:** Modify `src/api_v2.py`, `src/multitenant_models.py`, `Dockerfile`, `tests/test_imports.py`; Delete (git rm) los módulos RAG + tests legacy + `legacy/`.
 
-- [ ] **Step 1: Quitar `/v2/analyze` de `api_v2`.** Eliminar el endpoint `analyze_v2` (`@router.post("/analyze")` + su función), la función `get_analyzer`, el global `_analyzer`, y los imports `from src.structured_analyzer import StructuredAnalyzer` y `from src.tenant_kb import TenantKBRepository` (este último ya sin uso tras T1). Confirma con `grep -n "StructuredAnalyzer\|get_analyzer\|_analyzer\|TenantKBRepository\|analyze_v2" src/api_v2.py` → vacío.
+- [ ] **Step 1: Quitar `/v2/analyze` y `/v2/upload` de `api_v2`.** Eliminar los endpoints `analyze_v2` (`@router.post("/analyze")`) y `upload_v2` (`@router.post("/upload")`) + sus funciones, la función `get_analyzer`, el global `_analyzer`, y los imports `from src.structured_analyzer import StructuredAnalyzer`, `from src.tenant_kb import TenantKBRepository` (ya sin uso tras T1) y el import `UploadResponse`. (Ambos eran RAG: analyze usa `repo.retrieve_context`/`save_analysis`, upload usa `repo.ingest_file`.) Confirma con `grep -n "StructuredAnalyzer\|get_analyzer\|_analyzer\|TenantKBRepository\|analyze_v2\|upload_v2\|UploadResponse" src/api_v2.py` → vacío.
 
-- [ ] **Step 2: Quitar los modelos `AnalyzeV2`.** En `src/multitenant_models.py`, eliminar `AnalyzeV2Request` y `AnalyzeV2Response` (antes confirma `grep -rn "AnalyzeV2" src/ tests/` → solo en multitenant_models tras el Step 1).
+- [ ] **Step 2: Quitar los modelos `AnalyzeV2` y `UploadResponse`.** En `src/multitenant_models.py`, eliminar `AnalyzeV2Request`, `AnalyzeV2Response` y `UploadResponse` (antes confirma `grep -rn "AnalyzeV2\|UploadResponse" src/ tests/` → solo en multitenant_models tras el Step 1).
 
 - [ ] **Step 3: Borrar el RAG v1.**
 
@@ -67,7 +67,7 @@ git rm -r legacy/
 
 - [ ] **Step 4: Dockerfile + test_imports.** En `Dockerfile`, quitar la línea `COPY api.py .`. En `tests/test_imports.py`, quitar los imports de `tenant_kb`/`structured_analyzer`/`scope_priority`; mantener `security`/`multitenant_models`/`sanitizer`; añadir `import src.orgs.repository`.
 
-- [ ] **Step 5: Verificar.** `grep -rn "src\.\(loader\|vector_store\|model\|retriever\|prompts\|evaluator\|history\|inspector\|structured_analyzer\|scope_priority\|tenant_kb\)\|get_analyzer\|StructuredAnalyzer\|AnalyzeV2" src/ tests/` → vacío. Luego `python3 -m pytest -m "not integration" -q` → green.
+- [ ] **Step 5: Verificar.** `grep -rn "src\.\(loader\|vector_store\|model\|retriever\|prompts\|evaluator\|history\|inspector\|structured_analyzer\|scope_priority\|tenant_kb\)\|get_analyzer\|StructuredAnalyzer\|AnalyzeV2\|UploadResponse\|analyze_v2\|upload_v2" src/ tests/` → vacío. Luego `python3 -m pytest -m "not integration" -q` → green.
 
 - [ ] **Step 6: Commit**
 
@@ -80,22 +80,22 @@ Claude-Session: https://claude.ai/code/session_0198KfgRWvAM8BhiVz24uTok"
 
 ---
 
-## Task 3: Eliminar el analyze del frontend
+## Task 3: Eliminar el analyze + knowledge del frontend
 
-**Files:** Delete `frontend/src/app/app/analyze/`, `frontend/src/components/analyze/`, `frontend/src/app/api/v2/analyze/`; Modify `frontend/src/lib/api/endpoints.ts`, `types.ts`, y el nav.
+**Files:** Delete `frontend/src/app/app/analyze/`, `frontend/src/app/app/knowledge/`, `frontend/src/components/analyze/`, `frontend/src/app/api/v2/analyze/`, `frontend/src/app/api/v2/upload/`; Modify `frontend/src/lib/api/endpoints.ts`, `types.ts`, y el nav.
 
-- [ ] **Step 1: Borrar las vistas/route.**
+- [ ] **Step 1: Borrar las vistas/route.** (`app/knowledge` es la UI de subir al KB RAG; `api/v2/upload` su route.)
 
 ```bash
 cd frontend
-git rm -r src/app/app/analyze src/components/analyze src/app/api/v2/analyze
+git rm -r src/app/app/analyze src/app/app/knowledge src/components/analyze src/app/api/v2/analyze src/app/api/v2/upload
 ```
 
-- [ ] **Step 2: Quitar del cliente.** En `src/lib/api/endpoints.ts`, eliminar `analyzeError` (y su import de `AnalyzeV2Request`/`AnalyzeV2Response`). En `src/lib/api/types.ts`, eliminar `AnalyzeV2Request`/`AnalyzeV2Response` (y cualquier tipo que quedara huérfano SOLO por el analyze — confirma con grep antes de quitar `UploadResponse`/otros). Confirma `grep -rn "analyzeError\|AnalyzeV2" src` → vacío.
+- [ ] **Step 2: Quitar del cliente.** En `src/lib/api/endpoints.ts`, eliminar `analyzeError` y `uploadKnowledge` (y sus imports de tipos). En `src/lib/api/types.ts`, eliminar `AnalyzeV2Request`/`AnalyzeV2Response`/`UploadResponse` (y tipos huérfanos SOLO por analyze/upload — confirma con grep). Confirma `grep -rn "analyzeError\|uploadKnowledge\|AnalyzeV2\|UploadResponse" src` → vacío.
 
-- [ ] **Step 3: Quitar el enlace de navegación.** Buscar el link a `/app/analyze` (`grep -rn "analyze" src/components/layout src/app/app/layout.tsx 2>/dev/null`) y eliminar la entrada del menú/nav si existe.
+- [ ] **Step 3: Quitar los enlaces de navegación.** Buscar los links a `/app/analyze` y `/app/knowledge` (`grep -rn "analyze\|knowledge" src/components/layout src/app/app/layout.tsx 2>/dev/null`) y eliminar esas entradas del menú/nav.
 
-- [ ] **Step 4: Verificar.** Desde `frontend/`: `npm test` → green; `tsc --noEmit` (o el typecheck) limpio; `grep -rn "analyze" src/app src/components | grep -vi "analizad\|assurance"` no debe dejar referencias colgadas al endpoint borrado.
+- [ ] **Step 4: Verificar.** Desde `frontend/`: `npm test` → green; `tsc --noEmit` (o el typecheck) limpio; `grep -rn "analyzeError\|uploadKnowledge\|/analyze\|/knowledge" src/app src/components` no debe dejar referencias colgadas a los endpoints/vistas borrados.
 
 - [ ] **Step 5: Commit**
 
