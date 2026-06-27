@@ -1,7 +1,8 @@
-"""Siembra de la demo de Mnemo: 2 orgs + 3 escenarios pre-procesados.
+"""Siembra de la demo de Mnemo: 2 orgs + 4 escenarios pre-procesados + baseline verde de test_perfil.
 
 Produce:
-  - Org A "Demo MTP"   → flaky + maintenance (green→red) + real, todos triados + certificados
+  - Org A "Demo MTP"   → flaky + maintenance (green→red) + real + baseline verde de test_perfil,
+                         todos triados + certificados
   - Org B "Cliente Beta" → run real propio (aislamiento)
   - fresh_push.json    → NO ingerido (munición del Acto 1 en vivo)
 
@@ -41,7 +42,7 @@ def _create_org(cur: Any, name: str, user_id: str) -> str:
 
 
 def seed_demo(*, db_url: str, demo_user_id: str) -> Dict[str, Any]:
-    """Siembra Org A (3 escenarios pre-procesados) + Org B (aislamiento). Idempotente.
+    """Siembra Org A (5 runs: flaky + maintenance green→red + real + baseline verde de test_perfil) + Org B (aislamiento). Idempotente.
     Devuelve un resumen con {org_a, org_b, runs, fresh_artifact_path}.
     Si Org A ya existe para este usuario devuelve {"skipped": True}.
     """
@@ -80,7 +81,7 @@ def seed_demo(*, db_url: str, demo_user_id: str) -> Dict[str, Any]:
         llm_provider=llm,
     )
 
-    # -- Org A: 4 runs (orden crítico: maintenance_green antes que red) ------
+    # -- Org A: 5 runs (orden crítico: maintenance_green antes que red) ------
     runs = []
     for name in ("maintenance_green.json", "maintenance_red.json", "flaky.json", "real.json", "perfil_green.json"):
         art = _load_artifact(name, org_a)

@@ -38,7 +38,7 @@ Demo de concurso MTP AI Innovation Award · versión: Bloque C (C4)
 ```bash
 # Terminal — enviar fresh_push.json al webhook con firma HMAC-SHA256
 PAYLOAD=$(cat scripts/demo_fixtures/fresh_push.json)
-SIG=$(echo -n "$PAYLOAD" | openssl dgst -sha256 -hmac "$CI_WEBHOOK_SECRET" | awk '{print $2}')
+SIG=$(printf '%s' "$PAYLOAD" | openssl dgst -sha256 -hmac "$CI_WEBHOOK_SECRET" | awk '{print $2}')
 
 curl -s -X POST http://localhost:8000/v2/ci/webhook \
   -H "Content-Type: application/json" \
