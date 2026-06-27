@@ -19,7 +19,7 @@ export function OrgProvider({ children }: PropsWithChildren) {
   const { accessToken } = useAuth();
   const [activeOrgId, setActive] = useState("");
   const orgsQuery = useQuery({
-    queryKey: ["organizations"],
+    queryKey: ["organizations", accessToken],
     queryFn: () => getOrganizations(accessToken!),
     enabled: Boolean(accessToken),
   });
