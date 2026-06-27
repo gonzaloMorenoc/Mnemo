@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -72,7 +72,9 @@ function downloadMarkdown(plan: TestPlan, citations: string[]) {
   const a = document.createElement("a");
   a.href = url;
   a.download = "plan-de-pruebas.md";
+  document.body.appendChild(a);
   a.click();
+  document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
 
@@ -82,7 +84,9 @@ function downloadSpecTs(code: string, filename: string) {
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
+  document.body.appendChild(a);
   a.click();
+  document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
 
@@ -95,6 +99,10 @@ interface CasePlaywrightSectionProps {
 
 function CasePlaywrightSection({ tc, accessToken, activeOrgId, styleSample }: CasePlaywrightSectionProps) {
   const [generated, setGenerated] = useState<GeneratedTest | null>(null);
+
+  // Reset generated code when the test case changes (e.g. after re-generating the plan)
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setGenerated(null); }, [tc]);
 
   const generateMut = useMutation({
     mutationFn: () =>
@@ -165,7 +173,7 @@ function CasePlaywrightSection({ tc, accessToken, activeOrgId, styleSample }: Ca
 
 export default function TestPlanPage() {
   const { accessToken } = useAuth();
-  const { activeOrgId } = useActiveOrg();
+  const { activeOrgId, isLoading } = useActiveOrg();
 
   const [inputMode, setInputMode] = useState<InputMode>("texto");
   const [caseFormat, setCaseFormat] = useState<CaseFormat>("steps");
@@ -253,7 +261,10 @@ export default function TestPlanPage() {
         toast.success("Importado a Xray correctamente.");
       }
     },
-    onError: () => toast.error("Configura Xray"),
+    onError: (err: Error) => {
+      const msg = err instanceof ApiClientError && err.status === 503 ? "Configura Xray" : err.message;
+      toast.error(msg);
+    },
   });
 
   function handleExportMarkdown() {
@@ -272,7 +283,19 @@ export default function TestPlanPage() {
     downloadMarkdown(currentPlan, citations);
   }
 
-  if (!activeOrgId) {
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Plan de pruebas</h1>
+          <p className="text-sm text-zinc-500">Genera un plan de pruebas a partir de historias de usuario o documentos.</p>
+        </div>
+        <p className="text-sm text-zinc-500">Cargando…</p>
+      </div>
+    );
+  }
+
+  if (!activeOrgId && !isLoading) {
     return (
       <div className="space-y-6">
         <div>

@@ -266,6 +266,38 @@ def test_search_knowledge_isolation_foreign_org_empty():
     assert r.json() == []
 
 
+def test_search_knowledge_k_too_large_returns_422():
+    """M1: k > 100 must be rejected with 422 (cota de seguridad)."""
+    krepo = MagicMock()
+    arepo = MagicMock()
+    client = make_client(krepo=krepo, arepo=arepo)
+
+    r = client.post("/v2/knowledge/search", json={"org_id": "org-1", "query": "q", "k": 1000})
+    assert r.status_code == 422
+
+
+def test_search_knowledge_k_zero_returns_422():
+    """M1: k < 1 must be rejected with 422."""
+    krepo = MagicMock()
+    arepo = MagicMock()
+    client = make_client(krepo=krepo, arepo=arepo)
+
+    r = client.post("/v2/knowledge/search", json={"org_id": "org-1", "query": "q", "k": 0})
+    assert r.status_code == 422
+
+
+def test_search_knowledge_k_boundary_100_accepted():
+    """M1: k = 100 (boundary) must be accepted."""
+    krepo = MagicMock()
+    arepo = MagicMock()
+    krepo.search_semantic.return_value = []
+    arepo.search_families_semantic.return_value = []
+    client = make_client(krepo=krepo, arepo=arepo)
+
+    r = client.post("/v2/knowledge/search", json={"org_id": "org-1", "query": "q", "k": 100})
+    assert r.status_code == 200
+
+
 # ---------------------------------------------------------------------------
 # POST /v2/knowledge/ask
 # ---------------------------------------------------------------------------

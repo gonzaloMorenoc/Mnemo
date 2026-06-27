@@ -19,7 +19,7 @@ import { Label } from "@/components/ui/label";
 
 export default function OnboardingPage() {
   const { accessToken } = useAuth();
-  const { activeOrgId } = useActiveOrg();
+  const { activeOrgId, isLoading } = useActiveOrg();
 
   const [topic, setTopic] = useState("");
 
@@ -60,7 +60,19 @@ export default function OnboardingPage() {
     onError: (err: Error) => toast.error(err.message),
   });
 
-  if (!activeOrgId) {
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Onboarding</h1>
+          <p className="text-sm text-zinc-500">Ponte al día rápidamente con el dominio y los sistemas de QA del proyecto.</p>
+        </div>
+        <p className="text-sm text-zinc-500">Cargando…</p>
+      </div>
+    );
+  }
+
+  if (!activeOrgId && !isLoading) {
     return (
       <div className="space-y-6">
         <div>

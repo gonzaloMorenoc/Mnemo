@@ -169,6 +169,18 @@ class TestAuthenticate:
         decoded = base64.b64decode(bearer[6:]).decode()
         assert decoded == "user@acme.com:jira-api-token"
 
+    def test_cloud_auth_non_json_body_raises_import_error(self):
+        """C2: if the auth response body is not valid JSON, raise XrayImportError (not ValueError)."""
+        client = _client_with_creds(_CLOUD_CREDS)
+        bad_resp = MagicMock()
+        bad_resp.ok = True
+        bad_resp.json.side_effect = ValueError("No JSON object could be decoded")
+        bad_resp.text = "not-json"
+
+        with patch("src.xray.client.requests.post", return_value=bad_resp):
+            with pytest.raises(XrayImportError, match="not valid JSON"):
+                client._authenticate(_CLOUD_CREDS)
+
 
 # ===========================================================================
 # Gherkin import
@@ -286,6 +298,19 @@ class TestImportGherkin:
         for call in mock_post.call_args_list:
             url = call[0][0] if call[0] else ""
             assert "import/feature" not in url
+
+    def test_gherkin_non_json_response_raises_import_error(self):
+        """C3: if the gherkin import response body is not valid JSON, raise XrayImportError."""
+        client = _client_with_creds(_CLOUD_CREDS)
+        auth_resp = _mock_bearer_response()
+        bad_import_resp = MagicMock()
+        bad_import_resp.ok = True
+        bad_import_resp.json.side_effect = ValueError("No JSON")
+        bad_import_resp.text = "Internal Server Error"
+
+        with patch("src.xray.client.requests.post", side_effect=[auth_resp, bad_import_resp]):
+            with pytest.raises(XrayImportError, match="non-JSON"):
+                client.import_plan(plan=_PLAN_GHERKIN, case_format="gherkin", project_key="ACME")
 
 
 # ===========================================================================

@@ -222,7 +222,13 @@ class XrayClient:
                 f"Xray authentication failed ({resp.status_code}): {resp.text[:200]}"
             )
         # Xray Cloud returns a JSON-encoded string: "\"<token>\""
-        token = resp.json() if isinstance(resp.json(), str) else resp.text.strip().strip('"')
+        try:
+            parsed = resp.json()
+            token = parsed if isinstance(parsed, str) else resp.text.strip().strip('"')
+        except (ValueError, KeyError):
+            raise XrayImportError(
+                f"Xray authentication response is not valid JSON: {resp.text[:200]}"
+            )
         return f"Bearer {token}"
 
     # ------------------------------------------------------------------
@@ -281,7 +287,12 @@ class XrayClient:
                 f"Xray feature import failed ({resp.status_code}): {resp.text[:300]}"
             )
 
-        body = resp.json()
+        try:
+            body = resp.json()
+        except (ValueError, KeyError):
+            raise XrayImportError(
+                f"Xray feature import returned non-JSON response: {resp.text[:200]}"
+            )
         # Cloud response: {"updatedOrCreatedTests": [{"id":..,"key":"X-1",...}], ...}
         tests = body.get("updatedOrCreatedTests") or body.get("testIssues") or []
         return sorted(t["key"] for t in tests if "key" in t)
@@ -426,4 +437,9 @@ class XrayClient:
             raise XrayImportError(
                 f"Xray Server issue create failed ({resp.status_code}): {resp.text[:300]}"
             )
-        return resp.json().get("key")
+        try:
+            return resp.json().get("key")
+        except (ValueError, KeyError):
+            raise XrayImportError(
+                f"Xray Server issue create returned non-JSON response: {resp.text[:200]}"
+            )

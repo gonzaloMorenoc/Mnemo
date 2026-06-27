@@ -25,8 +25,13 @@ function renderWithClient(ui: React.ReactNode) {
 }
 
 function OrgIdDisplay() {
-  const { activeOrgId } = useActiveOrg();
-  return <span data-testid="active-org">{activeOrgId}</span>;
+  const { activeOrgId, isLoading } = useActiveOrg();
+  return (
+    <>
+      <span data-testid="active-org">{activeOrgId}</span>
+      <span data-testid="is-loading">{String(isLoading)}</span>
+    </>
+  );
 }
 
 function OrgIdSetter() {
@@ -72,6 +77,27 @@ describe("OrgProvider", () => {
       </OrgProvider>,
     );
     await waitFor(() => expect(screen.getByTestId("active-org").textContent).toBe(ORG_B.id));
+  });
+
+  // I2: isLoading is exposed and transitions false→true→false as query resolves
+  it("I2 — isLoading es true mientras la query está pendiente y false cuando resuelve", async () => {
+    let resolveOrgs!: (value: typeof ORG_A[]) => void;
+    const slowPromise = new Promise<typeof ORG_A[]>((res) => { resolveOrgs = res; });
+    (getOrganizations as ReturnType<typeof vi.fn>).mockReturnValue(slowPromise);
+
+    renderWithClient(
+      <OrgProvider>
+        <OrgIdDisplay />
+      </OrgProvider>,
+    );
+
+    // Initially isLoading should be true while the query is in-flight
+    await waitFor(() => expect(screen.getByTestId("is-loading").textContent).toBe("true"));
+
+    // Resolve and isLoading should become false
+    resolveOrgs([ORG_A]);
+    await waitFor(() => expect(screen.getByTestId("is-loading").textContent).toBe("false"));
+    expect(screen.getByTestId("active-org").textContent).toBe(ORG_A.id);
   });
 });
 

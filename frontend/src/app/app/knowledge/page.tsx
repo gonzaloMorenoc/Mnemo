@@ -42,7 +42,7 @@ const EMPTY_FORM = {
 
 export default function KnowledgePage() {
   const { accessToken } = useAuth();
-  const { activeOrgId } = useActiveOrg();
+  const { activeOrgId, isLoading } = useActiveOrg();
 
   // Capture form state
   const [form, setForm] = useState(EMPTY_FORM);
@@ -103,7 +103,19 @@ export default function KnowledgePage() {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
-  if (!activeOrgId) {
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Conocimiento</h1>
+          <p className="text-sm text-zinc-500">Base de conocimiento institucional del equipo de QA.</p>
+        </div>
+        <p className="text-sm text-zinc-500">Cargando…</p>
+      </div>
+    );
+  }
+
+  if (!activeOrgId && !isLoading) {
     return (
       <div className="space-y-6">
         <div>

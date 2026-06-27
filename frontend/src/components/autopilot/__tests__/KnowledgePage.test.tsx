@@ -7,10 +7,15 @@ vi.mock("@/components/providers/auth-provider", () => ({
   useAuth: () => ({ accessToken: "tok" }),
 }));
 
+const mockActiveOrg: { value: string; isLoading: boolean } = { value: "o1", isLoading: false };
+
 vi.mock("@/components/providers/org-provider", () => ({
   useActiveOrg: () => ({
-    activeOrgId: "o1",
-    orgs: [{ id: "o1", name: "Test Org", join_code: "ABC", role: "owner", created_at: null }],
+    activeOrgId: mockActiveOrg.value,
+    isLoading: mockActiveOrg.isLoading,
+    orgs: mockActiveOrg.value
+      ? [{ id: "o1", name: "Test Org", join_code: "ABC", role: "owner", created_at: null }]
+      : [],
     setActiveOrgId: vi.fn(),
   }),
 }));
@@ -30,6 +35,8 @@ import KnowledgePage from "@/app/app/knowledge/page";
 afterEach(() => {
   vi.clearAllMocks();
   cleanup();
+  mockActiveOrg.value = "o1";
+  mockActiveOrg.isLoading = false;
 });
 
 function renderWithClient(ui: React.ReactNode) {
@@ -112,5 +119,16 @@ describe("KnowledgePage", () => {
 
     // Page is still rendered — form is still visible
     expect(screen.getByRole("button", { name: /preguntar/i })).toBeInTheDocument();
+  });
+
+  // I2: while loading, should NOT show "Selecciona organización"
+  it("I2 — no muestra empty state de org mientras isLoading=true", () => {
+    mockActiveOrg.value = "";
+    mockActiveOrg.isLoading = true;
+
+    renderWithClient(<KnowledgePage />);
+
+    expect(screen.queryByText(/selecciona una organización para ver y capturar conocimiento/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/cargando…/i)).toBeInTheDocument();
   });
 });

@@ -66,7 +66,7 @@ def test_generate_with_hu_text_200():
     arepo.search_families_semantic.return_value = []
 
     with patch("src.api_v2.generate_test_plan", return_value=plan) as mock_gen:
-        client = make_client(krepo=krepo, arepo=arepo)
+        client = make_client(krepo=krepo, arepo=arepo, integrations=MagicMock())
         r = client.post(
             "/v2/test-plan/generate",
             data={"org_id": "org-1", "hu_text": "Como usuario quiero X para Y"},
@@ -121,7 +121,7 @@ def test_generate_with_file_200():
 
     with patch("src.api_v2.resolve_hu_from_upload", return_value="HU desde archivo") as mock_ingest, \
          patch("src.api_v2.generate_test_plan", return_value=plan):
-        client = make_client(krepo=krepo, arepo=arepo)
+        client = make_client(krepo=krepo, arepo=arepo, integrations=MagicMock())
         r = client.post(
             "/v2/test-plan/generate",
             data={"org_id": "org-1"},
@@ -140,7 +140,7 @@ def test_generate_case_format_gherkin():
     arepo.search_families_semantic.return_value = []
 
     with patch("src.api_v2.generate_test_plan", return_value=plan) as mock_gen:
-        client = make_client(krepo=krepo, arepo=arepo)
+        client = make_client(krepo=krepo, arepo=arepo, integrations=MagicMock())
         r = client.post(
             "/v2/test-plan/generate",
             data={
@@ -188,7 +188,7 @@ def test_generate_non_member_403():
 def test_generate_empty_hu_400():
     krepo = MagicMock()
     arepo = MagicMock()
-    client = make_client(krepo=krepo, arepo=arepo)
+    client = make_client(krepo=krepo, arepo=arepo, integrations=MagicMock())
 
     r = client.post(
         "/v2/test-plan/generate",
@@ -201,7 +201,7 @@ def test_generate_empty_hu_400():
 def test_generate_no_source_400():
     krepo = MagicMock()
     arepo = MagicMock()
-    client = make_client(krepo=krepo, arepo=arepo)
+    client = make_client(krepo=krepo, arepo=arepo, integrations=MagicMock())
 
     r = client.post(
         "/v2/test-plan/generate",
@@ -216,7 +216,7 @@ def test_generate_unsupported_file_400():
     arepo = MagicMock()
 
     with patch("src.api_v2.resolve_hu_from_upload", side_effect=ValueError("extensión no soportada: '.xls'")):
-        client = make_client(krepo=krepo, arepo=arepo)
+        client = make_client(krepo=krepo, arepo=arepo, integrations=MagicMock())
         r = client.post(
             "/v2/test-plan/generate",
             data={"org_id": "org-1"},
@@ -348,6 +348,31 @@ def test_export_xray_no_auth_401():
         json={"org_id": "org-1", "plan": plan, "case_format": "manual"},
     )
     assert r.status_code == 401
+
+
+def test_export_xray_forwards_project_key():
+    """I1: project_key from the request body is forwarded to import_plan."""
+    plan = _make_plan()
+
+    with patch("src.api_v2.XrayConfig") as MockConfig, \
+         patch("src.api_v2.XrayClient") as MockClient:
+        mock_cfg_instance = MockConfig.return_value
+        mock_cfg_instance.get.return_value = _xray_creds()
+        mock_client_instance = MockClient.return_value
+        mock_client_instance.import_plan.return_value = ["PROJ-1"]
+
+        client = make_client()
+        r = client.post(
+            "/v2/test-plan/export/xray",
+            json={"org_id": "org-1", "plan": plan, "case_format": "gherkin",
+                  "project_key": "PROJ"},
+        )
+
+    assert r.status_code == 200
+    call_kwargs = mock_client_instance.import_plan.call_args.kwargs
+    assert call_kwargs.get("project_key") == "PROJ", (
+        f"project_key was not forwarded to import_plan; got {call_kwargs}"
+    )
 
 
 def test_export_xray_membership_checked_before_client():

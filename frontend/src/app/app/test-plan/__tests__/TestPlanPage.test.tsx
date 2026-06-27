@@ -7,12 +7,13 @@ vi.mock("@/components/providers/auth-provider", () => ({
   useAuth: () => ({ accessToken: "tok" }),
 }));
 
-const mockActiveOrgId: { value: string | null } = { value: "o1" };
+const mockActiveOrg: { value: string | null; isLoading: boolean } = { value: "o1", isLoading: false };
 
 vi.mock("@/components/providers/org-provider", () => ({
   useActiveOrg: () => ({
-    activeOrgId: mockActiveOrgId.value,
-    orgs: mockActiveOrgId.value
+    activeOrgId: mockActiveOrg.value,
+    isLoading: mockActiveOrg.isLoading,
+    orgs: mockActiveOrg.value
       ? [{ id: "o1", name: "Test Org", join_code: "ABC", role: "owner", created_at: null }]
       : [],
     setActiveOrgId: vi.fn(),
@@ -36,7 +37,8 @@ import TestPlanPage from "@/app/app/test-plan/page";
 afterEach(() => {
   vi.clearAllMocks();
   cleanup();
-  mockActiveOrgId.value = "o1"; // reset to default org
+  mockActiveOrg.value = "o1"; // reset to default org
+  mockActiveOrg.isLoading = false;
 });
 
 function renderWithClient(ui: React.ReactNode) {
@@ -163,9 +165,12 @@ describe("TestPlanPage — importar a Jira (Xray)", () => {
     });
   });
 
-  it("muestra toast.error('Configura Xray') cuando exportTestPlanXray falla", async () => {
+  // I3: 503 ApiClientError → "Configura Xray"
+  it("I3 — muestra toast.error('Configura Xray') cuando exportTestPlanXray falla con ApiClientError 503", async () => {
     (generateTestPlan as ReturnType<typeof vi.fn>).mockResolvedValue(MOCK_RESULT);
-    (exportTestPlanXray as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("503"));
+    (exportTestPlanXray as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new ApiClientError("Xray integration not configured", 503),
+    );
 
     renderWithClient(<TestPlanPage />);
 
@@ -181,6 +186,30 @@ describe("TestPlanPage — importar a Jira (Xray)", () => {
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith("Configura Xray");
     });
+  });
+
+  // I3: non-503 error shows real error message, not "Configura Xray"
+  it("I3 — muestra el mensaje real cuando exportTestPlanXray falla con error no-503", async () => {
+    (generateTestPlan as ReturnType<typeof vi.fn>).mockResolvedValue(MOCK_RESULT);
+    (exportTestPlanXray as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error("Red no disponible"),
+    );
+
+    renderWithClient(<TestPlanPage />);
+
+    const textarea = screen.getByPlaceholderText(/pega aquí la historia/i);
+    fireEvent.change(textarea, { target: { value: "HU fallida no-503" } });
+    fireEvent.click(screen.getByRole("button", { name: /^Generar$/i }));
+
+    await waitFor(() => expect(generateTestPlan).toHaveBeenCalled());
+    await screen.findByText("Happy path checkout");
+
+    fireEvent.click(screen.getByRole("button", { name: /importar a jira/i }));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("Red no disponible");
+    });
+    expect(toast.error).not.toHaveBeenCalledWith("Configura Xray");
   });
 });
 
@@ -205,13 +234,24 @@ describe("TestPlanPage — generar falla sin romper la página", () => {
 
 describe("TestPlanPage — empty state sin organización", () => {
   it("muestra mensaje de selecciona organización cuando no hay activeOrgId", () => {
-    mockActiveOrgId.value = null;
+    mockActiveOrg.value = null;
 
     renderWithClient(<TestPlanPage />);
 
     expect(screen.getByText(/selecciona una organización para generar/i)).toBeInTheDocument();
     // The form inputs are NOT present when no org
     expect(screen.queryByPlaceholderText(/pega aquí la historia/i)).not.toBeInTheDocument();
+  });
+
+  // I2: while orgs load, should show loading state instead of "Selecciona organización"
+  it("I2 — no muestra empty state de org mientras isLoading=true", () => {
+    mockActiveOrg.value = "";
+    mockActiveOrg.isLoading = true;
+
+    renderWithClient(<TestPlanPage />);
+
+    expect(screen.queryByText(/selecciona una organización para generar/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/cargando…/i)).toBeInTheDocument();
   });
 });
 
@@ -254,6 +294,49 @@ describe("TestPlanPage — Exportar Markdown", () => {
 
     expect(mockCreateObjectURL).toHaveBeenCalledWith(expect.any(Blob));
     expect(mockRevokeObjectURL).toHaveBeenCalled();
+  });
+
+  // I4: anchor appended to and removed from DOM, then click() called
+  it("I4 — el anchor de descarga se añade al DOM, se pulsa y se elimina (Exportar Markdown)", async () => {
+    (generateTestPlan as ReturnType<typeof vi.fn>).mockResolvedValue(MOCK_RESULT);
+
+    // Track which anchor elements were appended and removed
+    const appendedAnchors: HTMLElement[] = [];
+    const removedAnchors: HTMLElement[] = [];
+    const realAppendChild = document.body.appendChild.bind(document.body);
+    const realRemoveChild = document.body.removeChild.bind(document.body);
+
+    const actualCreateElement = document.createElement.bind(document);
+    vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+      if (tag === "a") {
+        const a = actualCreateElement(tag) as HTMLAnchorElement;
+        a.click = mockClick;
+        return a;
+      }
+      return actualCreateElement(tag);
+    });
+    vi.spyOn(document.body, "appendChild").mockImplementation((node) => {
+      if (node instanceof HTMLAnchorElement) appendedAnchors.push(node);
+      return realAppendChild(node);
+    });
+    vi.spyOn(document.body, "removeChild").mockImplementation((node) => {
+      if (node instanceof HTMLAnchorElement) removedAnchors.push(node);
+      return realRemoveChild(node);
+    });
+
+    renderWithClient(<TestPlanPage />);
+
+    const textarea = screen.getByPlaceholderText(/pega aquí la historia/i);
+    fireEvent.change(textarea, { target: { value: "I4 markdown" } });
+    fireEvent.click(screen.getByRole("button", { name: /^Generar$/i }));
+    await waitFor(() => expect(generateTestPlan).toHaveBeenCalled());
+    await screen.findByText("Happy path checkout");
+
+    fireEvent.click(screen.getByRole("button", { name: /exportar markdown/i }));
+
+    expect(appendedAnchors.length).toBeGreaterThan(0);
+    expect(mockClick).toHaveBeenCalled();
+    expect(removedAnchors.length).toBeGreaterThan(0);
   });
 });
 
@@ -383,5 +466,54 @@ describe("TestPlanPage — Generar test Playwright por caso", () => {
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith("Configura GitHub");
     });
+  });
+});
+
+// ── C1: stale generated code reset on re-generate ────────────────────────────
+
+const MOCK_PLAN_V2 = {
+  ...MOCK_PLAN,
+  summary: "Plan v2",
+  cases: [
+    {
+      title: "Nuevo caso tras re-generar",
+      level: "unit",
+      priority: "low",
+      automatable: false,
+      steps: ["paso nuevo"],
+      expected: "resultado nuevo",
+    },
+  ],
+};
+
+describe("TestPlanPage — C1: stale generated code reset", () => {
+  it("C1 — tras re-generar el plan, el código Playwright generado del caso anterior ya no se muestra", async () => {
+    (generateTestPlan as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(MOCK_RESULT)
+      .mockResolvedValueOnce({ plan: MOCK_PLAN_V2, citations: [] });
+    (generatePlaywrightTest as ReturnType<typeof vi.fn>).mockResolvedValue(MOCK_GENERATED_TEST);
+
+    renderWithClient(<TestPlanPage />);
+
+    const textarea = screen.getByPlaceholderText(/pega aquí la historia/i);
+    fireEvent.change(textarea, { target: { value: "HU original" } });
+    fireEvent.click(screen.getByRole("button", { name: /^Generar$/i }));
+
+    await waitFor(() => expect(generateTestPlan).toHaveBeenCalledTimes(1));
+    await screen.findByText("Happy path checkout");
+
+    // Generate Playwright code for the case
+    fireEvent.click(screen.getByRole("button", { name: /generar test playwright/i }));
+    await waitFor(() => expect(generatePlaywrightTest).toHaveBeenCalled());
+    expect(await screen.findByText("Generated by Mnemo automation agent")).toBeInTheDocument();
+
+    // Re-generate the plan (different cases)
+    fireEvent.click(screen.getByRole("button", { name: /re-generar/i }));
+    await waitFor(() => expect(generateTestPlan).toHaveBeenCalledTimes(2));
+    await screen.findByText("Nuevo caso tras re-generar");
+
+    // Old generated code should no longer be visible
+    expect(screen.queryByText("Generated by Mnemo automation agent")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /descargar/i })).not.toBeInTheDocument();
   });
 });

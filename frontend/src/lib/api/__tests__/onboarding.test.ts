@@ -33,7 +33,7 @@ describe("domainSummary", () => {
   it("POSTs to /api/v2/onboarding/domain-summary with JSON body and auth header", async () => {
     const spy = mockFetch(DOMAIN_SUMMARY);
 
-    const res = await domainSummary("tok", { org_id: "o1", topic: "auth" });
+    await domainSummary("tok", { org_id: "o1", topic: "auth" });
 
     const [url, init] = spy.mock.calls[0];
     expect(String(url)).toBe("/api/v2/onboarding/domain-summary");
@@ -63,7 +63,7 @@ describe("learningPath", () => {
   it("POSTs to /api/v2/onboarding/learning-path with JSON body and auth header", async () => {
     const spy = mockFetch(LEARNING_PATH);
 
-    const res = await learningPath("tok", { org_id: "o1", topic: "auth" });
+    await learningPath("tok", { org_id: "o1", topic: "auth" });
 
     const [url, init] = spy.mock.calls[0];
     expect(String(url)).toBe("/api/v2/onboarding/learning-path");
