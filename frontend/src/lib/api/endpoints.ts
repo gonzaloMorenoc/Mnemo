@@ -12,6 +12,7 @@ import type {
   DomainSummary,
   FamilyLabel,
   GateResult,
+  GeneratedTest,
   HealthResponse,
   IngestReportResponse,
   JiraConfigResponse,
@@ -23,6 +24,7 @@ import type {
   OrganizationResponse,
   ProposeActionsResult,
   RootCauseResponse,
+  TestCase,
   TestPlan,
   TestPlanResult,
   TriageVerdict,
@@ -201,6 +203,20 @@ export function exportTestPlanXray(
   body: { org_id: string; plan: TestPlan; case_format: string },
 ) {
   return apiRequest<{ keys: string[] }>("/api/v2/test-plan/export/xray", "POST", { token, body });
+}
+
+export function generatePlaywrightTest(
+  token: string,
+  body: { case: TestCase; style_sample?: string },
+) {
+  return apiRequest<GeneratedTest>("/api/v2/automation/generate", "POST", { token, body });
+}
+
+export function openAutomationPr(
+  token: string,
+  body: { org_id: string; code: string; filename: string; title?: string },
+) {
+  return apiRequest<{ pr_url: string }>("/api/v2/automation/pr", "POST", { token, body });
 }
 
 export async function getCertificatePdf(token: string, runId: string): Promise<Blob> {

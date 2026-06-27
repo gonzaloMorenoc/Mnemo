@@ -48,6 +48,8 @@ from src.multitenant_models import (
     ActionRejectRequest,
     ActionRejectResponse,
     ActionResponse,
+    AutomationGenerateRequest,
+    AutomationPrRequest,
     AskRequest,
     AskResponse,
     AssuranceVerdictResponse,
@@ -85,6 +87,7 @@ from src.multitenant_models import (
     TestPlanXrayExportRequest,
     TriageVerdictResponse,
 )
+from src.automation.agent import generate_playwright_test
 from src.onboarding.agent import summarize_domain, learning_path
 from src.testplan.agent import generate_test_plan
 from src.testplan.ingest import resolve_hu_from_upload
@@ -1139,3 +1142,59 @@ def export_xray_v2(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     return {"keys": keys}
+
+
+# ---------------------------------------------------------------------------
+# /v2/automation endpoints
+# ---------------------------------------------------------------------------
+
+@router.post("/automation/generate", response_model=Dict[str, Any])
+def automation_generate(
+    req: AutomationGenerateRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Generate a Playwright test (.spec.ts) from a test case dict.
+
+    Requires authentication only — no org membership needed because the
+    function transforms the caller-supplied case without accessing org data.
+    """
+    if not req.case:
+        raise HTTPException(status_code=400, detail="case requerido")
+    return generate_playwright_test(case=req.case, style_sample=req.style_sample)
+
+
+@router.post("/automation/pr", response_model=Dict[str, Any])
+def automation_pr(
+    req: AutomationPrRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Open a draft PR that adds req.filename under tests/ in the org's repo.
+
+    Error mapping:
+    - PermissionError (non-member)  → 403
+    - ValueError (GitHub not configured) → 503
+    - GitHubError (API failure) → 502
+    - falsy pr_url → 502
+    """
+    try:
+        host = _github_codehost_factory(req.org_id, user.user_id)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail="No es miembro de la organización") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    title = req.title or f"test(automation): {req.filename}"
+    try:
+        url = host.open_pr_with_new_file(
+            title=title,
+            body="Generado por Mnemo · revisa y ejecuta antes de fusionar.",
+            file_path=f"tests/{req.filename}",
+            content=req.code,
+            marker=f"automation:{req.filename}",
+        )
+    except GitHubError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    if not url:
+        raise HTTPException(status_code=502, detail="No se pudo abrir el PR")
+    return {"pr_url": url}

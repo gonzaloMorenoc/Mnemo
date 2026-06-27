@@ -239,3 +239,9 @@ export interface LearningPath {
   days: LearningDay[];
   citations: string[];
 }
+
+export interface GeneratedTest {
+  code: string;
+  filename: string;
+  notes: string;
+}
