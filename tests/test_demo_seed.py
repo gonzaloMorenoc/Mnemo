@@ -78,6 +78,16 @@ def _org_count(user_id: str) -> int:
         return cur.fetchone()[0]
 
 
+def _categories_for_run(run_id: str) -> set:
+    """Devuelve el conjunto de categorías de triaje para un run concreto."""
+    with psycopg.connect(DBURL) as conn, conn.cursor() as cur:
+        cur.execute(
+            "select distinct category from public.triage_verdicts where run_id = %s",
+            (run_id,),
+        )
+        return {r[0] for r in cur.fetchall()}
+
+
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
@@ -102,4 +112,27 @@ def test_seed_is_idempotent(demo_user):
     res2 = seed_demo(db_url=DBURL, demo_user_id=demo_user)  # segunda llamada
     assert res2.get("skipped") or _org_count(demo_user) == 2, (
         "la segunda llamada duplico orgs o no reporto skipped"
+    )
+
+
+@pytest.mark.integration
+def test_fresh_push_is_maintenance_with_baseline(demo_user):
+    from src.demo.seed import seed_demo, _load_artifact
+    from src.defects.repository import AssuranceRepository
+    from src.defects.embedder import LocalEmbedder
+    from src.ci.ingestion_service import CiIngestionService
+    from src.triage.service import TriageService
+    from src.config import DATABASE_URL
+
+    res = seed_demo(db_url=DATABASE_URL, demo_user_id=demo_user)
+    repo = AssuranceRepository(DATABASE_URL)
+    ingest = CiIngestionService(repo=repo, embedder=LocalEmbedder())
+    triage = TriageService(repo=repo)
+    art = _load_artifact("fresh_push.json", res["org_a"])
+    r = ingest.ingest_artifact(user_id=demo_user, artifact=art)
+    triage.triage_run(user_id=demo_user, run_id=r["run_id"])
+    cats = _categories_for_run(r["run_id"])
+    assert "maintenance" in cats, (
+        f"se esperaba categoria 'maintenance' pero se obtuvo: {cats!r} "
+        "(verifica que perfil_green.json fue ingerido en seed y comparte project+test_name con fresh_push)"
     )

@@ -82,7 +82,7 @@ def seed_demo(*, db_url: str, demo_user_id: str) -> Dict[str, Any]:
 
     # -- Org A: 4 runs (orden crítico: maintenance_green antes que red) ------
     runs = []
-    for name in ("maintenance_green.json", "maintenance_red.json", "flaky.json", "real.json"):
+    for name in ("maintenance_green.json", "maintenance_red.json", "flaky.json", "real.json", "perfil_green.json"):
         art = _load_artifact(name, org_a)
         res = ingest.ingest_artifact(user_id=demo_user_id, artifact=art)
         run_id = res["run_id"]
