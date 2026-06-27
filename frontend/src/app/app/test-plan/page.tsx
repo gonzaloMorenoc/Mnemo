@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useActiveOrg } from "@/components/providers/org-provider";
 import { generateTestPlan, exportTestPlanXray, generatePlaywrightTest, openAutomationPr } from "@/lib/api/endpoints";
+import { ApiClientError } from "@/lib/api/client";
 import type { GeneratedTest, TestCase, TestPlan } from "@/lib/api/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -116,7 +117,7 @@ function CasePlaywrightSection({ tc, accessToken, activeOrgId, styleSample }: Ca
     },
     onSuccess: (data) => toast.success(data.pr_url),
     onError: (err: Error) => {
-      const msg = err.message.includes("503") ? "Configura GitHub" : err.message;
+      const msg = err instanceof ApiClientError && err.status === 503 ? "Configura GitHub" : err.message;
       toast.error(msg);
     },
   });
