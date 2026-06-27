@@ -155,9 +155,9 @@ export default function TestPlanPage() {
       });
     },
     onSuccess: (data) => {
-      const keys = Object.keys(data);
+      const keys = (data.keys ?? []).join(", ");
       if (keys.length > 0) {
-        toast.success(`Importado a Xray: ${keys.join(", ")}`);
+        toast.success(`Importado a Xray: ${keys}`);
       } else {
         toast.success("Importado a Xray correctamente.");
       }

@@ -129,7 +129,7 @@ describe("TestPlanPage — editar campo y Re-generar", () => {
 describe("TestPlanPage — importar a Jira (Xray)", () => {
   it("llama a exportTestPlanXray y muestra toast con las keys retornadas", async () => {
     (generateTestPlan as ReturnType<typeof vi.fn>).mockResolvedValue(MOCK_RESULT);
-    (exportTestPlanXray as ReturnType<typeof vi.fn>).mockResolvedValue({ "TC-1": "XR-10001" });
+    (exportTestPlanXray as ReturnType<typeof vi.fn>).mockResolvedValue({ keys: ["TC-1", "XR-10001"] });
 
     renderWithClient(<TestPlanPage />);
 

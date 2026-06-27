@@ -190,7 +190,7 @@ export function exportTestPlanXray(
   token: string,
   body: { org_id: string; plan: TestPlan; case_format: string },
 ) {
-  return apiRequest<Record<string, unknown>>("/api/v2/test-plan/export/xray", "POST", { token, body });
+  return apiRequest<{ keys: string[] }>("/api/v2/test-plan/export/xray", "POST", { token, body });
 }
 
 export async function getCertificatePdf(token: string, runId: string): Promise<Blob> {
