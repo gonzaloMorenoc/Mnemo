@@ -6,13 +6,11 @@ import {
   Bot,
   Building2,
   Dna,
-  FileSearch,
   Gauge,
   Home,
   Plug,
   Settings,
   ShieldCheck,
-  Upload,
   X,
 } from "lucide-react";
 
@@ -20,12 +18,10 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { href: "/app/analyze", label: "Analyze", icon: FileSearch },
   { href: "/app/assurance", label: "Assurance", icon: ShieldCheck },
   { href: "/app/autopilot", label: "Autopilot", icon: Bot },
   { href: "/app/calibration", label: "Calibración", icon: Gauge },
   { href: "/app/defects", label: "Defect DNA", icon: Dna },
-  { href: "/app/knowledge", label: "Knowledge", icon: Upload },
   { href: "/app/integrations", label: "Integrations", icon: Plug },
   { href: "/app/org", label: "Organization", icon: Building2 },
   { href: "/app/settings", label: "Settings", icon: Settings },

@@ -27,7 +27,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { session, configured } = useAuth();
-  const nextPath = searchParams.get("next") || "/app/analyze";
+  const nextPath = searchParams.get("next") || "/app/assurance";
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(schema),

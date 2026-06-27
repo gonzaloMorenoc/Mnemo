@@ -3,8 +3,6 @@ import type {
   ActionApproveResult,
   ActionItem,
   ActionRejectResult,
-  AnalyzeV2Request,
-  AnalyzeV2Response,
   AssuranceVerdictResponse,
   BriefingResponse,
   CalibrationMetrics,
@@ -21,7 +19,6 @@ import type {
   ProposeActionsResult,
   RootCauseResponse,
   TriageVerdict,
-  UploadResponse,
 } from "@/lib/api/types";
 
 export function getOrganizations(token: string) {
@@ -34,17 +31,6 @@ export function createOrganization(token: string, payload: { name: string }) {
 
 export function joinOrganization(token: string, payload: { join_code: string }) {
   return apiRequest<OrganizationResponse>("/api/v2/orgs/join", "POST", { token, body: payload });
-}
-
-export function analyzeError(token: string, payload: AnalyzeV2Request) {
-  return apiRequest<AnalyzeV2Response>("/api/v2/analyze", "POST", {
-    token,
-    body: payload as unknown as Record<string, unknown>,
-  });
-}
-
-export function uploadKnowledge(token: string, payload: FormData) {
-  return apiRequest<UploadResponse>("/api/v2/upload", "POST", { token, body: payload });
 }
 
 export function getHealth() {

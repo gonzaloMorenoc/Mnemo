@@ -53,7 +53,7 @@ export default function SignupPage() {
     onSuccess: ({ session }) => {
       if (session) {
         toast.success("Account created.");
-        router.replace("/app/analyze");
+        router.replace("/app/assurance");
         return;
       }
 
