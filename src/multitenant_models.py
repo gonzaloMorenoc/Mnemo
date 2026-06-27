@@ -302,3 +302,15 @@ class TestPlanXrayExportRequest(BaseModel):
     org_id: str
     plan: dict
     case_format: str = "manual"
+
+
+class AutomationGenerateRequest(BaseModel):
+    case: dict
+    style_sample: Optional[str] = None
+
+
+class AutomationPrRequest(BaseModel):
+    org_id: str
+    code: str
+    filename: str
+    title: Optional[str] = None
