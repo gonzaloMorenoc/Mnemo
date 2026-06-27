@@ -34,7 +34,10 @@ def generate_test_plan(*, knowledge_service, user_id: str, org_id: str, hu_text:
                               provider=provider, on_failure="none")
     if res is None:
         return _fallback(sources)
-    out = {k: (res[k] if k in res else ([] if k != "summary" else "")) for k in _PLAN_SCHEMA}
-    out["summary"] = out["summary"] if isinstance(out["summary"], str) else ""
-    out["citations"] = out["citations"] if isinstance(out["citations"], list) else []
+    out: dict = {}
+    for k in _PLAN_SCHEMA:
+        if k == "summary":
+            out[k] = res[k] if isinstance(res.get(k), str) else ""
+        else:
+            out[k] = res[k] if isinstance(res.get(k), list) else []
     return out

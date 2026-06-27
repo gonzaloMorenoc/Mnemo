@@ -273,7 +273,7 @@ class KnowledgeCreateRequest(BaseModel):
 class KnowledgeSearchRequest(BaseModel):
     org_id: str
     query: str = Field(max_length=2000)
-    k: int = 8
+    k: int = Field(default=8, ge=1, le=100)
 
 
 class KnowledgeAskRequest(BaseModel):
@@ -302,6 +302,7 @@ class TestPlanXrayExportRequest(BaseModel):
     org_id: str
     plan: dict
     case_format: str = "manual"
+    project_key: str = ""
 
 
 class AutomationGenerateRequest(BaseModel):

@@ -122,6 +122,39 @@ def test_generate_test_plan_normalizes_bad_types():
     assert isinstance(plan["citations"], list)
 
 
+def test_generate_test_plan_guards_all_list_fields():
+    """C1: every list field is coerced to [] when the LLM returns a non-list value.
+
+    This prevents a 500 crash downstream in XrayClient.import_plan which
+    iterates over plan['cases'] — if it were a str or None the iteration
+    would silently produce wrong results or raise.
+    """
+    bad_response = {
+        **_PLAN_RESPONSE,
+        "cases": "not a list",
+        "systems": 42,
+        "risks": None,
+        "preconditions": {"a": "dict"},
+        "test_data": 0,
+        "gaps": False,
+        "open_questions": "also not a list",
+        "citations": 99,
+    }
+    with patch("src.testplan.agent.generate_structured", return_value=bad_response):
+        plan = generate_test_plan(
+            knowledge_service=_FakeKS(),
+            user_id="u1",
+            org_id="o1",
+            hu_text="HU",
+        )
+
+    for field in ("cases", "systems", "risks", "preconditions", "test_data", "gaps",
+                  "open_questions", "citations"):
+        assert isinstance(plan[field], list), f"field '{field}' should be list, got {type(plan[field])}"
+    # summary is str-guarded, not a list
+    assert isinstance(plan["summary"], str)
+
+
 def test_generate_test_plan_never_raises_on_exception():
     """If generate_structured raises unexpectedly, the fallback still runs cleanly."""
     with patch("src.testplan.agent.generate_structured", side_effect=RuntimeError("boom")):

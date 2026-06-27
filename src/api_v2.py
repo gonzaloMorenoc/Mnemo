@@ -1008,8 +1008,9 @@ def search_knowledge(
     user: AuthenticatedUser = Depends(get_current_user),
     krepo: QaKnowledgeRepository = Depends(get_knowledge_repo),
     arepo: AssuranceRepository = Depends(get_assurance_repo),
+    embedder=Depends(get_embedder),
 ) -> List[Dict[str, Any]]:
-    svc = KnowledgeService(krepo, arepo)
+    svc = KnowledgeService(krepo, arepo, embedder=embedder)
     try:
         return svc.search_unified(user_id=user.user_id, org_id=req.org_id, query=req.query, k=req.k)
     except psycopg.Error as exc:
@@ -1022,8 +1023,9 @@ def ask_knowledge(
     user: AuthenticatedUser = Depends(get_current_user),
     krepo: QaKnowledgeRepository = Depends(get_knowledge_repo),
     arepo: AssuranceRepository = Depends(get_assurance_repo),
+    embedder=Depends(get_embedder),
 ) -> Dict[str, Any]:
-    svc = KnowledgeService(krepo, arepo)
+    svc = KnowledgeService(krepo, arepo, embedder=embedder)
     try:
         return svc.ask(user_id=user.user_id, org_id=req.org_id, question=req.question)
     except psycopg.Error as exc:
@@ -1040,8 +1042,9 @@ def onboarding_domain_summary(
     user: AuthenticatedUser = Depends(get_current_user),
     krepo: QaKnowledgeRepository = Depends(get_knowledge_repo),
     arepo: AssuranceRepository = Depends(get_assurance_repo),
+    embedder=Depends(get_embedder),
 ) -> Dict[str, Any]:
-    svc = KnowledgeService(krepo, arepo)
+    svc = KnowledgeService(krepo, arepo, embedder=embedder)
     return summarize_domain(knowledge_service=svc, user_id=user.user_id, org_id=req.org_id, topic=req.topic)
 
 
@@ -1051,8 +1054,9 @@ def onboarding_learning_path(
     user: AuthenticatedUser = Depends(get_current_user),
     krepo: QaKnowledgeRepository = Depends(get_knowledge_repo),
     arepo: AssuranceRepository = Depends(get_assurance_repo),
+    embedder=Depends(get_embedder),
 ) -> Dict[str, Any]:
-    svc = KnowledgeService(krepo, arepo)
+    svc = KnowledgeService(krepo, arepo, embedder=embedder)
     return learning_path(knowledge_service=svc, user_id=user.user_id, org_id=req.org_id, topic=req.topic)
 
 
@@ -1071,6 +1075,7 @@ async def generate_test_plan_v2(
     krepo: QaKnowledgeRepository = Depends(get_knowledge_repo),
     arepo: AssuranceRepository = Depends(get_assurance_repo),
     integrations: IntegrationsRepository = Depends(get_integrations_repo),
+    embedder=Depends(get_embedder),
 ) -> Dict[str, Any]:
     """Generate a test plan from a user story (HU).
 
@@ -1094,7 +1099,7 @@ async def generate_test_plan_v2(
         if not resolved_hu or not resolved_hu.strip():
             raise ValueError("La HU está vacía")
 
-        ks = KnowledgeService(krepo, arepo)
+        ks = KnowledgeService(krepo, arepo, embedder=embedder)
         result = generate_test_plan(
             knowledge_service=ks,
             user_id=user.user_id,
@@ -1135,7 +1140,8 @@ def export_xray_v2(
 
     try:
         client = XrayClient(org_id=body.org_id, _creds=creds)
-        keys = client.import_plan(plan=body.plan, case_format=body.case_format)
+        keys = client.import_plan(plan=body.plan, case_format=body.case_format,
+                                   project_key=body.project_key)
     except XrayNotConfigured as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except XrayImportError as exc:
