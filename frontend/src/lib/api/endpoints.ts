@@ -21,6 +21,8 @@ import type {
   OrganizationResponse,
   ProposeActionsResult,
   RootCauseResponse,
+  TestPlan,
+  TestPlanResult,
   TriageVerdict,
 } from "@/lib/api/types";
 
@@ -178,6 +180,17 @@ export function searchKnowledge(
 
 export function askKnowledge(token: string, body: { org_id: string; question: string }) {
   return apiRequest<KnowledgeAnswer>("/api/v2/knowledge/ask", "POST", { token, body });
+}
+
+export function generateTestPlan(token: string, form: FormData) {
+  return apiRequest<TestPlanResult>("/api/v2/test-plan/generate", "POST", { token, body: form });
+}
+
+export function exportTestPlanXray(
+  token: string,
+  body: { org_id: string; plan: TestPlan; case_format: string },
+) {
+  return apiRequest<{ keys: string[] }>("/api/v2/test-plan/export/xray", "POST", { token, body });
 }
 
 export async function getCertificatePdf(token: string, runId: string): Promise<Blob> {

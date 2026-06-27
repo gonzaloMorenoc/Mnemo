@@ -279,3 +279,21 @@ class KnowledgeSearchRequest(BaseModel):
 class KnowledgeAskRequest(BaseModel):
     org_id: str
     question: str = Field(max_length=2000)
+
+
+class TestPlanGenerateRequest(BaseModel):
+    """Documentation model for the multipart generate endpoint.
+
+    The endpoint itself uses Form() parameters; this model serves as the
+    canonical schema reference.
+    """
+    org_id: str
+    hu_text: Optional[str] = None
+    jira_url: Optional[str] = None
+    case_format: str = "manual"
+
+
+class TestPlanXrayExportRequest(BaseModel):
+    org_id: str
+    plan: dict
+    case_format: str = "manual"

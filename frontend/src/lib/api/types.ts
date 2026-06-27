@@ -193,3 +193,30 @@ export interface KnowledgeAnswer {
   answer: string;
   citations: string[];
 }
+
+export interface TestCase {
+  title: string;
+  level: string;
+  priority: string;
+  automatable: boolean;
+  steps?: string[];
+  expected?: string;
+  gherkin?: string;
+}
+
+export interface TestPlan {
+  summary: string;
+  systems: string[];
+  risks: string[];
+  preconditions: string[];
+  test_data: string[];
+  cases: TestCase[];
+  gaps: string[];
+  open_questions: string[];
+  citations: string[];
+}
+
+export interface TestPlanResult {
+  plan: TestPlan;
+  citations: string[];
+}
