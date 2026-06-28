@@ -1,48 +1,51 @@
-# Mnemo — Memoria de QA para consultoras
+# Mnemo — QA Continuity AI
 
-**Mnemo** es una plataforma **privada y on-premise** que convierte los fallos de los runs de test en **conocimiento reutilizable** (Defect DNA) y en **veredictos de aseguramiento** automáticos. Pensada para una consultora de QA multi-cliente: retiene el conocimiento que de otro modo se evapora con la rotación de personal.
+**Mnemo** es una plataforma **privada y on-premise** de continuidad operativa de QA: convierte el conocimiento disperso de un proyecto (reglas, flujos, bugs, tests, CI) en **planes de prueba, automatización y memoria accionable**. Pensada para consultoras de QA multi-cliente donde el conocimiento se evapora con la rotación de personal.
 
-## Qué hace
+> LLM y embeddings 100% locales (Ollama + HuggingFace). El dato del cliente nunca sale. Coste de API = 0 €.
 
-- **Ingesta viva (CI)**: un **webhook** (`POST /v2/ci/webhook`, HMAC) recibe los runs del CI en tiempo real — fallos, resultados por test y snapshots de DOM — producidos por el **reporter de Playwright** (`packages/mnemo-playwright-reporter`). También ingesta reportes **Allure** (JSON) / **JUnit** (XML). Sanitiza y calcula una huella (**fingerprint**).
-- **Defect DNA**: agrupa los fallos en **familias de defecto** y reconoce el mismo defecto **entre proyectos y en el tiempo** (linaje), aunque cambien líneas/UUIDs/timestamps.
-- **Triaje automático (Autopilot)**: por cada fallo, un **veredicto determinista** — *flaky / infra / mantenimiento / defecto real* — con confianza calibrada y evidencia auditable; los casos ambiguos se desempata con el **LLM local** (lo asistido por LLM **siempre** requiere aprobación humana). Consultable en `GET /v2/triage/run/{id}`; el desempate se dispara con `POST /v2/triage/run/{id}/resolve`.
-- **Assurance**: por cada run, un **veredicto** de aseguramiento — conocidos vs nuevos, señal de riesgo, familias recurrentes y narrativa LLM (que degrada con elegancia si el LLM no está).
-- **Privado por diseño**: LLM y embeddings **locales** (Ollama + HuggingFace). El dato del cliente **nunca sale** (con el proveedor LLM por defecto `ollama`; usar un proveedor comercial requiere `ALLOW_EXTERNAL_LLM=true` y envía datos a un tercero). Coste de API = 0 €.
+## Cinco capacidades (todas en producción)
+
+| Capacidad | Módulo | Página |
+|---|---|---|
+| **Memoria del proyecto** — captura conocimiento de QA (reglas, flujos, riesgos, lecciones) + búsqueda semántica unificada con el Defect DNA (`search_unified`) | `src/knowledge/` · tabla `qa_knowledge` | `/app/knowledge` |
+| **Test Plan Agent** — HU (URL Jira / PDF-Word / texto) → plan de pruebas manual o Gherkin citando la memoria, exportar Markdown o importar a Jira-Xray | `src/testplan/` · `src/xray/` | `/app/test-plan` |
+| **Onboarding Agent** — "modo persona nueva": ¿qué sabe el proyecto sobre X? + ruta de aprendizaje + chat | `src/onboarding/` | `/app/onboarding` |
+| **Automation Agent** — caso del plan → código Playwright `.spec.ts` → draft PR (GitHub App, nunca auto-merge) | `src/automation/` · `src/ci/github_app.py` | botón en `/app/test-plan` |
+| **Knowledge Graph + Coverage Gap** — grafo de relaciones derivado + detector de huecos de cobertura | `src/graph/` | `/app/graph` |
+
+El **Autopilot** (ingesta CI → triaje → certificado → self-heal) actúa como fuente que alimenta la memoria; no es el centro del producto.
 
 ## Stack
 
-Python 3.13 · FastAPI · Postgres + pgvector (Supabase) · Supabase JWT · Ollama (DeepSeek-R1) · HuggingFace embeddings · **reporter de Playwright** (TypeScript, `packages/`) · Next.js + TanStack Query + shadcn/ui (frontend en Vercel) · pytest/vitest.
+Python 3.13 · FastAPI · Postgres + pgvector (Supabase) · Supabase JWT · Ollama (`qwen3:8b`) · HuggingFace embeddings · reporter de Playwright (TypeScript, `packages/`) · Next.js + TanStack Query + shadcn/ui · pytest/vitest.
 
 ## Documentación
 
 | Doc | Contenido |
 |---|---|
-| [`docs/functional/overview.md`](docs/functional/overview.md) | Visión de producto, propuesta de valor, personas, casos de uso, demo |
-| [`docs/technical/arquitectura.md`](docs/technical/arquitectura.md) | Arquitectura, capas, componentes, flujo de datos, despliegue |
-| [`docs/technical/modelo-datos.md`](docs/technical/modelo-datos.md) | Esquema (runs/failures/defect_families) y **aislamiento** (RLS vs filtros de membership) |
-| [`docs/technical/api.md`](docs/technical/api.md) | Referencia de endpoints `/v2` |
-| [`doc/AUDITORIA_CONCURSO_MTP.md`](doc/AUDITORIA_CONCURSO_MTP.md) | Auditoría y encaje con el concurso MTP AI Innovation Award |
+| [`docs/functional/overview.md`](docs/functional/overview.md) | Identidad, capacidades, casos de uso, personas |
+| [`docs/vision/qa-continuity-ai.md`](docs/vision/qa-continuity-ai.md) | Visión, principios, arquitectura conceptual, roadmap |
+| [`docs/technical/arquitectura.md`](docs/technical/arquitectura.md) | Arquitectura, capas, componentes, flujo de datos |
+| [`docs/technical/modelo-datos.md`](docs/technical/modelo-datos.md) | Esquema y aislamiento multi-tenant (RLS) |
+| [`docs/technical/api.md`](docs/technical/api.md) | Referencia completa de endpoints `/v2` |
+| [`docs/AUDITORIA_CONCURSO_MTP.md`](docs/AUDITORIA_CONCURSO_MTP.md) | Auditoría y encaje con el concurso MTP AI Innovation Award |
 
-## Puesta en marcha (resumen)
+## Puesta en marcha
 
-1. **Modelos locales:** `ollama pull deepseek-r1:8b`.
+1. **Modelo local:** `ollama pull qwen3:8b`.
 2. **Dependencias:** `pip install -r requirements.txt`.
-3. **BD (Supabase):** configurar `DATABASE_URL` (cadena del **Session pooler**, no la directa IPv6-only) + `SUPABASE_URL`/`SUPABASE_JWKS_URL` en `.env`; aplicar **todas** las migraciones en orden (`db/migrations/001_*.sql` … `009_*.sql`).
-4. **Backend:** `uvicorn api:app`.
+3. **BD (Supabase):** configurar `DATABASE_URL` (Session pooler) + `SUPABASE_URL`/`SUPABASE_JWKS_URL` en `.env`; aplicar **todas** las migraciones en orden (`db/migrations/001_*.sql` … `019_*.sql`).
+4. **Backend:** `uvicorn asgi:app`.
 5. **Frontend:** `cd frontend && npm install && npm run build` (proxy `/api/v2/*` → `NEXT_PUBLIC_API_BASE_URL`).
-6. **Datos de demo (opcional, legacy):** `python legacy/seed_demo.py` (siembra proyectos del flujo anterior con una familia compartida).
+6. **Datos de demo (opcional):** `python3 scripts/docker_init.py`.
 
-## Endpoints `/v2`
-
-`POST /v2/ci/webhook` (HMAC) · `GET /v2/triage/run/{id}` · `POST /v2/triage/run/{id}/resolve` · `POST /v2/ingest/report` · `GET /v2/defects` · `GET /v2/defects/{id}` · `GET /v2/assurance/run/{id}` · `GET/POST /v2/orgs` · `POST /v2/orgs/join` · `GET /v2/health`. Detalle en [`docs/technical/api.md`](docs/technical/api.md).
+> Referencia completa de endpoints en [`docs/technical/api.md`](docs/technical/api.md).
 
 ## Despliegue
 
-Dos piezas, desplegadas por separado:
-
-- **Frontend (Next.js) → Vercel.** El código vive en `frontend/`, así que en Vercel hay que fijar **Root Directory = `frontend`** (si no, Vercel intenta construir el backend FastAPI de la raíz y el build falla). Framework **Next.js** (autodetectado al fijar el root) y **Node 22.x** (ver `frontend/.nvmrc`). Variables del proyecto Vercel: `NEXT_PUBLIC_API_BASE_URL` (URL pública del backend), `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (ver `frontend/.env.example`). El frontend habla con el backend vía un **proxy server-side** (`/api/v2/*` → `NEXT_PUBLIC_API_BASE_URL`), por lo que no requiere CORS.
-- **Backend (FastAPI + LLM + embeddings + BD + firma) → on-premise.** No va en Vercel (necesita Ollama, embeddings locales, Postgres y estado persistente). Se ejecuta donde el dato del cliente deba permanecer; `NEXT_PUBLIC_API_BASE_URL` del frontend debe apuntar a su URL pública.
+- **Frontend (Next.js) → Vercel.** Root Directory = `frontend`; Node 22.x (ver `frontend/.nvmrc`). Variables: `NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+- **Backend (FastAPI + LLM + BD) → on-premise.** Necesita Ollama, embeddings locales y Postgres; no va en Vercel.
 
 ## Tests
 
@@ -51,4 +54,3 @@ python3 -m pytest -m "not integration"   # unitarios (sin BD/LLM)
 python3 -m pytest -m integration         # integración (requiere DATABASE_URL)
 cd frontend && npm test                  # vitest
 ```
-

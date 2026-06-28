@@ -86,7 +86,7 @@ curl -s -X POST http://localhost:8000/v2/ci/webhook \
 
 4. Se hace clic en **"Certificado"** (`CertificateCard`):
    - Se muestra el veredicto firmado (ECDSA) con campos: `verdict`, `failures_known`, `failures_new`, `signed_at`.
-   - Clic en **"Descargar PDF"** → `GET /v2/assurance/run/{id}/certificate/pdf` → se descarga el PDF.
+   - Clic en **"Descargar PDF"** → `GET /v2/certificates/{run_id}/pdf` → se descarga el PDF.
 
 5. El panel **Briefing ejecutivo** (`BriefingCard`) está visible con:
    - Narrativa LLM (o degradada si Ollama no responde): "Fallo de mantenimiento — locator `#guardar` obsoleto. Acción propuesta: actualizar a `#guardar-cambios`."
