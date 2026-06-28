@@ -74,6 +74,12 @@ export interface JiraConfigResponse {
   jql: string | null;
 }
 
+export interface GitHubConfigResponse {
+  configured: boolean;
+  repo_full_name: string | null;
+  installation_id: string | null;
+}
+
 export interface JiraIngestResponse {
   run_id: string | null;
   ingested: number;
@@ -272,4 +278,16 @@ export interface CoverageGap {
   severity: "alta" | "media" | "baja";
   affected: string[];
   recommendation: string;
+}
+
+export interface TestAsset {
+  path: string;
+  framework: string;
+  domain: string;
+}
+
+export interface RepoIndexResult {
+  indexed: number;
+  by_domain: Record<string, number>;
+  skipped: number;
 }

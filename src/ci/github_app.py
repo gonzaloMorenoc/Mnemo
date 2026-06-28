@@ -1,4 +1,5 @@
 import base64
+import logging
 from typing import List, Optional
 from urllib.parse import quote
 
@@ -7,6 +8,18 @@ import requests
 from src.ci.github_auth import GitHubAppAuth
 
 _API = "https://api.github.com"
+_log = logging.getLogger(__name__)
+
+_TEST_EXTS = (".spec.ts", ".test.ts", ".spec.js", ".test.js", ".feature", ".cy.ts", ".cy.js")
+_TEST_DIRS = frozenset(("tests", "test", "e2e", "cypress", "specs", "__tests__", "features"))
+
+
+def is_test_path(path: str) -> bool:
+    p = path.lower()
+    if p.endswith((".spec.ts", ".test.ts", ".spec.js", ".test.js", ".feature", ".cy.ts", ".cy.js")):
+        return True
+    components = set(p.split("/"))
+    return bool(components & _TEST_DIRS) and p.endswith((".ts", ".js", ".feature"))
 
 
 class GitHubError(RuntimeError):
@@ -102,6 +115,19 @@ class GitHubCodeHost:
             return content
         except Exception:  # noqa: BLE001 — sin acceso/archivo → degrada
             return None
+
+    def list_tree(self) -> List[str]:
+        """Rutas de todos los ficheros del repo (rama por defecto). Lanza GitHubError en fallo."""
+        sha = self._ref_sha(self._default_branch())
+        resp = self._session.get(f"{_API}/repos/{self._repo}/git/trees/{sha}",
+                                 params={"recursive": "1"}, headers=self._headers(), timeout=30)
+        if resp.status_code >= 300:
+            raise GitHubError(f"get tree falló: HTTP {resp.status_code}")
+        data = resp.json()
+        self._last_tree_truncated: bool = bool(data.get("truncated"))
+        if self._last_tree_truncated:
+            _log.warning("repo tree truncated for %s — partial index", self._repo)
+        return [it["path"] for it in data.get("tree", []) if it.get("type") == "blob"]
 
     def _find_pr_by_head(self, owner: str, branch: str) -> Optional[str]:
         resp = self._session.get(

@@ -1,16 +1,23 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 import { useAuth } from "@/components/providers/auth-provider";
+import { useActiveOrg } from "@/components/providers/org-provider";
 import {
   getOrganizations,
   getJiraConfig,
   saveJiraConfig,
   pullJiraBugs,
   ingestJiraFile,
+  getGithubConfig,
+  saveGithubConfig,
+  indexRepo,
+  listRepoTests,
 } from "@/lib/api/endpoints";
+import { ApiClientError } from "@/lib/api/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +26,7 @@ import type { JiraIngestResponse } from "@/lib/api/types";
 
 export default function IntegrationsPage() {
   const { accessToken } = useAuth();
+  const { activeOrgId, isLoading: orgLoading } = useActiveOrg();
 
   // Config form state
   const [baseUrl, setBaseUrl] = useState("");
@@ -30,20 +38,26 @@ export default function IntegrationsPage() {
   const [project, setProject] = useState("");
   const [file, setFile] = useState<File | null>(null);
 
-  // Feedback state
+  // GitHub form state
+  const [ghInstallId, setGhInstallId] = useState("");
+  const [ghRepoFullName, setGhRepoFullName] = useState("");
+
+  // Feedback state (Jira)
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // ── orgs query ──────────────────────────────────────────────────────────
+  // ── orgs query (legacy: kept for orgId fallback) ───────────────────────────
   const orgsQuery = useQuery({
     queryKey: ["organizations", accessToken],
     queryFn: () => getOrganizations(accessToken!),
     enabled: Boolean(accessToken),
   });
-  const orgId = orgsQuery.data?.[0]?.id ?? "";
+  const orgId = activeOrgId || orgsQuery.data?.[0]?.id || "";
 
-  // ── jira config query ────────────────────────────────────────────────────
+  const queryClient = useQueryClient();
+
+  // ── jira config query ───────────────────────────────────────────────────────
   const configQuery = useQuery({
     queryKey: ["jira-config", orgId],
     queryFn: () => getJiraConfig(accessToken!, orgId),
@@ -51,7 +65,54 @@ export default function IntegrationsPage() {
   });
   const configured = configQuery.data?.configured ?? false;
 
-  // ── helpers ──────────────────────────────────────────────────────────────
+  // ── github config query ─────────────────────────────────────────────────────
+  const githubConfigQuery = useQuery({
+    queryKey: ["github-config", orgId],
+    queryFn: () => getGithubConfig(accessToken!, { org_id: orgId }),
+    enabled: Boolean(accessToken && orgId),
+  });
+  const githubConfigured = githubConfigQuery.data?.configured ?? false;
+
+  // ── list repo tests query ───────────────────────────────────────────────────
+  const repoTestsQuery = useQuery({
+    queryKey: ["repo-tests", orgId],
+    queryFn: () => listRepoTests(accessToken!, { org_id: orgId }),
+    enabled: Boolean(accessToken && orgId),
+  });
+  const repoTests = repoTestsQuery.data ?? [];
+
+  // ── save github config mutation ─────────────────────────────────────────────
+  const saveGithubMut = useMutation({
+    mutationFn: () =>
+      saveGithubConfig(accessToken!, {
+        org_id: orgId,
+        installation_id: ghInstallId,
+        repo_full_name: ghRepoFullName,
+      }),
+    onSuccess: () => {
+      void githubConfigQuery.refetch();
+      toast.success("Configuración de GitHub guardada.");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  // ── index repo mutation ─────────────────────────────────────────────────────
+  const indexMut = useMutation({
+    mutationFn: () => indexRepo(accessToken!, { org_id: orgId }),
+    onSuccess: (data) => {
+      toast.success(`${data.indexed} tests indexados`);
+      void queryClient.invalidateQueries({ queryKey: ["repo-tests", orgId] });
+    },
+    onError: (err: Error) => {
+      const msg =
+        err instanceof ApiClientError && err.status === 503
+          ? "Configura GitHub"
+          : err.message;
+      toast.error(msg);
+    },
+  });
+
+  // ── helpers ─────────────────────────────────────────────────────────────────
   function clearFeedback() {
     setMsg(null);
     setError(null);
@@ -63,7 +124,7 @@ export default function IntegrationsPage() {
     );
   }
 
-  // ── save config ──────────────────────────────────────────────────────────
+  // ── save jira config ─────────────────────────────────────────────────────────
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     clearFeedback();
@@ -94,7 +155,7 @@ export default function IntegrationsPage() {
     }
   }
 
-  // ── pull from API ─────────────────────────────────────────────────────────
+  // ── pull from API ─────────────────────────────────────────────────────────────
   async function handlePull() {
     clearFeedback();
     if (!orgId) {
@@ -115,7 +176,7 @@ export default function IntegrationsPage() {
     }
   }
 
-  // ── file upload ───────────────────────────────────────────────────────────
+  // ── file upload ───────────────────────────────────────────────────────────────
   async function handleUpload() {
     clearFeedback();
     if (!file) {
@@ -141,14 +202,102 @@ export default function IntegrationsPage() {
     }
   }
 
+  // ── domain counts from test list ──────────────────────────────────────────────
+  const domainCounts = repoTests.reduce<Record<string, number>>((acc, t) => {
+    return { ...acc, [t.domain]: (acc[t.domain] ?? 0) + 1 };
+  }, {});
+
+  if (orgLoading) {
+    return <p className="text-sm text-zinc-500">Cargando organización…</p>;
+  }
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Integraciones</h1>
-        <p className="text-sm text-zinc-500">Conecta Jira para importar bugs como defectos rastreables.</p>
+        <p className="text-sm text-zinc-500">Conecta GitHub y Jira para potenciar el análisis de QA.</p>
       </div>
 
-      {/* ── Config card ─────────────────────────────────────────────────── */}
+      {/* ── GitHub config card ────────────────────────────────────────────── */}
+      <Card className="max-w-xl space-y-4 p-5">
+        <h2 className="text-sm font-medium text-zinc-700">Configuración de GitHub</h2>
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <Label htmlFor="gh-install-id">Installation ID</Label>
+            <Input
+              id="gh-install-id"
+              value={ghInstallId}
+              onChange={(e) => setGhInstallId(e.target.value)}
+              placeholder="12345678"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="gh-repo">Repositorio (owner/repo)</Label>
+            <Input
+              id="gh-repo"
+              value={ghRepoFullName}
+              onChange={(e) => setGhRepoFullName(e.target.value)}
+              placeholder="mi-empresa/mi-repo"
+            />
+          </div>
+          {githubConfigured && githubConfigQuery.data?.repo_full_name && (
+            <p className="text-xs text-zinc-500">
+              Repositorio configurado: <strong>{githubConfigQuery.data.repo_full_name}</strong>. Rellena los campos para actualizar.
+            </p>
+          )}
+          <Button
+            onClick={() => saveGithubMut.mutate()}
+            disabled={saveGithubMut.isPending || !ghInstallId || !ghRepoFullName}
+          >
+            {saveGithubMut.isPending ? "Guardando…" : "Guardar configuración de GitHub"}
+          </Button>
+        </div>
+      </Card>
+
+      {/* ── Repo indexing card ────────────────────────────────────────────── */}
+      <Card className="max-w-xl space-y-4 p-5">
+        <h2 className="text-sm font-medium text-zinc-700">Tests del repositorio</h2>
+
+        <div className="space-y-2">
+          <Button
+            onClick={() => indexMut.mutate()}
+            disabled={indexMut.isPending || !githubConfigured}
+          >
+            {indexMut.isPending ? "Indexando…" : "Indexar tests del repo"}
+          </Button>
+          {!githubConfigured && (
+            <p className="text-xs text-zinc-500">configura GitHub primero</p>
+          )}
+        </div>
+
+        {repoTests.length > 0 && (
+          <div className="space-y-3 border-t pt-4">
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(domainCounts).map(([domain, count]) => (
+                <span
+                  key={domain}
+                  className="inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-700"
+                >
+                  {domain}: {count}
+                </span>
+              ))}
+            </div>
+            <ul className="space-y-1">
+              {repoTests.map((t) => (
+                <li key={t.path} className="text-xs text-zinc-600">
+                  <span className="font-mono">{t.path}</span>
+                  {" · "}
+                  <span className="text-zinc-400">{t.framework}</span>
+                  {" · "}
+                  <span className="text-zinc-400">{t.domain}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </Card>
+
+      {/* ── Jira config card ──────────────────────────────────────────────── */}
       <Card className="max-w-xl space-y-4 p-5">
         <h2 className="text-sm font-medium text-zinc-700">Configuración de Jira</h2>
         <form onSubmit={handleSave} className="space-y-4">
@@ -199,7 +348,7 @@ export default function IntegrationsPage() {
         </form>
       </Card>
 
-      {/* ── Import card ─────────────────────────────────────────────────── */}
+      {/* ── Import card ───────────────────────────────────────────────────── */}
       <Card className="max-w-xl space-y-4 p-5">
         <h2 className="text-sm font-medium text-zinc-700">Importar bugs</h2>
 

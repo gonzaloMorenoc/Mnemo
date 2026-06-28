@@ -14,6 +14,7 @@ import type {
   FamilyLabel,
   GateResult,
   GeneratedTest,
+  GitHubConfigResponse,
   Graph,
   HealthResponse,
   IngestReportResponse,
@@ -25,7 +26,9 @@ import type {
   LearningPath,
   OrganizationResponse,
   ProposeActionsResult,
+  RepoIndexResult,
   RootCauseResponse,
+  TestAsset,
   TestCase,
   TestPlan,
   TestPlanResult,
@@ -234,6 +237,33 @@ export function getGraph(
 export function getGaps(token: string, params: { org_id: string }) {
   return apiRequest<CoverageGap[]>(
     `/api/v2/graph/gaps?org_id=${encodeURIComponent(params.org_id)}`,
+    "GET",
+    { token },
+  );
+}
+
+export function getGithubConfig(token: string, params: { org_id: string }) {
+  return apiRequest<GitHubConfigResponse>(
+    `/api/v2/integrations/github?org_id=${encodeURIComponent(params.org_id)}`,
+    "GET",
+    { token },
+  );
+}
+
+export function saveGithubConfig(
+  token: string,
+  body: { org_id: string; installation_id: string; repo_full_name: string },
+) {
+  return apiRequest<GitHubConfigResponse>("/api/v2/integrations/github", "POST", { token, body });
+}
+
+export function indexRepo(token: string, body: { org_id: string }) {
+  return apiRequest<RepoIndexResult>("/api/v2/repo/index", "POST", { token, body });
+}
+
+export function listRepoTests(token: string, params: { org_id: string }) {
+  return apiRequest<TestAsset[]>(
+    `/api/v2/repo/tests?org_id=${encodeURIComponent(params.org_id)}`,
     "GET",
     { token },
   );

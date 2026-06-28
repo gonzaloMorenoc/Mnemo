@@ -83,12 +83,15 @@ from src.multitenant_models import (
     OnboardingRequest,
     OrganizationResponse,
     ProposeActionsResponse,
+    RepoIndexRequest,
     RootCauseResponse,
     SetFamilyLabelRequest,
     TestPlanGenerateRequest,
     TestPlanXrayExportRequest,
     TriageVerdictResponse,
 )
+from src.repo_ingest.service import index_repo_tests
+from src.repo_ingest.repository import TestAssetRepository
 from src.automation.agent import generate_playwright_test
 from src.onboarding.agent import summarize_domain, learning_path
 from src.testplan.agent import generate_test_plan
@@ -1233,3 +1236,49 @@ def automation_pr(
     if not url:
         raise HTTPException(status_code=502, detail="No se pudo abrir el PR")
     return {"pr_url": url}
+
+
+@router.post("/repo/index", response_model=Dict[str, Any])
+def repo_index(
+    req: RepoIndexRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Index test assets from the org's GitHub repo.
+
+    Error mapping:
+    - PermissionError (non-member)         → 403
+    - ValueError (GitHub not configured)   → 503
+    - GitHubError (API failure)            → 502
+    - GitHub not configured / no repo      → 503
+    """
+    try:
+        cfg = get_integrations_repo().get_github_config(user_id=user.user_id, org_id=req.org_id)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail="No es miembro de la organización") from exc
+    if not cfg.get("configured") or not cfg.get("repo_full_name"):
+        raise HTTPException(status_code=503, detail="GitHub no configurado para el org")
+    try:
+        host = _github_codehost_factory(req.org_id, user.user_id)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail="No es miembro de la organización") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    try:
+        return index_repo_tests(
+            user_id=user.user_id,
+            org_id=req.org_id,
+            repo=cfg["repo_full_name"],
+            codehost=host,
+            asset_repo=TestAssetRepository(),
+        )
+    except GitHubError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.get("/repo/tests", response_model=List[Dict[str, Any]])
+def repo_tests(
+    org_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> List[Dict[str, Any]]:
+    """List indexed test assets for the given org."""
+    return TestAssetRepository().list_assets(user_id=user.user_id, org_id=org_id)
