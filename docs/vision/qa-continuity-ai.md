@@ -71,14 +71,21 @@ Relacionado: `BusinessRule —covered_by→ test`, `—affected_by→ UserStory`
 
 ## Roadmap por fases
 
-- **Fase 1 — Memoria + RAG operacional + Test Plan** *(el MVP que valida el valor)*
-  - **1a (cimiento):** entidad `qa_knowledge` (reglas/flujos/riesgos/glosario/lecciones/retos, vinculable a familias/runs) + captura + **búsqueda/asistente unificados con el Defect DNA** (reusa `LocalEmbedder`/`search_families_semantic`/`nl_query`). → es el spec K1+K2, reencuadrado.
-  - **1b:** **Test Plan Agent** — dada una HU/criterios: contexto, sistemas, riesgos, datos, casos por nivel, **gaps de cobertura**, citando el conocimiento.
-- **Fase 2 — Knowledge Graph** (relaciones en Postgres) + **Coverage Gap Detector** + "¿qué sabe el proyecto?" (resumen de dominio).
-- **Fase 3 — Ingesta multi-fuente** (Jira historias/criterios — ya hay base; Confluence, Git, OpenAPI/Postman) con clasificación + confianza + fuente + detección de obsolescencia/contradicción.
-- **Fase 4 — Automation Agent** (Gherkin → Playwright/API al estilo del repo → PR vía GitHub App, con revisión humana) + **Onboarding Path Generator** + **Knowledge Gap Detector** (qué NO sabe el proyecto).
+- **Fase 1 — Memoria + RAG operacional + Test Plan** ✅ **Entregado (main)**
+  - **1a (cimiento):** entidad `qa_knowledge` (reglas/flujos/riesgos/glosario/lecciones/retos, vinculable a familias/runs) + captura + búsqueda/asistente unificados con el Defect DNA (`search_unified`). Módulo `src/knowledge/`, migración `018`.
+  - **1b:** **Test Plan Agent** — dada una HU (URL Jira / PDF-Word / texto): contexto, sistemas, riesgos, datos, casos por nivel, citando el conocimiento. Exportar Markdown / importar a Jira-Xray. Módulo `src/testplan/` + `src/xray/`, migración `019`.
+- **Fase 2 — Knowledge Graph + Coverage Gap Detector** ✅ **Entregado (main)**
+  - Grafo de relaciones derivado en Postgres (`src/graph/`) + detector de huecos de cobertura (`/v2/graph/gaps`). Página `/app/graph`.
+- **Automation Agent + Onboarding Agent** ✅ **Entregado (main)**
+  - **Automation Agent:** caso del plan → código Playwright `.spec.ts` al estilo del repo → draft PR (GitHub App, nunca auto-merge). Módulo `src/automation/`.
+  - **Onboarding Agent:** "modo persona nueva" — ¿qué sabe el proyecto sobre X? + ruta de aprendizaje + chat. Módulo `src/onboarding/`. Página `/app/onboarding`.
 
-Funcionalidades estrella (transversales, se materializan al avanzar): *modo persona nueva*, *¿qué sabe el proyecto?*, *generar plan + automatización con aprobación*, *test automation al estilo del repo*.
+**Pendiente (roadmap real):**
+- **Ingesta multi-fuente más allá de Jira:** Confluence, Git (commits/PRs), OpenAPI/Postman, con clasificación automática, nivel de confianza y fuente citada.
+- **Detección de contradicción/obsolescencia:** identificar conocimiento que se contradice entre fuentes o que ha quedado obsoleto (por cambio de código o de requisito).
+- **Knowledge Gap Detector más profundo:** qué NO sabe el proyecto (áreas sin cobertura semántica, no solo tests sin asociar).
+
+Funcionalidades estrella (transversales, ya disponibles): *modo persona nueva* (onboarding), *¿qué sabe el proyecto?* (knowledge + graph), *generar plan + automatización con aprobación* (test-plan + automation), *test automation al estilo del repo*.
 
 ## Riesgos y gobierno
 
@@ -95,6 +102,6 @@ Funcionalidades estrella (transversales, se materializan al avanzar): *modo pers
 
 *"Convierte la memoria del proyecto en cobertura QA accionable."* No sustituye al QA: **conserva la memoria de QA del proyecto y acelera a cualquier persona nueva.** Comprador ideal (de la revisión profunda): consultora/outsourcer de QA mediano que rota personal y sirve clientes regulados — fit nativo con la arquitectura multi-tenant, on-prem y de memoria.
 
-## Estado y siguiente paso
+## Estado
 
-La infra dura ya está (auditada). El siguiente paso es la **Fase 1a (memoria)** — reencuadrar el spec K1+K2 dentro de este marco (ampliando los `kind` de la entidad) → plan → implementación; luego la **Fase 1b (Test Plan Agent)**.
+Las Fases 1 y 2, el Automation Agent y el Onboarding Agent están todos en producción (`main`). Migraciones aplicadas: `001`–`019`. El siguiente paso es la **ingesta multi-fuente** (Confluence, Git, OpenAPI) y la detección de contradicción/obsolescencia — ver sección Pendiente del roadmap.
