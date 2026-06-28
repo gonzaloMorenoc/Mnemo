@@ -27,7 +27,7 @@ Instrucciones para dejar la demo lista y el plan B.
 ### Modelos locales (Ollama)
 
 ```bash
-ollama pull deepseek-r1:8b
+ollama pull qwen3:8b
 ollama serve   # si no está corriendo como servicio
 ```
 
@@ -186,7 +186,7 @@ Ejecutar este checklist **30 minutos antes** de la presentación:
 - [ ] Ir a `/app/calibration` → la tabla de métricas carga (aunque sea con ceros si no hay datos de calibración previos).
 - [ ] `fresh_push.json` tiene el `org_id` actualizado con el UUID de Org A.
 - [ ] `CI_SERVICE_ORG_ID` en el entorno coincide con ese UUID.
-- [ ] Ollama corriendo (opcional pero recomendado): `ollama list` muestra `deepseek-r1:8b`.
+- [ ] Ollama corriendo (opcional pero recomendado): `ollama list` muestra `qwen3:8b`.
 - [ ] Terminal con el comando curl del push en vivo preparado y listo para ejecutar.
 
 ---
@@ -219,7 +219,7 @@ El Acto 3 (calibración + Org B + ROI) **no depende del push en vivo** en ningú
 psql "$DATABASE_URL" -c "SELECT id, name FROM public.organizations WHERE created_by='<DEMO_USER_ID>';"
 
 # Ver los runs de Org A
-psql "$DATABASE_URL" -c "SELECT id, project, created_at FROM public.ci_runs WHERE org_id='<ORG_A_ID>' ORDER BY created_at DESC LIMIT 10;"
+psql "$DATABASE_URL" -c "SELECT id, project, created_at FROM public.test_runs WHERE org_id='<ORG_A_ID>' ORDER BY created_at DESC LIMIT 10;"
 
 # Resetear el seed (eliminar Org A y Org B para empezar de cero)
 psql "$DATABASE_URL" -c "DELETE FROM public.organizations WHERE name IN ('Demo MTP','Cliente Beta') AND created_by='<DEMO_USER_ID>';"
