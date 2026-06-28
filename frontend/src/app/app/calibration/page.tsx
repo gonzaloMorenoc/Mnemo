@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
 import { useAuth } from "@/components/providers/auth-provider";
 import { useActiveOrg } from "@/components/providers/org-provider";
 import { getCalibrationMetrics } from "@/lib/api/endpoints";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -32,8 +34,14 @@ export default function CalibrationPage() {
         <Card className="max-w-xl p-5"><p className="text-sm text-red-600">No se pudieron cargar las métricas.</p></Card>
       )}
       {m && m.total === 0 && (
-        <Card className="max-w-xl p-5"><p className="text-sm text-zinc-500">
-          Aún no hay correcciones. Etiqueta familias en Defect DNA para calibrar el motor.</p></Card>
+        <Card className="max-w-xl p-5 space-y-3">
+          <p className="text-sm text-zinc-500">
+            Aún no hay correcciones. Etiqueta familias en Defect DNA para calibrar el motor.
+          </p>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/app/defects">Ir a Defect DNA</Link>
+          </Button>
+        </Card>
       )}
       {m && m.total > 0 && (
         <Card className="max-w-xl space-y-4 p-6">
