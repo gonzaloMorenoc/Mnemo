@@ -359,7 +359,25 @@ async function renderWithPlan() {
 }
 
 describe("TestPlanPage — Generar test Playwright por caso", () => {
-  it("llama a generatePlaywrightTest con el caso y style_sample, y muestra el código", async () => {
+  it("llama a generatePlaywrightTest con org_id del contexto", async () => {
+    (generatePlaywrightTest as ReturnType<typeof vi.fn>).mockResolvedValue(MOCK_GENERATED_TEST);
+
+    await renderWithPlan();
+
+    fireEvent.click(screen.getByRole("button", { name: /generar test playwright/i }));
+
+    await waitFor(() => {
+      expect(generatePlaywrightTest).toHaveBeenCalledWith(
+        "tok",
+        expect.objectContaining({
+          org_id: "o1",
+          case: expect.objectContaining({ title: "Happy path checkout" }),
+        }),
+      );
+    });
+  });
+
+  it("llama a generatePlaywrightTest con el caso, org_id y style_sample, y muestra el código", async () => {
     (generatePlaywrightTest as ReturnType<typeof vi.fn>).mockResolvedValue(MOCK_GENERATED_TEST);
 
     await renderWithPlan();
@@ -376,6 +394,7 @@ describe("TestPlanPage — Generar test Playwright por caso", () => {
       expect(generatePlaywrightTest).toHaveBeenCalledWith(
         "tok",
         expect.objectContaining({
+          org_id: "o1",
           case: expect.objectContaining({ title: "Happy path checkout" }),
           style_sample: "test('ref', async () => {})",
         }),
