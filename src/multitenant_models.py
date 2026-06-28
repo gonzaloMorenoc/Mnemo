@@ -315,3 +315,7 @@ class AutomationPrRequest(BaseModel):
     code: str
     filename: str = Field(min_length=1, max_length=255, pattern=r"^[A-Za-z0-9_\-]+\.spec\.ts$")
     title: Optional[str] = None
+
+
+class RepoIndexRequest(BaseModel):
+    org_id: str
