@@ -25,7 +25,9 @@ import type {
   LearningPath,
   OrganizationResponse,
   ProposeActionsResult,
+  RepoIndexResult,
   RootCauseResponse,
+  TestAsset,
   TestCase,
   TestPlan,
   TestPlanResult,
@@ -234,6 +236,18 @@ export function getGraph(
 export function getGaps(token: string, params: { org_id: string }) {
   return apiRequest<CoverageGap[]>(
     `/api/v2/graph/gaps?org_id=${encodeURIComponent(params.org_id)}`,
+    "GET",
+    { token },
+  );
+}
+
+export function indexRepo(token: string, body: { org_id: string }) {
+  return apiRequest<RepoIndexResult>("/api/v2/repo/index", "POST", { token, body });
+}
+
+export function listRepoTests(token: string, params: { org_id: string }) {
+  return apiRequest<TestAsset[]>(
+    `/api/v2/repo/tests?org_id=${encodeURIComponent(params.org_id)}`,
     "GET",
     { token },
   );

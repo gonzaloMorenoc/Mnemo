@@ -273,3 +273,15 @@ export interface CoverageGap {
   affected: string[];
   recommendation: string;
 }
+
+export interface TestAsset {
+  path: string;
+  framework: string;
+  domain: string;
+}
+
+export interface RepoIndexResult {
+  indexed: number;
+  by_domain: Record<string, number>;
+  skipped: number;
+}
