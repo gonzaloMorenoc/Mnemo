@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+import Link from "next/link";
+
 import { useAuth } from "@/components/providers/auth-provider";
 import { useActiveOrg } from "@/components/providers/org-provider";
 import {
@@ -79,8 +81,11 @@ export default function OnboardingPage() {
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Onboarding</h1>
           <p className="text-sm text-zinc-500">Ponte al día rápidamente con el dominio y los sistemas de QA del proyecto.</p>
         </div>
-        <Card className="max-w-xl p-5">
+        <Card className="max-w-xl p-5 space-y-3">
           <p className="text-sm text-zinc-500">Selecciona una organización para comenzar el onboarding.</p>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/app/knowledge">Captura conocimiento</Link>
+          </Button>
         </Card>
       </div>
     );

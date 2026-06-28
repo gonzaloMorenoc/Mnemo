@@ -197,6 +197,19 @@ describe("GraphPage — grafo vacío", () => {
       await screen.findByText(/aún no hay conocimiento suficiente/i),
     ).toBeInTheDocument();
   });
+
+  it("muestra un enlace a /app/knowledge en el empty-state del grafo", async () => {
+    (getGraph as ReturnType<typeof vi.fn>).mockResolvedValue({ nodes: [], edges: [] });
+    (getGaps as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+    renderWithClient(<GraphPage />);
+
+    // Wait for the empty state text to appear first
+    await screen.findByText(/aún no hay conocimiento suficiente/i);
+
+    const link = screen.getByRole("link", { name: /conocimiento/i });
+    expect(link).toHaveAttribute("href", "/app/knowledge");
+  });
 });
 
 describe("GraphPage — label legible del tipo de gap (GAP_KIND_LABEL)", () => {
