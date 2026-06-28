@@ -5,7 +5,7 @@ from src.llm.providers.ollama import OllamaProvider
 from src.llm.providers.openai import OpenAIProvider
 
 _DEFAULT_MODELS = {
-    "ollama": "deepseek-r1:8b",
+    "ollama": "qwen3:8b",
     "openai": "gpt-4o-mini",
     "anthropic": "claude-haiku-4-5-20251001",
 }

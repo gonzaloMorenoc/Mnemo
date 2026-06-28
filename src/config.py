@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Model Settings
-MODEL_NAME = "deepseek-r1:8b"
+MODEL_NAME = "qwen3:8b"
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 

@@ -45,7 +45,7 @@ def test_openai_uses_default_model_when_unset(monkeypatch):
     monkeypatch.setattr(config, "LLM_MODEL", "")
     monkeypatch.setattr(config, "ALLOW_EXTERNAL_LLM", True)
     p = get_llm_provider()
-    assert p._model and p._model != "deepseek-r1:8b"
+    assert p._model and p._model != "qwen3:8b"
 
 
 def test_provider_name_is_stripped(monkeypatch):
@@ -73,5 +73,5 @@ def test_anthropic_default_is_current_model():
     assert "3-5" not in _DEFAULT_MODELS["anthropic"]   # ya no el alias obsoleto
 
 
-def test_ollama_default_unchanged():
-    assert _DEFAULT_MODELS["ollama"] == "deepseek-r1:8b"   # el default on-prem no cambia
+def test_ollama_default_is_qwen3():
+    assert _DEFAULT_MODELS["ollama"] == "qwen3:8b"   # default on-prem: JSON estructurado + español + rápido
