@@ -58,6 +58,7 @@ describe("DashboardPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("step-done-1")).toBeDefined();
       expect(screen.getByTestId("step-done-2")).toBeDefined();
+      expect(screen.getByTestId("step-todo-5")).toBeDefined();
     });
 
     expect(screen.getByTestId("step-todo-3")).toBeDefined();

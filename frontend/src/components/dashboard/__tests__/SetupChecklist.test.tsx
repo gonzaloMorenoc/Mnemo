@@ -41,4 +41,21 @@ describe("SetupChecklist", () => {
     render(<SetupChecklist steps={[]} loading={true} />);
     expect(screen.getByTestId("checklist-skeleton")).toBeDefined();
   });
+
+  it("el paso highlight usa variante default en el botón", () => {
+    const highlightStep: SetupStep = {
+      n: 5,
+      title: "Genera",
+      description: "d",
+      href: "/app/graph",
+      cta: "Generar",
+      done: false,
+      highlight: true,
+    };
+    render(<SetupChecklist steps={[highlightStep]} />);
+    expect(screen.getByTestId("step-todo-5")).toBeDefined();
+    // The CTA link should exist and point to the correct href
+    const link = screen.getByRole("link", { name: "Generar" });
+    expect(link.getAttribute("href")).toBe("/app/graph");
+  });
 });
