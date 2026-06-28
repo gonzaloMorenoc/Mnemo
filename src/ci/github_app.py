@@ -8,6 +8,16 @@ from src.ci.github_auth import GitHubAppAuth
 
 _API = "https://api.github.com"
 
+_TEST_EXTS = (".spec.ts", ".test.ts", ".spec.js", ".test.js", ".feature", ".cy.ts", ".cy.js")
+_TEST_DIRS = ("tests/", "test/", "e2e/", "cypress/", "specs/", "__tests__/", "features/")
+
+
+def is_test_path(path: str) -> bool:
+    p = path.lower()
+    if p.endswith((".spec.ts", ".test.ts", ".spec.js", ".test.js", ".feature", ".cy.ts", ".cy.js")):
+        return True
+    return any(d in p for d in _TEST_DIRS) and p.endswith((".ts", ".js", ".feature"))
+
 
 class GitHubError(RuntimeError):
     """Fallo de la API REST de GitHub al materializar un artefacto."""
@@ -102,6 +112,15 @@ class GitHubCodeHost:
             return content
         except Exception:  # noqa: BLE001 — sin acceso/archivo → degrada
             return None
+
+    def list_tree(self) -> List[str]:
+        """Rutas de todos los ficheros del repo (rama por defecto). Lanza GitHubError en fallo."""
+        sha = self._ref_sha(self._default_branch())
+        resp = self._session.get(f"{_API}/repos/{self._repo}/git/trees/{sha}",
+                                 params={"recursive": "1"}, headers=self._headers(), timeout=30)
+        if resp.status_code >= 300:
+            raise GitHubError(f"get tree falló: HTTP {resp.status_code}")
+        return [it["path"] for it in resp.json().get("tree", []) if it.get("type") == "blob"]
 
     def _find_pr_by_head(self, owner: str, branch: str) -> Optional[str]:
         resp = self._session.get(
