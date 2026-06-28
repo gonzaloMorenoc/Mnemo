@@ -5,17 +5,9 @@ import { usePathname, useRouter } from "next/navigation";
 
 import { useAuth } from "@/components/providers/auth-provider";
 import { OrgSwitcher } from "@/components/layout/org-switcher";
+import { labelForPath } from "@/components/layout/nav";
 import { Button } from "@/components/ui/button";
 import { truncate } from "@/lib/utils";
-
-const pageTitles: Record<string, string> = {
-  "/app/graph": "Knowledge Graph",
-  "/app/knowledge": "Conocimiento",
-  "/app/onboarding": "Onboarding",
-  "/app/org": "Organization",
-  "/app/settings": "Settings",
-  "/app/test-plan": "Plan de pruebas",
-};
 
 interface TopbarProps {
   onOpenMobileMenu: () => void;
@@ -26,7 +18,7 @@ export function Topbar({ onOpenMobileMenu }: TopbarProps) {
   const router = useRouter();
   const { signOut, user } = useAuth();
 
-  const title = pageTitles[pathname] ?? "Mnemo";
+  const title = labelForPath(pathname) ?? "Mnemo";
 
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-zinc-200/80 bg-[color:var(--surface)]/90 px-4 backdrop-blur md:px-6">
@@ -42,9 +34,7 @@ export function Topbar({ onOpenMobileMenu }: TopbarProps) {
         </Button>
         <div>
           <h1 className="text-lg font-semibold tracking-tight text-zinc-900">{title}</h1>
-          <p className="hidden text-xs text-zinc-500 sm:block">
-            Triaje determinista · aprobación humana · aseguramiento firmado
-          </p>
+          <p className="hidden text-xs text-zinc-500 sm:block">Mnemo</p>
         </div>
       </div>
 
@@ -61,7 +51,7 @@ export function Topbar({ onOpenMobileMenu }: TopbarProps) {
             router.replace("/login");
           }}
         >
-          Sign out
+          Cerrar sesión
         </Button>
       </div>
     </header>
