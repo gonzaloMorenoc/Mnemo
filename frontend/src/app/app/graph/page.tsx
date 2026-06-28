@@ -13,6 +13,16 @@ import { KnowledgeGraphView } from "@/components/graph/knowledge-graph-view";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 
+// ─── gap kind labels ──────────────────────────────────────────────────────────
+
+const GAP_KIND_LABEL: Record<string, string> = {
+  regla_sin_test: "Regla sin test",
+  repo_no_indexado: "Repo sin indexar",
+  defecto_sin_conocimiento: "Defecto sin conocimiento",
+  dominio_sin_leccion: "Dominio sin lección",
+  riesgo_sin_mitigacion: "Riesgo sin mitigación",
+};
+
 // ─── severity ordering ────────────────────────────────────────────────────────
 
 const SEVERITY_ORDER: Record<CoverageGap["severity"], number> = {
@@ -156,6 +166,12 @@ export default function GraphPage() {
                   {gap.title}
                 </span>
               </div>
+              <span
+                className="mb-2 inline-block text-xs text-zinc-500"
+                data-testid={`gap-kind-${gap.kind}`}
+              >
+                {GAP_KIND_LABEL[gap.kind] ?? gap.kind}
+              </span>
               <p className="mb-2 text-xs text-zinc-600">{gap.recommendation}</p>
               {gap.affected.length > 0 && (
                 <div className="flex flex-wrap gap-1">

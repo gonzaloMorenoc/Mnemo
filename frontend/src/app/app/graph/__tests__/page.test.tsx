@@ -196,6 +196,62 @@ describe("GraphPage — grafo vacío", () => {
   });
 });
 
+describe("GraphPage — label legible del tipo de gap (GAP_KIND_LABEL)", () => {
+  it('muestra "Regla sin test" para kind=regla_sin_test', async () => {
+    (getGraph as ReturnType<typeof vi.fn>).mockResolvedValue(MOCK_GRAPH);
+    (getGaps as ReturnType<typeof vi.fn>).mockResolvedValue([
+      {
+        kind: "regla_sin_test",
+        severity: "alta" as const,
+        title: "Regla sin cobertura",
+        recommendation: "Añade un test para esta regla",
+        affected: ["k1"],
+      },
+    ]);
+
+    renderWithClient(<GraphPage />);
+
+    const label = await screen.findByTestId("gap-kind-regla_sin_test");
+    expect(label).toHaveTextContent("Regla sin test");
+  });
+
+  it('muestra "Repo sin indexar" para kind=repo_no_indexado', async () => {
+    (getGraph as ReturnType<typeof vi.fn>).mockResolvedValue(MOCK_GRAPH);
+    (getGaps as ReturnType<typeof vi.fn>).mockResolvedValue([
+      {
+        kind: "repo_no_indexado",
+        severity: "media" as const,
+        title: "Repositorio sin indexar",
+        recommendation: "Indexa el repositorio",
+        affected: ["repo-x"],
+      },
+    ]);
+
+    renderWithClient(<GraphPage />);
+
+    const label = await screen.findByTestId("gap-kind-repo_no_indexado");
+    expect(label).toHaveTextContent("Repo sin indexar");
+  });
+
+  it("muestra el kind raw para kinds desconocidos (fallback)", async () => {
+    (getGraph as ReturnType<typeof vi.fn>).mockResolvedValue(MOCK_GRAPH);
+    (getGaps as ReturnType<typeof vi.fn>).mockResolvedValue([
+      {
+        kind: "unknown_kind_xyz",
+        severity: "baja" as const,
+        title: "Gap desconocido",
+        recommendation: "Revisar",
+        affected: [],
+      },
+    ]);
+
+    renderWithClient(<GraphPage />);
+
+    const label = await screen.findByTestId("gap-kind-unknown_kind_xyz");
+    expect(label).toHaveTextContent("unknown_kind_xyz");
+  });
+});
+
 describe("GraphPage — degradación ante errores de query", () => {
   it("llama a toast.error cuando getGraph rechaza y la página no se rompe", async () => {
     (getGraph as ReturnType<typeof vi.fn>).mockRejectedValue(
