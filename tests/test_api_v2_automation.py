@@ -107,19 +107,28 @@ def test_generate_retrieve_returns_none_passes_none():
     assert call_kw["style_sample"] is None
 
 
-def test_generate_retrieve_exception_degrades_gracefully():
-    """retrieve_style_examples raises → endpoint still works with style_sample=None."""
+def test_generate_retrieve_exception_degrades_gracefully(caplog):
+    """retrieve_style_examples raises → endpoint still works with style_sample=None.
+
+    Also verifies that the failure is observable via a WARNING log (not silently swallowed).
+    """
+    import logging
     case = {"title": "Error path", "steps": ["Do something"], "expected": "Result"}
     _retval = {"code": "test code", "filename": "error.spec.ts", "notes": ""}
 
     with patch("src.api_v2.retrieve_style_examples", side_effect=RuntimeError("DB down")), \
-         patch("src.api_v2.generate_playwright_test", return_value=_retval) as mock_gen:
+         patch("src.api_v2.generate_playwright_test", return_value=_retval) as mock_gen, \
+         caplog.at_level(logging.WARNING, logger="src.api_v2"):
         client = make_client()
         r = client.post("/v2/automation/generate", json={"case": case, "org_id": "org-1"})
 
     assert r.status_code == 200
     call_kw = mock_gen.call_args.kwargs
     assert call_kw["style_sample"] is None
+    assert any(
+        "automation few-shot retrieval failed" in rec.message and rec.levelno == logging.WARNING
+        for rec in caplog.records
+    ), "Expected a WARNING log about few-shot retrieval failure"
 
 
 # ---------------------------------------------------------------------------

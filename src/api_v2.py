@@ -1208,7 +1208,8 @@ def automation_generate(
                 user_id=user.user_id, org_id=req.org_id,
                 case_text=_case_text(req.case),
                 asset_repo=repo, embedder=repo.embedder)
-        except Exception:
+        except Exception as exc:
+            logger.warning("automation few-shot retrieval failed (org=%s): %s", req.org_id, exc)
             examples = None
     return generate_playwright_test(case=req.case, style_sample=examples)
 
