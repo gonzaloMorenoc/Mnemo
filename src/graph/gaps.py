@@ -36,6 +36,14 @@ _FALLBACK_REC: Dict[str, str] = {
         "Crea un patrón o lección (kind='leccion' o 'patron') para mitigar"
         " este riesgo o regla de negocio en el dominio correspondiente."
     ),
+    "regla_sin_test": (
+        "No hay un test que cubra este conocimiento. Genera un caso de prueba "
+        "(o automatízalo) para esta regla/flujo/riesgo."
+    ),
+    "repo_no_indexado": (
+        "Indexa los tests del repositorio desde /app/integrations para detectar "
+        "huecos de cobertura reales (regla/flujo/riesgo sin test)."
+    ),
 }
 
 # ---------------------------------------------------------------------------
@@ -95,6 +103,12 @@ def _recommendation(kind: str, title: str, provider=None) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Coverage threshold — calibrable cosine distance
+# ---------------------------------------------------------------------------
+
+_COVERAGE_THRESHOLD = 0.55  # distancia cosine; calibrable
+
+# ---------------------------------------------------------------------------
 # SQL queries for the three gap kinds
 # ---------------------------------------------------------------------------
 
@@ -129,6 +143,15 @@ _SQL_RIESGO_SIN_MITIGACION = """
             and m.kind in ('leccion', 'patron')
       )
 """
+
+_SQL_REGLA_SIN_TEST = (
+    "select k.id::text as id, k.title, k.kind,"
+    " (select min(k.embedding <=> t.embedding) from public.test_assets t"
+    "  where t.org_id = %s and t.embedding is not null) as best_dist"
+    " from public.qa_knowledge k"
+    " where k.org_id = %s and k.kind in ('regla_negocio','flujo','riesgo')"
+    " and k.embedding is not null"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -183,6 +206,14 @@ def _detect_gaps_inner(
         cur.execute(_SQL_RIESGO_SIN_MITIGACION, (org_id, org_id))
         riesgo_rows = cur.fetchall()
 
+        # --- Gap 4: regla_sin_test (coverage cross-query) ---
+        cur.execute("select count(*) as n from public.test_assets where org_id=%s", (org_id,))
+        n_tests = cur.fetchone()["n"]
+        coverage_rows = []
+        if n_tests > 0:
+            cur.execute(_SQL_REGLA_SIN_TEST, (org_id, org_id))
+            coverage_rows = cur.fetchall()
+
     gaps: List[Dict[str, Any]] = []
 
     for row in defect_rows:
@@ -215,5 +246,26 @@ def _detect_gaps_inner(
             "affected": [row["domain"]],
             "recommendation": _recommendation("riesgo_sin_mitigacion", title, provider),
         })
+
+    if n_tests == 0:
+        gaps.append({
+            "kind": "repo_no_indexado",
+            "title": "El repositorio no tiene tests indexados",
+            "severity": "media",
+            "affected": [],
+            "recommendation": _FALLBACK_REC["repo_no_indexado"],
+        })
+    else:
+        for row in coverage_rows:
+            best = row.get("best_dist")
+            if best is None or best > _COVERAGE_THRESHOLD:
+                sev = "alta" if row["kind"] == "riesgo" else "media"
+                gaps.append({
+                    "kind": "regla_sin_test",
+                    "title": row["title"],
+                    "severity": sev,
+                    "affected": [row["id"]],
+                    "recommendation": _recommendation("regla_sin_test", row["title"], provider),
+                })
 
     return gaps

@@ -12,15 +12,22 @@ import pytest
 # Helpers — mirror graph/service test pattern exactly
 # ---------------------------------------------------------------------------
 
-def _make_conn_ctx(member: bool, fetchall_results: list = None):
+def _make_conn_ctx(member: bool, fetchall_results: list = None, n_tests: int = 0):
     """
     Return (conn_ctx, conn, cur) configured for membership=member.
 
     fetchall_results: list of lists consumed sequentially by cur.fetchall().
-    The first call after the membership fetchone() gets fetchall_results[0], etc.
+      - Slot 0: defecto_sin_conocimiento rows
+      - Slot 1: dominio_sin_leccion rows
+      - Slot 2: riesgo_sin_mitigacion rows
+      - Slot 3: coverage_rows (regla_sin_test cross-query), only consumed when n_tests>0
+
+    n_tests: value returned by the count(test_assets) fetchone call.
+      fetchone is called twice: once for membership ({"ok": member}),
+      once for the test-count ({"n": n_tests}).
     """
     cur = MagicMock()
-    cur.fetchone.return_value = {"ok": member}
+    cur.fetchone.side_effect = [{"ok": member}, {"n": n_tests}]
 
     if fetchall_results is not None:
         cur.fetchall.side_effect = list(fetchall_results)
@@ -289,5 +296,179 @@ class TestDetectionNeverDependsOnLlm:
         from src.graph.gaps import detect_gaps
         # Make _connect itself raise
         with patch("src.graph.gaps.psycopg.connect", side_effect=Exception("DB down")):
+            result = detect_gaps(user_id=USER_ID, org_id=ORG_ID)
+        assert result == []
+
+
+# ---------------------------------------------------------------------------
+# regla_sin_test — coverage gap via cosine similarity cross-query
+# ---------------------------------------------------------------------------
+
+# qa_knowledge rows for coverage cross-query
+REGLA_ROW_COVERED = {
+    "id": "k10",
+    "title": "Login must require 2FA",
+    "kind": "regla_negocio",
+    "best_dist": 0.30,  # < threshold → covered, NO gap
+}
+REGLA_ROW_UNCOVERED = {
+    "id": "k11",
+    "title": "Payment timeout must be ≤ 5s",
+    "kind": "regla_negocio",
+    "best_dist": 0.80,  # > threshold → gap, severity media
+}
+RIESGO_ROW_FAR = {
+    "id": "k12",
+    "title": "Data leak via API",
+    "kind": "riesgo",
+    "best_dist": 0.90,  # > threshold → gap, severity alta
+}
+REGLA_ROW_NULL_DIST = {
+    "id": "k13",
+    "title": "Billing rule with no test embedding",
+    "kind": "regla_negocio",
+    "best_dist": None,  # None treated as > threshold → gap
+}
+
+
+class TestReglaSinTest:
+    """Coverage gap: qa_knowledge × test_assets via cosine similarity."""
+
+    def _run(self, coverage_rows, n_tests=5):
+        from src.graph.gaps import detect_gaps
+        conn_ctx, conn, cur = _make_conn_ctx(
+            member=True,
+            fetchall_results=[[], [], [], coverage_rows],
+            n_tests=n_tests,
+        )
+        with patch("src.graph.gaps.psycopg.connect", return_value=conn_ctx):
+            with patch(
+                "src.graph.gaps.generate_structured",
+                return_value={"recommendation": "LLM rec coverage"},
+            ):
+                return detect_gaps(user_id=USER_ID, org_id=ORG_ID)
+
+    def test_near_test_no_gap(self):
+        """best_dist < threshold → knowledge is covered → NO regla_sin_test gap."""
+        gaps = self._run([REGLA_ROW_COVERED])
+        rst = [g for g in gaps if g["kind"] == "regla_sin_test"]
+        assert rst == [], f"Expected no regla_sin_test, got {rst}"
+
+    def test_far_regla_negocio_produces_gap_severity_media(self):
+        """best_dist > threshold + kind=regla_negocio → gap with severity=media."""
+        gaps = self._run([REGLA_ROW_UNCOVERED])
+        rst = [g for g in gaps if g["kind"] == "regla_sin_test"]
+        assert len(rst) == 1
+        assert rst[0]["severity"] == "media"
+        assert rst[0]["title"] == REGLA_ROW_UNCOVERED["title"]
+
+    def test_far_riesgo_produces_gap_severity_alta(self):
+        """best_dist > threshold + kind=riesgo → gap with severity=alta."""
+        gaps = self._run([RIESGO_ROW_FAR])
+        rst = [g for g in gaps if g["kind"] == "regla_sin_test"]
+        assert len(rst) == 1
+        assert rst[0]["severity"] == "alta"
+        assert rst[0]["title"] == RIESGO_ROW_FAR["title"]
+
+    def test_null_best_dist_treated_as_uncovered(self):
+        """best_dist=None → no matching test → gap produced."""
+        gaps = self._run([REGLA_ROW_NULL_DIST])
+        rst = [g for g in gaps if g["kind"] == "regla_sin_test"]
+        assert len(rst) == 1
+
+    def test_affected_is_knowledge_id(self):
+        """affected list must contain the qa_knowledge id."""
+        gaps = self._run([REGLA_ROW_UNCOVERED])
+        rst = [g for g in gaps if g["kind"] == "regla_sin_test"]
+        assert rst[0]["affected"] == [REGLA_ROW_UNCOVERED["id"]]
+
+    def test_llm_recommendation_used_when_available(self):
+        gaps = self._run([REGLA_ROW_UNCOVERED])
+        rst = [g for g in gaps if g["kind"] == "regla_sin_test"]
+        assert rst[0]["recommendation"] == "LLM rec coverage"
+
+    def test_fallback_recommendation_when_llm_returns_none(self):
+        """generate_structured → None → falls back to _FALLBACK_REC["regla_sin_test"]."""
+        from src.graph.gaps import _FALLBACK_REC, detect_gaps
+        conn_ctx, conn, cur = _make_conn_ctx(
+            member=True,
+            fetchall_results=[[], [], [], [REGLA_ROW_UNCOVERED]],
+            n_tests=5,
+        )
+        with patch("src.graph.gaps.psycopg.connect", return_value=conn_ctx):
+            with patch("src.graph.gaps.generate_structured", return_value=None):
+                gaps = detect_gaps(user_id=USER_ID, org_id=ORG_ID)
+        rst = [g for g in gaps if g["kind"] == "regla_sin_test"]
+        assert len(rst) == 1
+        assert rst[0]["recommendation"] == _FALLBACK_REC["regla_sin_test"]
+
+    def test_required_gap_fields_present(self):
+        gaps = self._run([REGLA_ROW_UNCOVERED])
+        rst = [g for g in gaps if g["kind"] == "regla_sin_test"]
+        for field in ("kind", "title", "severity", "affected", "recommendation"):
+            assert field in rst[0], f"Missing field: {field}"
+
+
+# ---------------------------------------------------------------------------
+# repo_no_indexado — when count(test_assets) == 0
+# ---------------------------------------------------------------------------
+
+class TestRepoNoIndexado:
+    """When no test_assets exist for the org, emit exactly one repo_no_indexado gap."""
+
+    def _run(self, knowledge_rows=None):
+        """n_tests=0 → branch that emits repo_no_indexado instead of cross-query."""
+        from src.graph.gaps import detect_gaps
+        # When n_tests==0, coverage cross-query is NEVER called → only 3 fetchall slots
+        conn_ctx, conn, cur = _make_conn_ctx(
+            member=True,
+            fetchall_results=[[], [], []],
+            n_tests=0,
+        )
+        with patch("src.graph.gaps.psycopg.connect", return_value=conn_ctx):
+            return detect_gaps(user_id=USER_ID, org_id=ORG_ID)
+
+    def test_exactly_one_repo_no_indexado_gap(self):
+        gaps = self._run()
+        rni = [g for g in gaps if g["kind"] == "repo_no_indexado"]
+        assert len(rni) == 1
+
+    def test_no_regla_sin_test_when_no_tests_indexed(self):
+        gaps = self._run()
+        rst = [g for g in gaps if g["kind"] == "regla_sin_test"]
+        assert rst == [], f"Expected no regla_sin_test, got {rst}"
+
+    def test_repo_no_indexado_severity_is_media(self):
+        gaps = self._run()
+        rni = [g for g in gaps if g["kind"] == "repo_no_indexado"]
+        assert rni[0]["severity"] == "media"
+
+    def test_repo_no_indexado_affected_is_empty_list(self):
+        gaps = self._run()
+        rni = [g for g in gaps if g["kind"] == "repo_no_indexado"]
+        assert rni[0]["affected"] == []
+
+    def test_repo_no_indexado_has_non_empty_recommendation(self):
+        gaps = self._run()
+        rni = [g for g in gaps if g["kind"] == "repo_no_indexado"]
+        assert rni[0]["recommendation"]
+
+    def test_required_gap_fields_present(self):
+        gaps = self._run()
+        rni = [g for g in gaps if g["kind"] == "repo_no_indexado"]
+        for field in ("kind", "title", "severity", "affected", "recommendation"):
+            assert field in rni[0], f"Missing field: {field}"
+
+
+# ---------------------------------------------------------------------------
+# Coverage gap non-member → [] (regression guard)
+# ---------------------------------------------------------------------------
+
+class TestCoverageGapNonMember:
+    def test_returns_empty_for_non_member_even_with_tests(self):
+        """Non-member org returns [] regardless of test_assets count."""
+        from src.graph.gaps import detect_gaps
+        conn_ctx, conn, cur = _make_conn_ctx(member=False, n_tests=10)
+        with patch("src.graph.gaps.psycopg.connect", return_value=conn_ctx):
             result = detect_gaps(user_id=USER_ID, org_id=ORG_ID)
         assert result == []
