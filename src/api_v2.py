@@ -92,7 +92,8 @@ from src.multitenant_models import (
 )
 from src.repo_ingest.service import index_repo_tests
 from src.repo_ingest.repository import TestAssetRepository
-from src.automation.agent import generate_playwright_test
+from src.automation.agent import generate_playwright_test, _case_text
+from src.automation.style import retrieve_style_examples
 from src.onboarding.agent import summarize_domain, learning_path
 from src.testplan.agent import generate_test_plan
 from src.testplan.ingest import resolve_hu_from_upload
@@ -1191,14 +1192,25 @@ def automation_generate(
     req: AutomationGenerateRequest,
     user: AuthenticatedUser = Depends(get_current_user),
 ) -> Dict[str, Any]:
-    """Generate a Playwright test (.spec.ts) from a test case dict.
+    """Genera un test Playwright (.spec.ts) a partir de un caso.
 
-    Requires authentication only — no org membership needed because the
-    function transforms the caller-supplied case without accessing org data.
+    El estilo sigue una cascada: style_sample manual → tests reales del repo
+    (test_assets, few-shot) → convenciones estándar. El retrieval del few-shot
+    es membership-gated (search_semantic); un no-miembro no obtiene ejemplos.
     """
     if not req.case:
         raise HTTPException(status_code=400, detail="case requerido")
-    return generate_playwright_test(case=req.case, style_sample=req.style_sample)
+    examples = req.style_sample
+    if not examples:
+        try:
+            repo = TestAssetRepository()
+            examples = retrieve_style_examples(
+                user_id=user.user_id, org_id=req.org_id,
+                case_text=_case_text(req.case),
+                asset_repo=repo, embedder=repo.embedder)
+        except Exception:
+            examples = None
+    return generate_playwright_test(case=req.case, style_sample=examples)
 
 
 @router.post("/automation/pr", response_model=Dict[str, Any])

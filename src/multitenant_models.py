@@ -307,6 +307,7 @@ class TestPlanXrayExportRequest(BaseModel):
 
 class AutomationGenerateRequest(BaseModel):
     case: dict
+    org_id: str
     style_sample: Optional[str] = None
 
 
