@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Network } from "lucide-react";
 
 import { useAuth } from "@/components/providers/auth-provider";
 import { useActiveOrg } from "@/components/providers/org-provider";
-import { getGraph, getGaps } from "@/lib/api/endpoints";
-import type { CoverageGap, Graph } from "@/lib/api/types";
+import { getGraph, getGaps, getKnowledgeItem, generatePlaywrightTest, openAutomationPr } from "@/lib/api/endpoints";
+import type { AutoGenCase, CoverageGap, GeneratedTest, Graph } from "@/lib/api/types";
 import { KnowledgeGraphView } from "@/components/graph/knowledge-graph-view";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
 // ─── gap kind labels ──────────────────────────────────────────────────────────
@@ -43,6 +44,50 @@ function severityClass(severity: CoverageGap["severity"]): string {
   if (severity === "alta") return "bg-red-100 text-red-700 border-red-200";
   if (severity === "media") return "bg-amber-100 text-amber-700 border-amber-200";
   return "bg-zinc-100 text-zinc-600 border-zinc-200";
+}
+
+// ─── GapTestSection ───────────────────────────────────────────────────────────
+
+function GapTestSection({ gap, accessToken, activeOrgId }: {
+  gap: CoverageGap; accessToken: string; activeOrgId: string;
+}) {
+  const [result, setResult] = useState<GeneratedTest | null>(null);
+  const genMut = useMutation({
+    mutationFn: async () => {
+      const item = await getKnowledgeItem(accessToken, { org_id: activeOrgId, id: gap.affected[0] });
+      const steps = [item.challenge, item.approach, item.outcome].filter(Boolean) as string[];
+      const autoCase: AutoGenCase = { title: item.title, steps };
+      return generatePlaywrightTest(accessToken, {
+        case: autoCase,
+        org_id: activeOrgId,
+      });
+    },
+    onSuccess: (r) => setResult(r),
+    onError: () => toast.error("No se pudo generar el test"),
+  });
+  const prMut = useMutation({
+    mutationFn: () => openAutomationPr(accessToken, {
+      org_id: activeOrgId, code: result!.code, filename: result!.filename,
+    }),
+    onSuccess: (r) => toast.success(`PR abierto: ${r.pr_url}`),
+    onError: () => toast.error("No se pudo abrir el PR"),
+  });
+  return (
+    <div className="mt-2">
+      <Button size="sm" variant="outline" disabled={genMut.isPending}
+        onClick={() => genMut.mutate()} data-testid={`gap-generate-${gap.affected[0]}`}>
+        {genMut.isPending ? "Generando…" : "Generar test"}
+      </Button>
+      {result && (
+        <div className="mt-2">
+          <pre className="rounded bg-zinc-900 text-zinc-100 p-3 text-xs overflow-x-auto whitespace-pre-wrap">{result.code}</pre>
+          <Button size="sm" className="mt-2" disabled={prMut.isPending} onClick={() => prMut.mutate()}>
+            {prMut.isPending ? "Abriendo PR…" : "Abrir draft PR"}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─── empty graph ──────────────────────────────────────────────────────────────
@@ -173,6 +218,9 @@ export default function GraphPage() {
                 {GAP_KIND_LABEL[gap.kind] ?? gap.kind}
               </span>
               <p className="mb-2 text-xs text-zinc-600">{gap.recommendation}</p>
+              {gap.kind === "regla_sin_test" && gap.affected.length > 0 && accessToken && activeOrgId && (
+                <GapTestSection gap={gap} accessToken={accessToken} activeOrgId={activeOrgId} />
+              )}
               {gap.affected.length > 0 && (
                 <div className="flex flex-wrap gap-1">
                   {gap.affected.map((a) => (

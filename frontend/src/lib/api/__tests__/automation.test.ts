@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { generatePlaywrightTest, openAutomationPr } from "@/lib/api/endpoints";
+import { generatePlaywrightTest, getKnowledgeItem, openAutomationPr } from "@/lib/api/endpoints";
 import type { TestCase } from "@/lib/api/types";
 
 afterEach(() => vi.restoreAllMocks());
@@ -32,11 +32,20 @@ const PR_RESPONSE = {
   pr_url: "https://github.com/org/repo/pull/42",
 };
 
+const KNOWLEDGE_ITEM = {
+  id: "k1",
+  kind: "lesson",
+  title: "Checkout flow tips",
+  tags: ["checkout"],
+  confidence: "high",
+  created_at: "2026-01-01T00:00:00Z",
+};
+
 describe("generatePlaywrightTest", () => {
   it("POSTs to /api/v2/automation/generate with JSON body and auth header", async () => {
     const spy = mockFetch(GENERATED_TEST);
 
-    await generatePlaywrightTest("tok", { case: TEST_CASE });
+    await generatePlaywrightTest("tok", { case: TEST_CASE, org_id: "o1" });
 
     const [url, init] = spy.mock.calls[0];
     expect(String(url)).toBe("/api/v2/automation/generate");
@@ -45,22 +54,23 @@ describe("generatePlaywrightTest", () => {
     expect(new Headers((init as RequestInit).headers).get("Content-Type")).toBe("application/json");
   });
 
-  it("serialises the case in the JSON body", async () => {
+  it("serialises the case and org_id in the JSON body", async () => {
     const spy = mockFetch(GENERATED_TEST);
 
-    await generatePlaywrightTest("tok", { case: TEST_CASE });
+    await generatePlaywrightTest("tok", { case: TEST_CASE, org_id: "o1" });
 
     const [, init] = spy.mock.calls[0];
     const sent = JSON.parse((init as RequestInit).body as string);
     expect(sent.case.title).toBe("User can add item to cart");
     expect(sent.case.priority).toBe("high");
     expect(sent.case.automatable).toBe(true);
+    expect(sent.org_id).toBe("o1");
   });
 
   it("includes optional style_sample when provided", async () => {
     const spy = mockFetch(GENERATED_TEST);
 
-    await generatePlaywrightTest("tok", { case: TEST_CASE, style_sample: "// my style" });
+    await generatePlaywrightTest("tok", { case: TEST_CASE, org_id: "o1", style_sample: "// my style" });
 
     const [, init] = spy.mock.calls[0];
     const sent = JSON.parse((init as RequestInit).body as string);
@@ -70,11 +80,44 @@ describe("generatePlaywrightTest", () => {
   it("returns parsed GeneratedTest with code, filename, and notes", async () => {
     mockFetch(GENERATED_TEST);
 
-    const result = await generatePlaywrightTest("tok", { case: TEST_CASE });
+    const result = await generatePlaywrightTest("tok", { case: TEST_CASE, org_id: "o1" });
 
     expect(result.code).toContain("@playwright/test");
     expect(result.filename).toBe("cart.spec.ts");
     expect(result.notes).toBe("Uses page object model");
+  });
+});
+
+describe("getKnowledgeItem", () => {
+  it("GETs /api/v2/knowledge/{id}?org_id=… with auth header", async () => {
+    const spy = mockFetch(KNOWLEDGE_ITEM);
+
+    await getKnowledgeItem("tok", { org_id: "o1", id: "k1" });
+
+    const [url, init] = spy.mock.calls[0];
+    expect(String(url)).toBe("/api/v2/knowledge/k1?org_id=o1");
+    expect((init as RequestInit).method).toBe("GET");
+    expect(new Headers((init as RequestInit).headers).get("Authorization")).toBe("Bearer tok");
+  });
+
+  it("URL-encodes id and org_id", async () => {
+    const spy = mockFetch(KNOWLEDGE_ITEM);
+
+    await getKnowledgeItem("tok", { org_id: "org/1", id: "k/1" });
+
+    const [url] = spy.mock.calls[0];
+    expect(String(url)).toBe("/api/v2/knowledge/k%2F1?org_id=org%2F1");
+  });
+
+  it("returns parsed KnowledgeItem", async () => {
+    mockFetch(KNOWLEDGE_ITEM);
+
+    const result = await getKnowledgeItem("tok", { org_id: "o1", id: "k1" });
+
+    expect(result.id).toBe("k1");
+    expect(result.kind).toBe("lesson");
+    expect(result.title).toBe("Checkout flow tips");
+    expect(result.confidence).toBe("high");
   });
 });
 

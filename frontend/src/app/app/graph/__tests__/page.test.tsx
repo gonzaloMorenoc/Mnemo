@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, cleanup } from "@testing-library/react";
+import { render, screen, waitFor, cleanup, fireEvent } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // ─── mocks ────────────────────────────────────────────────────────────────────
@@ -35,9 +35,12 @@ vi.mock("@/components/graph/knowledge-graph-view", () => ({
 vi.mock("@/lib/api/endpoints", () => ({
   getGraph: vi.fn(),
   getGaps: vi.fn(),
+  getKnowledgeItem: vi.fn(),
+  generatePlaywrightTest: vi.fn(),
+  openAutomationPr: vi.fn(),
 }));
 
-import { getGraph, getGaps } from "@/lib/api/endpoints";
+import { getGraph, getGaps, getKnowledgeItem, generatePlaywrightTest } from "@/lib/api/endpoints";
 import { toast } from "sonner";
 import GraphPage from "@/app/app/graph/page";
 
@@ -282,5 +285,91 @@ describe("GraphPage — degradación ante errores de query", () => {
     });
 
     expect(screen.getByText("Knowledge Graph")).toBeInTheDocument();
+  });
+});
+
+// ─── GapTestSection — gap regla_sin_test ─────────────────────────────────────
+
+describe("GraphPage — GapTestSection para gap regla_sin_test", () => {
+  const GAP_REGLA_SIN_TEST = {
+    kind: "regla_sin_test",
+    severity: "alta" as const,
+    title: "Regla X",
+    recommendation: "Añade un test Playwright para esta regla",
+    affected: ["k1"],
+  };
+
+  const MOCK_KNOWLEDGE_ITEM = {
+    id: "k1",
+    title: "Regla X",
+    challenge: "c",
+    approach: "a",
+    outcome: "o",
+    kind: "regla_negocio",
+    tags: [],
+    confidence: "alta",
+    created_at: "2024-01-01T00:00:00Z",
+  };
+
+  const MOCK_GENERATED_TEST = {
+    code: "CODE",
+    filename: "regla-x.spec.ts",
+    notes: "",
+  };
+
+  it("muestra el botón 'Generar test' para un gap regla_sin_test con affected", async () => {
+    (getGraph as ReturnType<typeof vi.fn>).mockResolvedValue(MOCK_GRAPH);
+    (getGaps as ReturnType<typeof vi.fn>).mockResolvedValue([GAP_REGLA_SIN_TEST]);
+
+    renderWithClient(<GraphPage />);
+
+    expect(await screen.findByTestId("gap-generate-k1")).toBeInTheDocument();
+  });
+
+  it("NO muestra el botón 'Generar test' para gaps de otro kind", async () => {
+    (getGraph as ReturnType<typeof vi.fn>).mockResolvedValue(MOCK_GRAPH);
+    (getGaps as ReturnType<typeof vi.fn>).mockResolvedValue([
+      {
+        kind: "repo_no_indexado",
+        severity: "media" as const,
+        title: "Repo sin indexar",
+        recommendation: "Indexa el repositorio",
+        affected: ["repo-x"],
+      },
+    ]);
+
+    renderWithClient(<GraphPage />);
+
+    // Wait for gaps to load
+    await screen.findByTestId("gap-kind-repo_no_indexado");
+    expect(screen.queryByText("Generar test")).not.toBeInTheDocument();
+  });
+
+  it("al pulsar 'Generar test': llama getKnowledgeItem, luego generatePlaywrightTest y muestra CODE en <pre>", async () => {
+    (getGraph as ReturnType<typeof vi.fn>).mockResolvedValue(MOCK_GRAPH);
+    (getGaps as ReturnType<typeof vi.fn>).mockResolvedValue([GAP_REGLA_SIN_TEST]);
+    (getKnowledgeItem as ReturnType<typeof vi.fn>).mockResolvedValue(MOCK_KNOWLEDGE_ITEM);
+    (generatePlaywrightTest as ReturnType<typeof vi.fn>).mockResolvedValue(MOCK_GENERATED_TEST);
+
+    renderWithClient(<GraphPage />);
+
+    const btn = await screen.findByTestId("gap-generate-k1");
+    fireEvent.click(btn);
+
+    await waitFor(() => {
+      expect(getKnowledgeItem).toHaveBeenCalledWith("tok", { org_id: "o1", id: "k1" });
+    });
+
+    await waitFor(() => {
+      expect(generatePlaywrightTest).toHaveBeenCalledWith(
+        "tok",
+        expect.objectContaining({
+          case: { title: "Regla X", steps: ["c", "a", "o"] },
+          org_id: "o1",
+        }),
+      );
+    });
+
+    expect(await screen.findByText("CODE")).toBeInTheDocument();
   });
 });

@@ -108,6 +108,7 @@ function CasePlaywrightSection({ tc, accessToken, activeOrgId, styleSample }: Ca
     mutationFn: () =>
       generatePlaywrightTest(accessToken, {
         case: tc,
+        org_id: activeOrgId,
         ...(styleSample.trim() ? { style_sample: styleSample.trim() } : {}),
       }),
     onSuccess: (data) => setGenerated(data),

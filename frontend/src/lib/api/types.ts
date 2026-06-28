@@ -200,6 +200,8 @@ export interface KnowledgeAnswer {
   citations: string[];
 }
 
+export type AutoGenCase = { title: string; steps: string[] };
+
 export interface TestCase {
   title: string;
   level: string;

@@ -34,7 +34,7 @@ def test_generate_200():
     """Valid case returns {code, filename, notes} (fallback path — no LLM needed)."""
     case = {"title": "Login exitoso", "steps": ["Ir a /login", "Enviar credenciales"], "expected": "Dashboard"}
     client = make_client()
-    r = client.post("/v2/automation/generate", json={"case": case})
+    r = client.post("/v2/automation/generate", json={"case": case, "org_id": "org-1"})
     assert r.status_code == 200
     body = r.json()
     assert "code" in body
@@ -45,32 +45,90 @@ def test_generate_200():
 
 
 def test_generate_200_with_style_sample():
-    """style_sample is forwarded to generate_playwright_test."""
+    """style_sample manual is forwarded to generate_playwright_test — retrieve NOT called."""
     case = {"title": "Logout", "steps": ["Click logout"], "expected": "Landing"}
     style = "import { test, expect } from '@playwright/test';"
 
-    with patch("src.api_v2.generate_playwright_test", return_value={"code": "x", "filename": "a.spec.ts", "notes": ""}) as mock_gen:
+    with patch("src.api_v2.generate_playwright_test", return_value={"code": "x", "filename": "a.spec.ts", "notes": ""}) as mock_gen, \
+         patch("src.api_v2.retrieve_style_examples") as mock_retrieve:
         client = make_client()
-        r = client.post("/v2/automation/generate", json={"case": case, "style_sample": style})
+        r = client.post("/v2/automation/generate", json={"case": case, "org_id": "org-1", "style_sample": style})
 
     assert r.status_code == 200
     mock_gen.assert_called_once_with(case=case, style_sample=style)
+    mock_retrieve.assert_not_called()
 
 
 def test_generate_401_no_auth():
     """Unauthenticated request → 401."""
     case = {"title": "Caso", "steps": [], "expected": "OK"}
     client = make_client(with_user=False)
-    r = client.post("/v2/automation/generate", json={"case": case})
+    r = client.post("/v2/automation/generate", json={"case": case, "org_id": "org-1"})
     assert r.status_code == 401
 
 
 def test_generate_400_empty_case():
     """Empty dict case → 400."""
     client = make_client()
-    r = client.post("/v2/automation/generate", json={"case": {}})
+    r = client.post("/v2/automation/generate", json={"case": {}, "org_id": "org-1"})
     assert r.status_code == 400
     assert "case" in r.json()["detail"].lower()
+
+
+def test_generate_retrieve_called_without_style_sample():
+    """Without style_sample → calls retrieve_style_examples and forwards result as style_sample."""
+    case = {"title": "Buscar producto", "steps": ["Abrir buscador", "Escribir query"], "expected": "Resultados"}
+    _retval = {"code": "test code", "filename": "buscar.spec.ts", "notes": ""}
+
+    with patch("src.api_v2.retrieve_style_examples", return_value="EJEMPLOS") as mock_retrieve, \
+         patch("src.api_v2.generate_playwright_test", return_value=_retval) as mock_gen:
+        client = make_client()
+        r = client.post("/v2/automation/generate", json={"case": case, "org_id": "org-1"})
+
+    assert r.status_code == 200
+    mock_retrieve.assert_called_once()
+    call_kw = mock_gen.call_args.kwargs
+    assert call_kw["style_sample"] == "EJEMPLOS"
+
+
+def test_generate_retrieve_returns_none_passes_none():
+    """retrieve_style_examples → None → style_sample=None in generate_playwright_test."""
+    case = {"title": "Checkout", "steps": ["Agregar al carrito"], "expected": "Pago"}
+    _retval = {"code": "test code", "filename": "checkout.spec.ts", "notes": ""}
+
+    with patch("src.api_v2.retrieve_style_examples", return_value=None) as mock_retrieve, \
+         patch("src.api_v2.generate_playwright_test", return_value=_retval) as mock_gen:
+        client = make_client()
+        r = client.post("/v2/automation/generate", json={"case": case, "org_id": "org-1"})
+
+    assert r.status_code == 200
+    mock_retrieve.assert_called_once()
+    call_kw = mock_gen.call_args.kwargs
+    assert call_kw["style_sample"] is None
+
+
+def test_generate_retrieve_exception_degrades_gracefully(caplog):
+    """retrieve_style_examples raises → endpoint still works with style_sample=None.
+
+    Also verifies that the failure is observable via a WARNING log (not silently swallowed).
+    """
+    import logging
+    case = {"title": "Error path", "steps": ["Do something"], "expected": "Result"}
+    _retval = {"code": "test code", "filename": "error.spec.ts", "notes": ""}
+
+    with patch("src.api_v2.retrieve_style_examples", side_effect=RuntimeError("DB down")), \
+         patch("src.api_v2.generate_playwright_test", return_value=_retval) as mock_gen, \
+         caplog.at_level(logging.WARNING, logger="src.api_v2"):
+        client = make_client()
+        r = client.post("/v2/automation/generate", json={"case": case, "org_id": "org-1"})
+
+    assert r.status_code == 200
+    call_kw = mock_gen.call_args.kwargs
+    assert call_kw["style_sample"] is None
+    assert any(
+        "automation few-shot retrieval failed" in rec.message and rec.levelno == logging.WARNING
+        for rec in caplog.records
+    ), "Expected a WARNING log about few-shot retrieval failure"
 
 
 # ---------------------------------------------------------------------------

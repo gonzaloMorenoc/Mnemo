@@ -4,6 +4,7 @@ import type {
   ActionItem,
   ActionRejectResult,
   AssuranceVerdictResponse,
+  AutoGenCase,
   BriefingResponse,
   CalibrationMetrics,
   Certificate,
@@ -212,9 +213,17 @@ export function exportTestPlanXray(
 
 export function generatePlaywrightTest(
   token: string,
-  body: { case: TestCase; style_sample?: string },
+  body: { case: TestCase | AutoGenCase; org_id: string; style_sample?: string },
 ) {
   return apiRequest<GeneratedTest>("/api/v2/automation/generate", "POST", { token, body });
+}
+
+export function getKnowledgeItem(token: string, params: { org_id: string; id: string }) {
+  return apiRequest<KnowledgeItem>(
+    `/api/v2/knowledge/${encodeURIComponent(params.id)}?org_id=${encodeURIComponent(params.org_id)}`,
+    "GET",
+    { token },
+  );
 }
 
 export function openAutomationPr(
