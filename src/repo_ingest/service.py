@@ -3,10 +3,13 @@
 Deterministic: no LLM, no external I/O beyond the injected codehost / asset_repo.
 """
 
+import logging
 from collections import Counter
 from typing import Any, Dict
 
 from src.ci.github_app import is_test_path
+
+_log = logging.getLogger(__name__)
 
 _MAX_FILES = 200
 _MAX_BYTES = 100_000
@@ -73,6 +76,11 @@ def index_repo_tests(
         ``{"indexed": int, "by_domain": dict[str, int], "skipped": int}``
     """
     all_paths = codehost.list_tree()
+    # Detect truncation: codehost may expose it as an attribute set by list_tree.
+    truncated: bool = bool(getattr(codehost, "_last_tree_truncated", False))
+    if truncated:
+        _log.warning("codehost reported a truncated tree for %s — index is partial", repo)
+
     test_paths = [p for p in all_paths if is_test_path(p)][:_MAX_FILES]
 
     assets: list[Dict[str, str]] = []
@@ -103,4 +111,5 @@ def index_repo_tests(
         "indexed": len(assets),
         "by_domain": dict(Counter(a["domain"] for a in assets)),
         "skipped": skipped,
+        "truncated": truncated,
     }

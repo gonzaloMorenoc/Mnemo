@@ -117,6 +117,56 @@ def test_is_test_path_accepts_test_paths(path):
     "package.json",
     "src/utils/helper.ts",
     "docs/architecture.md",
+    # I2 — component match, not substring
+    "notests/foo.ts",
+    "nottest/util.ts",
+    "context/foo.ts",
 ])
 def test_is_test_path_rejects_non_test_paths(path):
     assert is_test_path(path) is False, f"Debería rechazar: {path}"
+
+
+# ---------------------------------------------------------------------------
+# list_tree — truncated flag (I1)
+# ---------------------------------------------------------------------------
+
+def test_list_tree_truncated_logs_warning(caplog):
+    """list_tree emits a warning when the GitHub API returns truncated:true."""
+    import logging
+    session = MagicMock()
+    truncated_payload = {
+        "truncated": True,
+        "tree": [
+            {"path": "tests/a.spec.ts", "type": "blob"},
+            {"path": "src/app.ts", "type": "blob"},
+        ],
+    }
+    session.get.side_effect = [
+        _Resp(200, {"default_branch": "main"}),
+        _Resp(200, {"object": {"sha": "abc"}}),
+        _Resp(200, truncated_payload),
+    ]
+    host = _host(session)
+
+    with caplog.at_level(logging.WARNING, logger="src.ci.github_app"):
+        result = host.list_tree()
+
+    assert "truncated" in caplog.text.lower()
+    assert result == ["tests/a.spec.ts", "src/app.ts"]
+
+
+def test_list_tree_not_truncated_no_warning(caplog):
+    """list_tree does NOT warn when truncated is false/absent."""
+    import logging
+    session = MagicMock()
+    session.get.side_effect = [
+        _Resp(200, {"default_branch": "main"}),
+        _Resp(200, {"object": {"sha": "abc"}}),
+        _Resp(200, {"truncated": False, "tree": [{"path": "src/app.ts", "type": "blob"}]}),
+    ]
+    host = _host(session)
+
+    with caplog.at_level(logging.WARNING, logger="src.ci.github_app"):
+        host.list_tree()
+
+    assert "truncated" not in caplog.text.lower()

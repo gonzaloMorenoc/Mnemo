@@ -286,7 +286,7 @@ class TestIndexRepoTests:
             codehost=codehost, asset_repo=asset_repo,
         )
 
-        assert result == {"indexed": 0, "by_domain": {}, "skipped": 0}
+        assert result == {"indexed": 0, "by_domain": {}, "skipped": 0, "truncated": False}
         # replace_for_repo still called with empty list
         assert asset_repo.calls[0]["assets"] == []
 
@@ -306,3 +306,31 @@ class TestIndexRepoTests:
                               codehost=codehost2, asset_repo=repo2)
 
         assert r1 == r2
+
+    # -----------------------------------------------------------------------
+    # I1 — truncated flag surfaces in result dict
+    # -----------------------------------------------------------------------
+
+    def test_truncated_codehost_sets_flag_in_result(self):
+        """When codehost._last_tree_truncated is True after list_tree,
+        index_repo_tests must return truncated:True."""
+
+        class TruncatedCodeHost(FakeCodeHost):
+            """Simulates a codehost whose list_tree sets _last_tree_truncated."""
+
+            def list_tree(self) -> list[str]:
+                paths = super().list_tree()
+                self._last_tree_truncated = True  # flag the service reads
+                return paths
+
+        codehost = TruncatedCodeHost(_TREE, _CONTENTS)
+        asset_repo = _make_asset_repo()
+
+        result = index_repo_tests(
+            user_id="u1", org_id="org1", repo="acme/repo",
+            codehost=codehost, asset_repo=asset_repo,
+        )
+
+        assert result["truncated"] is True
+        # Normal indexing still proceeds despite truncation
+        assert result["indexed"] == 3
