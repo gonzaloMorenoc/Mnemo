@@ -14,6 +14,7 @@ import type {
   FamilyLabel,
   GateResult,
   GeneratedTest,
+  GitHubConfigResponse,
   Graph,
   HealthResponse,
   IngestReportResponse,
@@ -239,6 +240,21 @@ export function getGaps(token: string, params: { org_id: string }) {
     "GET",
     { token },
   );
+}
+
+export function getGithubConfig(token: string, params: { org_id: string }) {
+  return apiRequest<GitHubConfigResponse>(
+    `/api/v2/integrations/github?org_id=${encodeURIComponent(params.org_id)}`,
+    "GET",
+    { token },
+  );
+}
+
+export function saveGithubConfig(
+  token: string,
+  body: { org_id: string; installation_id: string; repo_full_name: string },
+) {
+  return apiRequest<GitHubConfigResponse>("/api/v2/integrations/github", "POST", { token, body });
 }
 
 export function indexRepo(token: string, body: { org_id: string }) {

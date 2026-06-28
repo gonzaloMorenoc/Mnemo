@@ -74,6 +74,12 @@ export interface JiraConfigResponse {
   jql: string | null;
 }
 
+export interface GitHubConfigResponse {
+  configured: boolean;
+  repo_full_name: string | null;
+  installation_id: string | null;
+}
+
 export interface JiraIngestResponse {
   run_id: string | null;
   ingested: number;
