@@ -8,7 +8,7 @@ import { Network } from "lucide-react";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useActiveOrg } from "@/components/providers/org-provider";
 import { getGraph, getGaps, getKnowledgeItem, generatePlaywrightTest, openAutomationPr } from "@/lib/api/endpoints";
-import type { CoverageGap, GeneratedTest, Graph } from "@/lib/api/types";
+import type { AutoGenCase, CoverageGap, GeneratedTest, Graph } from "@/lib/api/types";
 import { KnowledgeGraphView } from "@/components/graph/knowledge-graph-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -56,8 +56,9 @@ function GapTestSection({ gap, accessToken, activeOrgId }: {
     mutationFn: async () => {
       const item = await getKnowledgeItem(accessToken, { org_id: activeOrgId, id: gap.affected[0] });
       const steps = [item.challenge, item.approach, item.outcome].filter(Boolean) as string[];
+      const autoCase: AutoGenCase = { title: item.title, steps };
       return generatePlaywrightTest(accessToken, {
-        case: { title: item.title, steps } as import("@/lib/api/types").TestCase,
+        case: autoCase,
         org_id: activeOrgId,
       });
     },

@@ -4,6 +4,7 @@ import type {
   ActionItem,
   ActionRejectResult,
   AssuranceVerdictResponse,
+  AutoGenCase,
   BriefingResponse,
   CalibrationMetrics,
   Certificate,
@@ -212,7 +213,7 @@ export function exportTestPlanXray(
 
 export function generatePlaywrightTest(
   token: string,
-  body: { case: TestCase; org_id: string; style_sample?: string },
+  body: { case: TestCase | AutoGenCase; org_id: string; style_sample?: string },
 ) {
   return apiRequest<GeneratedTest>("/api/v2/automation/generate", "POST", { token, body });
 }
