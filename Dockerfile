@@ -16,5 +16,7 @@ COPY scripts/ scripts/
 
 EXPOSE 8080
 HEALTHCHECK --interval=15s --timeout=5s --retries=10 \
-    CMD curl -fsS http://localhost:8080/v2/health || exit 1
-CMD ["uvicorn", "asgi:app", "--host", "0.0.0.0", "--port", "8080"]
+    CMD curl -fsS "http://localhost:${PORT:-8080}/v2/health" || exit 1
+# Shell form para expandir $PORT: los PaaS (Render/Railway) inyectan un puerto dinámico;
+# en local/Fly cae a 8080 por defecto.
+CMD ["sh", "-c", "uvicorn asgi:app --host 0.0.0.0 --port ${PORT:-8080}"]

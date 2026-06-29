@@ -1,0 +1,36 @@
+# Render blueprint para el BACKEND de Mnemo (FastAPI).
+# Despliega desde el Dockerfile. Render → "New +" → "Blueprint" → apunta a este repo.
+# Los valores `sync: false` se rellenan a mano en el dashboard de Render (secretos/propios).
+#
+# ⚠️ RAM: el embedder local (sentence-transformers → torch) necesita ~1–1.5 GB en memoria.
+#    El plan free/starter de 512 MB NO lo aguanta → usa un plan con ≥1 GB, o despliega en
+#    un host con más memoria (ver docs/deploy/produccion.md → alternativas).
+services:
+  - type: web
+    name: mnemo-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /v2/health
+    plan: standard            # ≥1 GB RAM (free/starter de 512 MB no cargan torch)
+    autoDeploy: true
+    envVars:
+      # --- Base de datos + Auth (de tu proyecto Supabase de producción) ---
+      - key: DATABASE_URL
+        sync: false           # postgresql://...  (cadena de conexión de Supabase)
+      - key: SUPABASE_URL
+        sync: false           # https://<proyecto>.supabase.co
+      - key: SUPABASE_JWKS_URL
+        sync: false           # https://<proyecto>.supabase.co/auth/v1/.well-known/jwks.json
+      - key: SUPABASE_JWT_AUDIENCE
+        value: authenticated
+      # --- LLM: Groq (gratis, API compatible con OpenAI; sin cambios de código) ---
+      - key: LLM_PROVIDER
+        value: openai
+      - key: ALLOW_EXTERNAL_LLM
+        value: "true"
+      - key: OPENAI_BASE_URL
+        value: https://api.groq.com/openai/v1
+      - key: LLM_MODEL
+        value: llama-3.3-70b-versatile
+      - key: OPENAI_API_KEY
+        sync: false           # tu API key de Groq (console.groq.com/keys)
