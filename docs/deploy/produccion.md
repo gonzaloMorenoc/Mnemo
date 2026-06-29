@@ -46,6 +46,19 @@ El proxy de Next corre **server-side**, así que las llamadas al backend salen d
 
 ---
 
+## Opción recomendada sin tarjeta — Hugging Face Spaces (0 €, 16 GB)
+
+HF Spaces da 16 GB de RAM en el tier gratuito de CPU **sin pedir tarjeta**, y corre tu `Dockerfile`. Plantilla lista en `deploy/hf-spaces/` (Dockerfile + README): el Space solo necesita **esos 2 ficheros** — el backend se **clona del repo público en build** (no duplicas código) y el modelo de embeddings se **pre-descarga en build** (el disco del Space es efímero).
+
+1. **huggingface.co/new-space** → SDK **Docker** → Space **público** (el free es público; tu repo ya lo es).
+2. En el repo del Space, sube **`deploy/hf-spaces/Dockerfile`** y **`deploy/hf-spaces/README.md`** a la **raíz** (renómbralos a `Dockerfile` y `README.md`). El más fácil: clona el repo del Space (`git clone https://huggingface.co/spaces/<user>/<space>`), copia los 2 ficheros, `git add . && git commit && git push`.
+3. **Settings → Variables and secrets**: añade los **secrets** (`DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_JWKS_URL`, `OPENAI_API_KEY`) y las **variables** (`SUPABASE_JWT_AUDIENCE`, `LLM_PROVIDER`, `ALLOW_EXTERNAL_LLM`, `OPENAI_BASE_URL`, `LLM_MODEL`). En HF se inyectan como env vars en runtime (los lee `os.getenv`).
+4. El Space buildea solo (clona → instala → pre-descarga el modelo → arranca). Mira los **logs** del build.
+5. URL pública: `https://<usuario>-<space>.hf.space` → verifica `…/v2/health`.
+6. **Vercel** → `NEXT_PUBLIC_API_BASE_URL` = esa URL (sin barra final) → **Redeploy**.
+
+Notas HF: el Space corre como **UID 1000** (ya contemplado en el Dockerfile), **se duerme** con inactividad (cold start al volver) y para **actualizar el backend** se hace *Factory rebuild* (re-clona el repo). Es la mejor opción 0 €-con-RAM; para algo siempre-encendido, un PaaS de pago o una VM.
+
 ## Decisión de LLM en producción
 
 En local usabas **Ollama** (privado, 0 €). En prod no hay Ollama, así que:
