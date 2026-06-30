@@ -1,4 +1,3 @@
-import json
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
@@ -80,9 +79,11 @@ class SupabaseJWTVerifier:
             if not key:
                 raise HTTPException(status_code=401, detail="Unknown signing key")
 
-        public_key = jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(key))
+        # PyJWK detecta el tipo de clave (EC/RSA) desde el JWK; Supabase emite ES256 (EC),
+        # otros proyectos RS256 (RSA). RSAAlgorithm.from_jwk lanzaba con claves EC → 500.
+        public_key = jwt.PyJWK(key).key
         decode_kwargs: Dict[str, Any] = {
-            "algorithms": ["RS256"],
+            "algorithms": ["RS256", "ES256"],
             "options": {"verify_signature": True, "verify_aud": bool(SUPABASE_JWT_AUDIENCE)},
         }
         if SUPABASE_JWT_AUDIENCE:
