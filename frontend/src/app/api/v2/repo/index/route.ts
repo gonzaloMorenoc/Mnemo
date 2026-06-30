@@ -12,3 +12,5 @@ export async function POST(request: NextRequest) {
     contentType: "application/json",
   });
 }
+
+export const maxDuration = 60;

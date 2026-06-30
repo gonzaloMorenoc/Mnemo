@@ -7,3 +7,5 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   return proxyToBackend(request, `/v2/defects/${encodeURIComponent(family_id)}/label`,
     { method: "PATCH", body, contentType: "application/json" });
 }
+
+export const maxDuration = 60;

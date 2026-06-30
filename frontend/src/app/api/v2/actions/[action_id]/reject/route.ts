@@ -7,3 +7,5 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   return proxyToBackend(request, `/v2/actions/${encodeURIComponent(action_id)}/reject`,
     { method: "POST", body, contentType: "application/json" });
 }
+
+export const maxDuration = 60;

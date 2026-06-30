@@ -10,3 +10,5 @@ export async function GET(request: NextRequest) {
     method: "GET",
   });
 }
+
+export const maxDuration = 60;
