@@ -4,3 +4,5 @@ import { proxyToBackend } from "@/lib/server/proxy";
 export async function GET(request: NextRequest) {
   return proxyToBackend(request, `/v2/actions${request.nextUrl.search}`, { method: "GET" });
 }
+
+export const maxDuration = 60;

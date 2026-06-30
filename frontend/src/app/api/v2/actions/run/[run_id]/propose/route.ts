@@ -5,3 +5,5 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { run_id } = await params;
   return proxyToBackend(request, `/v2/actions/run/${encodeURIComponent(run_id)}/propose`, { method: "POST" });
 }
+
+export const maxDuration = 60;

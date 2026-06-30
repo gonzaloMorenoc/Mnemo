@@ -6,3 +6,5 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params;
   return proxyToBackend(request, `/v2/defects/${encodeURIComponent(id)}`, { method: "GET" });
 }
+
+export const maxDuration = 60;
