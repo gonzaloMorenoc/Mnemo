@@ -182,7 +182,7 @@ describe("GraphPage — empty state sin organización", () => {
     expect(
       screen.queryByText(/selecciona una organización/i),
     ).not.toBeInTheDocument();
-    expect(screen.getByText(/cargando…/i)).toBeInTheDocument();
+    expect(screen.getByTestId("graph-loading-skeleton")).toBeInTheDocument();
   });
 });
 

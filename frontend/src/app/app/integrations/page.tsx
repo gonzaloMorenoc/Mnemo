@@ -22,6 +22,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { JiraIngestResponse } from "@/lib/api/types";
 
 export default function IntegrationsPage() {
@@ -208,7 +209,16 @@ export default function IntegrationsPage() {
   }, {});
 
   if (orgLoading) {
-    return <p className="text-sm text-zinc-500">Cargando organización…</p>;
+    return (
+      <div className="space-y-6" data-testid="integrations-loading-skeleton">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Integraciones</h1>
+          <p className="text-sm text-zinc-500">Conecta GitHub y Jira para potenciar el análisis de QA.</p>
+        </div>
+        <Skeleton className="h-48 max-w-xl rounded-xl" />
+        <Skeleton className="h-48 max-w-xl rounded-xl" />
+      </div>
+    );
   }
 
   return (

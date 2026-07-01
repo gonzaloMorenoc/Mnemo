@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const KIND_OPTIONS = [
   { value: "regla_negocio", label: "Regla de negocio" },
@@ -105,12 +106,13 @@ export default function KnowledgePage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6" data-testid="knowledge-loading-skeleton">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Conocimiento</h1>
           <p className="text-sm text-zinc-500">Base de conocimiento institucional del equipo de QA.</p>
         </div>
-        <p className="text-sm text-zinc-500">Cargando…</p>
+        <Skeleton className="h-40 max-w-xl rounded-xl" />
+        <Skeleton className="h-64 w-full rounded-xl" />
       </div>
     );
   }

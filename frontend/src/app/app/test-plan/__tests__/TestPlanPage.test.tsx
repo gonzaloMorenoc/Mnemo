@@ -251,7 +251,7 @@ describe("TestPlanPage — empty state sin organización", () => {
     renderWithClient(<TestPlanPage />);
 
     expect(screen.queryByText(/selecciona una organización para generar/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/cargando…/i)).toBeInTheDocument();
+    expect(screen.getByTestId("test-plan-loading-skeleton")).toBeInTheDocument();
   });
 });
 

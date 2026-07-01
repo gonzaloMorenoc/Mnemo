@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function OnboardingPage() {
   const { accessToken } = useAuth();
@@ -64,12 +65,13 @@ export default function OnboardingPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6" data-testid="onboarding-loading-skeleton">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Onboarding</h1>
           <p className="text-sm text-zinc-500">Ponte al día rápidamente con el dominio y los sistemas de QA del proyecto.</p>
         </div>
-        <p className="text-sm text-zinc-500">Cargando…</p>
+        <Skeleton className="h-40 max-w-xl rounded-xl" />
+        <Skeleton className="h-40 max-w-xl rounded-xl" />
       </div>
     );
   }

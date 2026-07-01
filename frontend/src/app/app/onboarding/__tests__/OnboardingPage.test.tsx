@@ -199,6 +199,6 @@ describe("OnboardingPage — empty state sin organización", () => {
     renderWithClient(<OnboardingPage />);
 
     expect(screen.queryByText(/selecciona una organización para comenzar el onboarding/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/cargando…/i)).toBeInTheDocument();
+    expect(screen.getByTestId("onboarding-loading-skeleton")).toBeInTheDocument();
   });
 });

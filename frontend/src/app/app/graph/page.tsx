@@ -15,6 +15,7 @@ import { KnowledgeGraphView } from "@/components/graph/knowledge-graph-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
 
 // ─── gap kind labels ──────────────────────────────────────────────────────────
@@ -140,7 +141,14 @@ export default function GraphPage() {
     return (
       <div className="space-y-4">
         <PageHeader />
-        <p className="text-sm text-zinc-500">Cargando…</p>
+        <div className="flex min-h-0 flex-1 gap-4" data-testid="graph-loading-skeleton">
+          <Skeleton className="min-h-[400px] flex-1 rounded-2xl" />
+          <div className="flex w-80 shrink-0 flex-col gap-3 xl:w-96">
+            <Skeleton className="h-6 w-32" />
+            <Skeleton className="h-20 w-full rounded-xl" />
+            <Skeleton className="h-20 w-full rounded-xl" />
+          </div>
+        </div>
       </div>
     );
   }
@@ -202,7 +210,11 @@ export default function GraphPage() {
           </div>
 
           {gapsQuery.isLoading && (
-            <p className="text-xs text-zinc-400">Cargando gaps…</p>
+            <div className="flex flex-col gap-2" data-testid="gaps-loading-skeleton">
+              <Skeleton className="h-16 w-full rounded-xl" />
+              <Skeleton className="h-16 w-full rounded-xl" />
+              <Skeleton className="h-16 w-full rounded-xl" />
+            </div>
           )}
 
           {!gapsQuery.isLoading && sortedGaps.length === 0 && (

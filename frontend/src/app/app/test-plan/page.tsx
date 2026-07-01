@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type InputMode = "texto" | "jira_url" | "archivo";
 type CaseFormat = "steps" | "gherkin";
@@ -286,12 +287,13 @@ export default function TestPlanPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6" data-testid="test-plan-loading-skeleton">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Plan de pruebas</h1>
           <p className="text-sm text-zinc-500">Genera un plan de pruebas a partir de historias de usuario o documentos.</p>
         </div>
-        <p className="text-sm text-zinc-500">Cargando…</p>
+        <Skeleton className="h-48 max-w-xl rounded-xl" />
+        <Skeleton className="h-64 w-full rounded-xl" />
       </div>
     );
   }
