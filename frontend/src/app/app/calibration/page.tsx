@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { InfoTooltip } from "@/components/ui/InfoTooltip";
 
 export default function CalibrationPage() {
   const { accessToken } = useAuth();
@@ -25,8 +26,18 @@ export default function CalibrationPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Calibración</h1>
-        <p className="text-sm text-zinc-500">Precisión del motor de triaje con tus correcciones (el foso).</p>
+        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-zinc-900">
+          Calibración
+          <InfoTooltip term="calibracion" />
+        </h1>
+        <p className="flex items-center gap-1 text-sm text-zinc-500">
+          Precisión del motor de triaje con tus correcciones (el{" "}
+          <span className="inline-flex items-center gap-0.5">
+            foso
+            <InfoTooltip term="foso" />
+          </span>
+          ).
+        </p>
       </div>
 
       {metricsQuery.isLoading && <Skeleton className="h-40 w-full max-w-xl" />}

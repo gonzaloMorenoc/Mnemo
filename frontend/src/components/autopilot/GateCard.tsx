@@ -10,6 +10,7 @@ import type { GateResult } from "@/lib/api/types";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { InfoTooltip } from "@/components/ui/InfoTooltip";
 
 const CONCLUSION_STYLE: Record<string, string> = {
   success: "bg-green-100 text-green-700",
@@ -29,7 +30,10 @@ export function GateCard({ runId }: { runId: string }) {
   return (
     <Card className="space-y-3 p-5">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-medium text-zinc-700">Gate (check run)</h2>
+        <h2 className="flex items-center gap-1 text-sm font-medium text-zinc-700">
+          Gate (check run)
+          <InfoTooltip term="gate" />
+        </h2>
         <Button size="sm" variant="ghost" disabled={publish.isPending} onClick={() => publish.mutate()}>
           {publish.isPending ? "Publicando…" : "Publicar gate"}
         </Button>

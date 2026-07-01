@@ -15,6 +15,7 @@ import { KnowledgeGraphView } from "@/components/graph/knowledge-graph-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { InfoTooltip } from "@/components/ui/InfoTooltip";
 
 // ─── gap kind labels ──────────────────────────────────────────────────────────
 
@@ -24,6 +25,14 @@ const GAP_KIND_LABEL: Record<string, string> = {
   defecto_sin_conocimiento: "Defecto sin conocimiento",
   dominio_sin_leccion: "Dominio sin lección",
   riesgo_sin_mitigacion: "Riesgo sin mitigación",
+};
+
+// ─── severity labels ──────────────────────────────────────────────────────────
+
+const SEVERITY_LABEL: Record<CoverageGap["severity"], string> = {
+  alta: "Alta",
+  media: "Media",
+  baja: "Baja",
 };
 
 // ─── severity ordering ────────────────────────────────────────────────────────
@@ -181,8 +190,9 @@ export default function GraphPage() {
         <aside className="flex w-80 shrink-0 flex-col gap-3 overflow-y-auto xl:w-96">
           <div className="flex items-center gap-2">
             <Network size={16} className="text-zinc-400" />
-            <h2 className="text-sm font-semibold text-zinc-700">
+            <h2 className="flex items-center gap-1 text-sm font-semibold text-zinc-700">
               Coverage Gaps
+              <InfoTooltip term="regla_sin_test" label="Qué es: Coverage Gap" />
             </h2>
             {sortedGaps.length > 0 && (
               <span className="ml-auto rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-500">
@@ -210,7 +220,7 @@ export default function GraphPage() {
                   className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${severityClass(gap.severity)}`}
                   data-testid={`gap-severity-${gap.severity}`}
                 >
-                  {gap.severity}
+                  {SEVERITY_LABEL[gap.severity] ?? gap.severity}
                 </span>
                 <span className="truncate text-sm font-medium text-zinc-800">
                   {gap.title}

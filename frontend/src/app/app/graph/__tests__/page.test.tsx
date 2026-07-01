@@ -157,7 +157,7 @@ describe("GraphPage — ordena gaps por severidad alta→media→baja", () => {
 
     const allBadges = await screen.findAllByTestId(/^gap-severity-/);
     const labels = allBadges.map((el) => el.textContent);
-    expect(labels).toEqual(["alta", "media", "baja"]);
+    expect(labels).toEqual(["Alta", "Media", "Baja"]);
   });
 });
 

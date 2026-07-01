@@ -8,6 +8,13 @@ import { getActions, proposeActions, approveAction, rejectAction } from "@/lib/a
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { InfoTooltip } from "@/components/ui/InfoTooltip";
+
+const KIND_LABEL: Record<string, string> = {
+  quarantine: "Cuarentena",
+  ticket: "Ticket",
+  self_heal: "Auto-reparación",
+};
 
 export function ActionsPanel({ runId, orgId }: { runId: string; orgId: string }) {
   const { accessToken } = useAuth();
@@ -41,7 +48,10 @@ export function ActionsPanel({ runId, orgId }: { runId: string; orgId: string })
   return (
     <Card className="space-y-3 p-5">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-medium text-zinc-700">Acciones (Nivel 2)</h2>
+        <h2 className="flex items-center gap-1 text-sm font-medium text-zinc-700">
+          Acciones (Nivel 2)
+          <InfoTooltip term="triaje" label="Qué es: Acciones de Nivel 2" />
+        </h2>
         <Button size="sm" variant="ghost" disabled={propose.isPending} onClick={() => propose.mutate()}>
           {propose.isPending ? "Proponiendo…" : "Proponer acciones"}
         </Button>
@@ -53,7 +63,8 @@ export function ActionsPanel({ runId, orgId }: { runId: string; orgId: string })
           {actions.map((a) => (
             <li key={a.id} className="flex items-center justify-between gap-3 text-sm">
               <span className="flex-1">
-                <Badge>{a.kind}</Badge> <span className="text-zinc-700">{a.summary}</span>
+                <Badge>{KIND_LABEL[a.kind] ?? a.kind}</Badge>{" "}
+                <span className="text-zinc-700">{a.summary}</span>
               </span>
               {a.status === "proposed" ? (
                 <span className="flex gap-2">
