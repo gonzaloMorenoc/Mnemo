@@ -233,9 +233,9 @@ export default function GraphPage() {
             </Card>
           )}
 
-          <ul aria-label="Gaps de cobertura" className="contents">
+          <ul aria-label="Gaps de cobertura" className="flex flex-col gap-3">
           {sortedGaps.map((gap) => (
-            <li key={`${gap.kind}-${gap.title}`} className="contents">
+            <li key={`${gap.kind}-${gap.title}`} className="list-none">
             <Card className="p-4">
               <div className="mb-2 flex items-center gap-2">
                 <span

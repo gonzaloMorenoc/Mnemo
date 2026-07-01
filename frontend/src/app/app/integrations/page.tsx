@@ -246,6 +246,7 @@ export default function IntegrationsPage() {
             <Label htmlFor="gh-install-id">Installation ID</Label>
             <Input
               id="gh-install-id"
+              aria-describedby="gh-install-id-hint"
               value={ghInstallId}
               onChange={(e) => setGhInstallId(e.target.value)}
               placeholder="12345678"
@@ -262,6 +263,7 @@ export default function IntegrationsPage() {
             <Label htmlFor="gh-repo">Repositorio (owner/repo)</Label>
             <Input
               id="gh-repo"
+              aria-describedby="gh-repo-hint"
               value={ghRepoFullName}
               onChange={(e) => setGhRepoFullName(e.target.value)}
               placeholder="mi-empresa/mi-repo"
