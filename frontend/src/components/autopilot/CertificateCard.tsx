@@ -8,6 +8,7 @@ import { generateCertificate, getCertificate, getCertificatePdf } from "@/lib/ap
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { InfoTooltip } from "@/components/ui/InfoTooltip";
 
 export function CertificateCard({ runId }: { runId: string }) {
   const { accessToken } = useAuth();
@@ -44,7 +45,10 @@ export function CertificateCard({ runId }: { runId: string }) {
   return (
     <Card className="space-y-3 p-5">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-medium text-zinc-700">Release Assurance Certificate</h2>
+        <h2 className="flex items-center gap-1 text-sm font-medium text-zinc-700">
+          Release Assurance Certificate
+          <InfoTooltip term="certificado" />
+        </h2>
         <Button size="sm" variant="ghost" disabled={generate.isPending} onClick={() => generate.mutate()}>
           {generate.isPending ? "Generando…" : "Generar certificado"}
         </Button>
@@ -53,7 +57,10 @@ export function CertificateCard({ runId }: { runId: string }) {
         <div className="space-y-1 text-sm text-zinc-600">
           <div className="flex items-center gap-2">
             <Badge>{cert.verdict}</Badge>
-            <span>risk score <strong className="text-zinc-900">{cert.risk_score}</strong></span>
+            <span className="flex items-center gap-1">
+              risk score <InfoTooltip term="risk_score" />
+              <strong className="text-zinc-900">{cert.risk_score}</strong>
+            </span>
           </div>
           <p className="font-mono text-xs text-zinc-400 break-all">firma: {cert.signature.slice(0, 32)}…</p>
           <Button size="sm" variant="outline" onClick={handleDownloadPdf}>Descargar PDF</Button>

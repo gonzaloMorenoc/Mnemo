@@ -22,6 +22,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { JiraIngestResponse } from "@/lib/api/types";
 
 export default function IntegrationsPage() {
@@ -208,7 +209,16 @@ export default function IntegrationsPage() {
   }, {});
 
   if (orgLoading) {
-    return <p className="text-sm text-zinc-500">Cargando organización…</p>;
+    return (
+      <div className="space-y-6" data-testid="integrations-loading-skeleton">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Integraciones</h1>
+          <p className="text-sm text-zinc-500">Conecta GitHub y Jira para potenciar el análisis de QA.</p>
+        </div>
+        <Skeleton className="h-48 max-w-xl rounded-xl" />
+        <Skeleton className="h-48 max-w-xl rounded-xl" />
+      </div>
+    );
   }
 
   return (
@@ -220,25 +230,51 @@ export default function IntegrationsPage() {
 
       {/* ── GitHub config card ────────────────────────────────────────────── */}
       <Card className="max-w-xl space-y-4 p-5">
-        <h2 className="text-sm font-medium text-zinc-700">Configuración de GitHub</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-medium text-zinc-700">Configuración de GitHub</h2>
+          {githubConfigured && (
+            <span
+              data-testid="github-connected-badge"
+              className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700"
+            >
+              ✓ Conectado
+            </span>
+          )}
+        </div>
         <div className="space-y-4">
           <div className="space-y-1">
             <Label htmlFor="gh-install-id">Installation ID</Label>
             <Input
               id="gh-install-id"
+              aria-describedby="gh-install-id-hint"
               value={ghInstallId}
               onChange={(e) => setGhInstallId(e.target.value)}
               placeholder="12345678"
             />
+            <p
+              id="gh-install-id-hint"
+              data-testid="gh-install-id-hint"
+              className="text-xs text-zinc-400"
+            >
+              Número entero (ej. 12345678). Encuéntralo en GitHub App → Install.
+            </p>
           </div>
           <div className="space-y-1">
             <Label htmlFor="gh-repo">Repositorio (owner/repo)</Label>
             <Input
               id="gh-repo"
+              aria-describedby="gh-repo-hint"
               value={ghRepoFullName}
               onChange={(e) => setGhRepoFullName(e.target.value)}
               placeholder="mi-empresa/mi-repo"
             />
+            <p
+              id="gh-repo-hint"
+              data-testid="gh-repo-hint"
+              className="text-xs text-zinc-400"
+            >
+              Formato: <code>owner/nombre</code> (ej. mi-empresa/mi-repo).
+            </p>
           </div>
           {githubConfigured && githubConfigQuery.data?.repo_full_name && (
             <p className="text-xs text-zinc-500">

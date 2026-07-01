@@ -15,6 +15,8 @@ import { KnowledgeGraphView } from "@/components/graph/knowledge-graph-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { InfoTooltip } from "@/components/ui/InfoTooltip";
 
 // ─── gap kind labels ──────────────────────────────────────────────────────────
 
@@ -24,6 +26,14 @@ const GAP_KIND_LABEL: Record<string, string> = {
   defecto_sin_conocimiento: "Defecto sin conocimiento",
   dominio_sin_leccion: "Dominio sin lección",
   riesgo_sin_mitigacion: "Riesgo sin mitigación",
+};
+
+// ─── severity labels ──────────────────────────────────────────────────────────
+
+const SEVERITY_LABEL: Record<CoverageGap["severity"], string> = {
+  alta: "Alta",
+  media: "Media",
+  baja: "Baja",
 };
 
 // ─── severity ordering ────────────────────────────────────────────────────────
@@ -47,6 +57,14 @@ function severityClass(severity: CoverageGap["severity"]): string {
   if (severity === "media") return "bg-amber-100 text-amber-700 border-amber-200";
   return "bg-zinc-100 text-zinc-600 border-zinc-200";
 }
+
+// ─── severity icon ────────────────────────────────────────────────────────────
+
+const SEVERITY_ICON: Record<CoverageGap["severity"], string> = {
+  alta: "▲",
+  media: "◆",
+  baja: "▼",
+};
 
 // ─── GapTestSection ───────────────────────────────────────────────────────────
 
@@ -131,7 +149,14 @@ export default function GraphPage() {
     return (
       <div className="space-y-4">
         <PageHeader />
-        <p className="text-sm text-zinc-500">Cargando…</p>
+        <div className="flex min-h-0 flex-1 gap-4" data-testid="graph-loading-skeleton">
+          <Skeleton className="min-h-[400px] flex-1 rounded-2xl" />
+          <div className="flex w-80 shrink-0 flex-col gap-3 xl:w-96">
+            <Skeleton className="h-6 w-32" />
+            <Skeleton className="h-20 w-full rounded-xl" />
+            <Skeleton className="h-20 w-full rounded-xl" />
+          </div>
+        </div>
       </div>
     );
   }
@@ -181,8 +206,9 @@ export default function GraphPage() {
         <aside className="flex w-80 shrink-0 flex-col gap-3 overflow-y-auto xl:w-96">
           <div className="flex items-center gap-2">
             <Network size={16} className="text-zinc-400" />
-            <h2 className="text-sm font-semibold text-zinc-700">
+            <h2 className="flex items-center gap-1 text-sm font-semibold text-zinc-700">
               Coverage Gaps
+              <InfoTooltip term="regla_sin_test" label="Qué es: Coverage Gap" />
             </h2>
             {sortedGaps.length > 0 && (
               <span className="ml-auto rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-500">
@@ -192,7 +218,11 @@ export default function GraphPage() {
           </div>
 
           {gapsQuery.isLoading && (
-            <p className="text-xs text-zinc-400">Cargando gaps…</p>
+            <div className="flex flex-col gap-2" data-testid="gaps-loading-skeleton">
+              <Skeleton className="h-16 w-full rounded-xl" />
+              <Skeleton className="h-16 w-full rounded-xl" />
+              <Skeleton className="h-16 w-full rounded-xl" />
+            </div>
           )}
 
           {!gapsQuery.isLoading && sortedGaps.length === 0 && (
@@ -203,14 +233,17 @@ export default function GraphPage() {
             </Card>
           )}
 
+          <ul aria-label="Gaps de cobertura" className="flex flex-col gap-3">
           {sortedGaps.map((gap) => (
-            <Card key={`${gap.kind}-${gap.title}`} className="p-4">
+            <li key={`${gap.kind}-${gap.title}`} className="list-none">
+            <Card className="p-4">
               <div className="mb-2 flex items-center gap-2">
                 <span
-                  className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${severityClass(gap.severity)}`}
+                  className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${severityClass(gap.severity)}`}
                   data-testid={`gap-severity-${gap.severity}`}
                 >
-                  {gap.severity}
+                  <span aria-hidden="true">{SEVERITY_ICON[gap.severity]}</span>
+                  {SEVERITY_LABEL[gap.severity] ?? gap.severity}
                 </span>
                 <span className="truncate text-sm font-medium text-zinc-800">
                   {gap.title}
@@ -239,7 +272,9 @@ export default function GraphPage() {
                 </div>
               )}
             </Card>
+            </li>
           ))}
+          </ul>
         </aside>
       </div>
     </div>

@@ -72,8 +72,21 @@ export function KnowledgeGraphView({ graph, onNodeClick }: Props) {
     if (next) onNodeClick?.(next);
   }
 
+  // Derive announcement text for the selected node
+  const selectedLabel = selectedId
+    ? (rawNodes.find((n) => n.id === selectedId)?.data?.label as string | undefined) ?? selectedId
+    : "";
+
   return (
-    <div className="h-full w-full">
+    <div className="h-full w-full" role="application" aria-label="Grafo de conocimiento">
+      {/* Visually-hidden live region for screen readers */}
+      <span
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+      >
+        {selectedLabel ? `Nodo seleccionado: ${selectedLabel}` : ""}
+      </span>
       <ReactFlow nodes={nodes} edges={edges} fitView onNodeClick={handleNodeClick}>
         <Background />
         <Controls />

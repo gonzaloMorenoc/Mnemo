@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { InfoTooltip } from "@/components/ui/InfoTooltip";
 
 function RootCausePanel({ token, defectId }: { token: string; defectId: string }) {
   const [text, setText] = useState<string | null>(null);
@@ -32,9 +33,12 @@ function RootCausePanel({ token, defectId }: { token: string; defectId: string }
 
   return (
     <div className="mt-3 space-y-2 border-t border-zinc-100 pt-3">
-      <Button onClick={() => run(false)} disabled={busy} className="text-xs">
-        {busy ? "Analizando…" : "Analizar causa raíz"}
-      </Button>
+      <div className="flex items-center gap-1">
+        <Button onClick={() => run(false)} disabled={busy} className="text-xs">
+          {busy ? "Analizando…" : "Analizar causa raíz"}
+        </Button>
+        <InfoTooltip content="Usa el LLM; puede tardar unos segundos." label="Ayuda: Analizar causa raíz" />
+      </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
       {text && (
         <div className="space-y-2">
@@ -67,7 +71,10 @@ export default function DefectsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Defect DNA</h1>
+        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-zinc-900">
+          Defect DNA
+          <InfoTooltip term="defecto_sin_conocimiento" label="Qué es: Defect DNA" />
+        </h1>
         <p className="text-sm text-zinc-500">Familias de defecto y su linaje a través de proyectos.</p>
       </div>
 
@@ -100,7 +107,10 @@ export default function DefectsPage() {
         </Card>
 
         <Card className="p-4">
-          <h2 className="mb-3 text-sm font-medium text-zinc-700">Linaje</h2>
+          <h2 className="mb-3 flex items-center gap-1 text-sm font-medium text-zinc-700">
+            Linaje
+            <InfoTooltip term="linaje" label="Qué es: Linaje de defecto" />
+          </h2>
           {!selected && <p className="text-sm text-zinc-500">Selecciona una familia.</p>}
           {lineageQuery.isLoading && <Skeleton className="h-24 w-full" />}
           {lineageQuery.isError && (

@@ -6,6 +6,7 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { getBriefing } from "@/lib/api/endpoints";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function BriefingCard({ runId }: { runId: string }) {
   const { accessToken } = useAuth();
@@ -32,10 +33,14 @@ export function BriefingCard({ runId }: { runId: string }) {
             </ul>
           )}
         </div>
+      ) : query.isError ? (
+        <p className="text-sm text-zinc-500">Resumen no disponible.</p>
       ) : (
-        <p className="text-sm text-zinc-500">
-          {query.isError ? "Resumen no disponible." : "Cargando resumen…"}
-        </p>
+        <div className="space-y-2" data-testid="briefing-loading-skeleton">
+          <Skeleton className="h-4 w-full rounded" />
+          <Skeleton className="h-4 w-5/6 rounded" />
+          <Skeleton className="h-4 w-4/6 rounded" />
+        </div>
       )}
     </Card>
   );

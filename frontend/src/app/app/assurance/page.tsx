@@ -11,6 +11,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export default function AssurancePage() {
   const { accessToken } = useAuth();
@@ -69,21 +76,21 @@ export default function AssurancePage() {
           </div>
           <div className="space-y-1">
             <Label htmlFor="source">Formato</Label>
-            <select
-              id="source"
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-              value={source}
-              onChange={(e) => setSource(e.target.value)}
-            >
-              <option value="auto">Auto-detectar</option>
-              <option value="allure">Allure (JSON)</option>
-              <option value="junit">JUnit (XML)</option>
-              <option value="testng">TestNG (XML)</option>
-              <option value="cucumber">Cucumber (JSON)</option>
-              <option value="playwright">Playwright (JSON)</option>
-              <option value="cypress">Cypress / Mochawesome (JSON)</option>
-              <option value="robot">Robot Framework (XML)</option>
-            </select>
+            <Select value={source} onValueChange={setSource}>
+              <SelectTrigger id="source" aria-label="Formato">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">Auto-detectar</SelectItem>
+                <SelectItem value="allure">Allure (JSON)</SelectItem>
+                <SelectItem value="junit">JUnit (XML)</SelectItem>
+                <SelectItem value="testng">TestNG (XML)</SelectItem>
+                <SelectItem value="cucumber">Cucumber (JSON)</SelectItem>
+                <SelectItem value="playwright">Playwright (JSON)</SelectItem>
+                <SelectItem value="cypress">Cypress / Mochawesome (JSON)</SelectItem>
+                <SelectItem value="robot">Robot Framework (XML)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-1">
             <Label htmlFor="file">Reporte</Label>

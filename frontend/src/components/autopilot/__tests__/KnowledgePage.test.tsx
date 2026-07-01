@@ -129,6 +129,6 @@ describe("KnowledgePage", () => {
     renderWithClient(<KnowledgePage />);
 
     expect(screen.queryByText(/selecciona una organización para ver y capturar conocimiento/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/cargando…/i)).toBeInTheDocument();
+    expect(screen.getByTestId("knowledge-loading-skeleton")).toBeInTheDocument();
   });
 });

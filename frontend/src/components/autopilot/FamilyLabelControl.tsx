@@ -9,6 +9,13 @@ import { setFamilyLabel } from "@/lib/api/endpoints";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const LABELS = ["unknown", "flaky", "real", "maintenance", "infra"];
 
@@ -32,14 +39,16 @@ export function FamilyLabelControl({ familyId }: { familyId: string }) {
       <p className="text-xs font-medium text-zinc-500">Calibrar (etiqueta esta familia)</p>
       <div className="space-y-1">
         <Label htmlFor="cat">Categoría</Label>
-        <select
-          id="cat"
-          className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-        >
-          {LABELS.map((l) => <option key={l} value={l}>{l}</option>)}
-        </select>
+        <Select value={label} onValueChange={setLabel}>
+          <SelectTrigger id="cat" aria-label="Categoría">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {LABELS.map((l) => (
+              <SelectItem key={l} value={l}>{l}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="motivo (opcional)" aria-label="Motivo" />
       <Button className="text-xs" disabled={mut.isPending} onClick={() => mut.mutate()}>

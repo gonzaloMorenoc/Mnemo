@@ -13,8 +13,14 @@ import {
   SetupChecklist,
   type SetupStep,
 } from "@/components/dashboard/SetupChecklist";
+import { NAV_ITEMS } from "@/components/layout/nav";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+
+const QUICK_ACCESS_HREFS = ["/app/knowledge", "/app/graph", "/app/test-plan"] as const;
+const quickAccessItems = NAV_ITEMS.filter((item) =>
+  (QUICK_ACCESS_HREFS as readonly string[]).includes(item.href),
+);
 
 export default function DashboardPage() {
   const { accessToken } = useAuth();
@@ -120,11 +126,7 @@ export default function DashboardPage() {
       </div>
       <SetupChecklist steps={steps} loading={loading} />
       <div className="grid gap-3 sm:grid-cols-3">
-        {[
-          ["Conocimiento", "/app/knowledge"],
-          ["Knowledge Graph", "/app/graph"],
-          ["Plan de pruebas", "/app/test-plan"],
-        ].map(([label, href]) => (
+        {quickAccessItems.map(({ href, label }) => (
           <Button key={href} asChild variant="outline">
             <Link href={href}>{label}</Link>
           </Button>

@@ -34,7 +34,6 @@ export function Topbar({ onOpenMobileMenu }: TopbarProps) {
         </Button>
         <div>
           <h1 className="text-lg font-semibold tracking-tight text-zinc-900">{title}</h1>
-          <p className="hidden text-xs text-zinc-500 sm:block">Mnemo</p>
         </div>
       </div>
 

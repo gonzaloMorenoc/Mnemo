@@ -31,4 +31,12 @@ describe("BriefingCard", () => {
     renderWithClient(<BriefingCard runId="r1" />);
     expect(await screen.findByText(/resumen no disponible/i)).toBeInTheDocument();
   });
+
+  it("muestra Skeleton (data-testid=briefing-loading-skeleton) en estado de carga — nunca el texto plano", () => {
+    // Never resolves → stays in loading state
+    (getBriefing as ReturnType<typeof vi.fn>).mockReturnValue(new Promise(() => {}));
+    renderWithClient(<BriefingCard runId="r1" />);
+    expect(screen.getByTestId("briefing-loading-skeleton")).toBeInTheDocument();
+    expect(screen.queryByText(/cargando resumen/i)).not.toBeInTheDocument();
+  });
 });

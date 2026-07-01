@@ -179,6 +179,63 @@ describe("IntegrationsPage — GitHub NO configurado", () => {
   });
 });
 
+describe("IntegrationsPage — badge Conectado y help-text de formato", () => {
+  it("muestra badge '✓ Conectado' cuando GitHub está configurado", async () => {
+    (getGithubConfig as ReturnType<typeof vi.fn>).mockResolvedValue({
+      configured: true,
+      repo_full_name: "org/repo",
+      installation_id: "123",
+    });
+    (listRepoTests as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+    renderWithClient(<IntegrationsPage />);
+
+    expect(await screen.findByTestId("github-connected-badge")).toBeInTheDocument();
+  });
+
+  it("NO muestra badge '✓ Conectado' cuando GitHub NO está configurado", async () => {
+    (getGithubConfig as ReturnType<typeof vi.fn>).mockResolvedValue({
+      configured: false,
+      repo_full_name: null,
+      installation_id: null,
+    });
+    (listRepoTests as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+    renderWithClient(<IntegrationsPage />);
+
+    // Wait for query to settle
+    await screen.findByRole("button", { name: /Indexar tests del repo/i });
+    expect(screen.queryByTestId("github-connected-badge")).not.toBeInTheDocument();
+  });
+
+  it("muestra help-text de formato para Installation ID (numérico)", async () => {
+    (getGithubConfig as ReturnType<typeof vi.fn>).mockResolvedValue({
+      configured: false,
+      repo_full_name: null,
+      installation_id: null,
+    });
+    (listRepoTests as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+    renderWithClient(<IntegrationsPage />);
+
+    // Should show format hint for installation ID
+    expect(await screen.findByTestId("gh-install-id-hint")).toBeInTheDocument();
+  });
+
+  it("muestra help-text de formato para owner/repo", async () => {
+    (getGithubConfig as ReturnType<typeof vi.fn>).mockResolvedValue({
+      configured: false,
+      repo_full_name: null,
+      installation_id: null,
+    });
+    (listRepoTests as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+    renderWithClient(<IntegrationsPage />);
+
+    expect(await screen.findByTestId("gh-repo-hint")).toBeInTheDocument();
+  });
+});
+
 describe("IntegrationsPage — error al indexar", () => {
   it("muestra toast.error con el mensaje cuando indexRepo rechaza", async () => {
     (getGithubConfig as ReturnType<typeof vi.fn>).mockResolvedValue({
