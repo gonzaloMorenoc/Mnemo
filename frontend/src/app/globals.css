@@ -9,8 +9,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: "Manrope", "Avenir Next", "Segoe UI", sans-serif;
-  --font-mono: "JetBrains Mono", "SF Mono", "Menlo", monospace;
+  --font-sans: var(--font-sans-loaded), "Manrope", "Segoe UI", sans-serif;
+  --font-mono: var(--font-mono-loaded), "JetBrains Mono", monospace;
 }
 
 * {

@@ -182,6 +182,15 @@ describe("OnboardingPage — empty state sin organización", () => {
     expect(screen.queryByPlaceholderText(/p\.ej\. pagos/i)).not.toBeInTheDocument();
   });
 
+  it("el CTA del empty-state enlaza a /app/org", () => {
+    mockActiveOrg.value = null;
+
+    renderWithClient(<OnboardingPage />);
+
+    const link = screen.getByRole("link", { name: /ir a organización/i });
+    expect(link.getAttribute("href")).toBe("/app/org");
+  });
+
   // I2: while loading, should NOT show "Selecciona organización"
   it("I2 — no muestra empty state de org mientras isLoading=true", () => {
     mockActiveOrg.value = "";

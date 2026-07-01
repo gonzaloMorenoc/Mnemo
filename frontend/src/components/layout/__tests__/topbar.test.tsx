@@ -57,4 +57,20 @@ describe("Topbar — título desde fuente única + localización", () => {
     render(<Topbar onOpenMobileMenu={vi.fn()} />);
     expect(screen.getByRole("button", { name: "Cerrar sesión" })).toBeInTheDocument();
   });
+
+  it("no renderiza el subtítulo duplicado 'Mnemo' como párrafo", () => {
+    (usePathname as ReturnType<typeof vi.fn>).mockReturnValue("/app/integrations");
+    (useAuth as ReturnType<typeof vi.fn>).mockReturnValue({
+      user: { email: "a@b.c" },
+      signOut: vi.fn(),
+    });
+    render(<Topbar onOpenMobileMenu={vi.fn()} />);
+    // Only the h1 heading should exist — no secondary <p>Mnemo</p> subtitle
+    const heading = screen.getByRole("heading", { name: "Integraciones" });
+    expect(heading).toBeInTheDocument();
+    // There should be no <p> element containing just "Mnemo" as subtitle
+    const allParagraphs = document.querySelectorAll("p");
+    const mnemoSubtitle = Array.from(allParagraphs).find((p) => p.textContent === "Mnemo");
+    expect(mnemoSubtitle).toBeUndefined();
+  });
 });

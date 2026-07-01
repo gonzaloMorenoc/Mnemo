@@ -84,7 +84,7 @@ export default function OnboardingPage() {
         <Card className="max-w-xl p-5 space-y-3">
           <p className="text-sm text-zinc-500">Selecciona una organización para comenzar el onboarding.</p>
           <Button asChild variant="outline" size="sm">
-            <Link href="/app/knowledge">Captura conocimiento</Link>
+            <Link href="/app/org">Ir a Organización</Link>
           </Button>
         </Card>
       </div>
