@@ -58,6 +58,14 @@ function severityClass(severity: CoverageGap["severity"]): string {
   return "bg-zinc-100 text-zinc-600 border-zinc-200";
 }
 
+// ─── severity icon ────────────────────────────────────────────────────────────
+
+const SEVERITY_ICON: Record<CoverageGap["severity"], string> = {
+  alta: "▲",
+  media: "◆",
+  baja: "▼",
+};
+
 // ─── GapTestSection ───────────────────────────────────────────────────────────
 
 function GapTestSection({ gap, accessToken, activeOrgId }: {
@@ -225,13 +233,16 @@ export default function GraphPage() {
             </Card>
           )}
 
+          <ul aria-label="Gaps de cobertura" className="contents">
           {sortedGaps.map((gap) => (
-            <Card key={`${gap.kind}-${gap.title}`} className="p-4">
+            <li key={`${gap.kind}-${gap.title}`} className="contents">
+            <Card className="p-4">
               <div className="mb-2 flex items-center gap-2">
                 <span
-                  className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${severityClass(gap.severity)}`}
+                  className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${severityClass(gap.severity)}`}
                   data-testid={`gap-severity-${gap.severity}`}
                 >
+                  <span aria-hidden="true">{SEVERITY_ICON[gap.severity]}</span>
                   {SEVERITY_LABEL[gap.severity] ?? gap.severity}
                 </span>
                 <span className="truncate text-sm font-medium text-zinc-800">
@@ -261,7 +272,9 @@ export default function GraphPage() {
                 </div>
               )}
             </Card>
+            </li>
           ))}
+          </ul>
         </aside>
       </div>
     </div>

@@ -156,7 +156,8 @@ describe("GraphPage — ordena gaps por severidad alta→media→baja", () => {
     renderWithClient(<GraphPage />);
 
     const allBadges = await screen.findAllByTestId(/^gap-severity-/);
-    const labels = allBadges.map((el) => el.textContent);
+    // textContent now includes icon + label; check the text label portion is present
+    const labels = allBadges.map((el) => el.textContent?.replace(/[▲◆▼]/g, "").trim());
     expect(labels).toEqual(["Alta", "Media", "Baja"]);
   });
 });
@@ -265,6 +266,62 @@ describe("GraphPage — label legible del tipo de gap (GAP_KIND_LABEL)", () => {
 
     const label = await screen.findByTestId("gap-kind-unknown_kind_xyz");
     expect(label).toHaveTextContent("unknown_kind_xyz");
+  });
+});
+
+describe("GraphPage — a11y: panel de gaps como lista semántica y severidad con texto", () => {
+  it("el panel de gaps usa un <ul> con aria-label='Gaps de cobertura'", async () => {
+    (getGraph as ReturnType<typeof vi.fn>).mockResolvedValue(MOCK_GRAPH);
+    (getGaps as ReturnType<typeof vi.fn>).mockResolvedValue(MOCK_GAPS);
+
+    renderWithClient(<GraphPage />);
+
+    // Wait for gaps to appear
+    await screen.findByText("Sin cobertura en flujo de reembolso");
+
+    const list = document.querySelector('ul[aria-label="Gaps de cobertura"]');
+    expect(list).not.toBeNull();
+  });
+
+  it("la severidad 'alta' muestra texto visible además del color", async () => {
+    (getGraph as ReturnType<typeof vi.fn>).mockResolvedValue(MOCK_GRAPH);
+    (getGaps as ReturnType<typeof vi.fn>).mockResolvedValue([
+      {
+        kind: "knowledge",
+        title: "Gap alta",
+        severity: "alta" as const,
+        affected: ["x"],
+        recommendation: "Rec alta",
+      },
+    ]);
+
+    renderWithClient(<GraphPage />);
+
+    // The severity badge must contain text, not only rely on color
+    const badge = await screen.findByTestId("gap-severity-alta");
+    expect(badge.textContent).toBeTruthy();
+    // Should contain an accessible text label (not empty)
+    expect(badge.textContent!.trim()).not.toBe("");
+  });
+
+  it("la severidad muestra un icono (span con aria-hidden) además del texto", async () => {
+    (getGraph as ReturnType<typeof vi.fn>).mockResolvedValue(MOCK_GRAPH);
+    (getGaps as ReturnType<typeof vi.fn>).mockResolvedValue([
+      {
+        kind: "knowledge",
+        title: "Gap media",
+        severity: "media" as const,
+        affected: ["y"],
+        recommendation: "Rec media",
+      },
+    ]);
+
+    renderWithClient(<GraphPage />);
+
+    const badge = await screen.findByTestId("gap-severity-media");
+    // Icon element should exist inside the badge
+    const icon = badge.querySelector('[aria-hidden="true"]');
+    expect(icon).not.toBeNull();
   });
 });
 

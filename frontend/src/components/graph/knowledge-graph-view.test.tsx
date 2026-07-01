@@ -113,4 +113,16 @@ describe("KnowledgeGraphView", () => {
     render(<KnowledgeGraphView graph={GRAPH} onNodeClick={onNodeClick} />);
     expect(document.querySelector(".react-flow")).not.toBeNull();
   });
+
+  it("el contenedor del grafo tiene aria-label='Grafo de conocimiento'", () => {
+    render(<KnowledgeGraphView graph={GRAPH} />);
+    const container = document.querySelector('[aria-label="Grafo de conocimiento"]');
+    expect(container).not.toBeNull();
+  });
+
+  it("existe una región aria-live='polite' para anuncios de nodo seleccionado", () => {
+    render(<KnowledgeGraphView graph={GRAPH} />);
+    const liveRegion = document.querySelector('[aria-live="polite"]');
+    expect(liveRegion).not.toBeNull();
+  });
 });

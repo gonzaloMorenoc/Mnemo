@@ -230,7 +230,17 @@ export default function IntegrationsPage() {
 
       {/* ── GitHub config card ────────────────────────────────────────────── */}
       <Card className="max-w-xl space-y-4 p-5">
-        <h2 className="text-sm font-medium text-zinc-700">Configuración de GitHub</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-medium text-zinc-700">Configuración de GitHub</h2>
+          {githubConfigured && (
+            <span
+              data-testid="github-connected-badge"
+              className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700"
+            >
+              ✓ Conectado
+            </span>
+          )}
+        </div>
         <div className="space-y-4">
           <div className="space-y-1">
             <Label htmlFor="gh-install-id">Installation ID</Label>
@@ -240,6 +250,13 @@ export default function IntegrationsPage() {
               onChange={(e) => setGhInstallId(e.target.value)}
               placeholder="12345678"
             />
+            <p
+              id="gh-install-id-hint"
+              data-testid="gh-install-id-hint"
+              className="text-xs text-zinc-400"
+            >
+              Número entero (ej. 12345678). Encuéntralo en GitHub App → Install.
+            </p>
           </div>
           <div className="space-y-1">
             <Label htmlFor="gh-repo">Repositorio (owner/repo)</Label>
@@ -249,6 +266,13 @@ export default function IntegrationsPage() {
               onChange={(e) => setGhRepoFullName(e.target.value)}
               placeholder="mi-empresa/mi-repo"
             />
+            <p
+              id="gh-repo-hint"
+              data-testid="gh-repo-hint"
+              className="text-xs text-zinc-400"
+            >
+              Formato: <code>owner/nombre</code> (ej. mi-empresa/mi-repo).
+            </p>
           </div>
           {githubConfigured && githubConfigQuery.data?.repo_full_name && (
             <p className="text-xs text-zinc-500">
