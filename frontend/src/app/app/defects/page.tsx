@@ -106,7 +106,7 @@ export default function DefectsPage() {
         <Card className="p-4">
           <h2 className="mb-3 flex items-center gap-1 text-sm font-medium text-zinc-700">
             Linaje
-            <InfoTooltip term="self_heal" label="Qué es: Linaje de defecto" />
+            <InfoTooltip term="linaje" label="Qué es: Linaje de defecto" />
           </h2>
           {!selected && <p className="text-sm text-zinc-500">Selecciona una familia.</p>}
           {lineageQuery.isLoading && <Skeleton className="h-24 w-full" />}

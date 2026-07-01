@@ -9,4 +9,5 @@ export const GLOSSARY: Record<string, string> = {
   "risk_score": "Puntuación de riesgo del run (mayor = más atención).",
   calibracion: "Ajuste del motor con tus etiquetas de verdad de referencia.",
   self_heal: "Auto-reparación: PR propuesto que arregla un locator/selector roto.",
+  linaje: "Historial de ocurrencias de una familia de defecto a través de proyectos y runs.",
 };
