@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { render, screen, fireEvent, waitFor, cleanup, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/components/providers/auth-provider", () => ({ useAuth: () => ({ accessToken: "tok" }) }));
 vi.mock("@/lib/api/endpoints", () => ({ getOrganizations: vi.fn() }));
@@ -9,6 +10,22 @@ vi.mock("@/lib/api/endpoints", () => ({ getOrganizations: vi.fn() }));
 import { getOrganizations } from "@/lib/api/endpoints";
 import { OrgProvider, useActiveOrg } from "@/components/providers/org-provider";
 import { OrgSwitcher } from "@/components/layout/org-switcher";
+
+// Radix UI pointer/scroll APIs not available in jsdom
+beforeEach(() => {
+  if (!Element.prototype.hasPointerCapture) {
+    Element.prototype.hasPointerCapture = () => false;
+  }
+  if (!Element.prototype.setPointerCapture) {
+    Element.prototype.setPointerCapture = () => undefined;
+  }
+  if (!Element.prototype.releasePointerCapture) {
+    Element.prototype.releasePointerCapture = () => undefined;
+  }
+  if (!Element.prototype.scrollIntoView) {
+    Element.prototype.scrollIntoView = () => undefined;
+  }
+});
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -127,21 +144,28 @@ describe("OrgProvider", () => {
 });
 
 describe("OrgSwitcher", () => {
-  it("renders a select with both orgs and switching updates the active org", async () => {
+  it("renders a select trigger with the active org and switching updates the active org", async () => {
+    const user = userEvent.setup();
     (getOrganizations as ReturnType<typeof vi.fn>).mockResolvedValue([ORG_A, ORG_B]);
-    renderWithClient(
+    const { container } = renderWithClient(
       <OrgProvider>
         <OrgSwitcher />
         <OrgIdDisplay />
       </OrgProvider>,
     );
-    const select = await screen.findByRole("combobox", { name: /organización/i });
-    expect(select).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Org A" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Org B" })).toBeInTheDocument();
+    // Radix Select renders a combobox trigger
+    const trigger = await screen.findByRole("combobox", { name: /organización/i });
+    expect(trigger).toBeInTheDocument();
 
     await waitFor(() => expect(screen.getByTestId("active-org").textContent).toBe(ORG_A.id));
-    fireEvent.change(select, { target: { value: ORG_B.id } });
+
+    // Open dropdown
+    await user.click(within(container).getByRole("combobox", { name: /organización/i }));
+
+    // Select Org B option
+    const orgBOption = await screen.findByRole("option", { name: "Org B" });
+    await user.click(orgBOption);
+
     await waitFor(() => expect(screen.getByTestId("active-org").textContent).toBe(ORG_B.id));
   });
 

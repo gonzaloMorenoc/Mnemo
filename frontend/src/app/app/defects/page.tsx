@@ -33,9 +33,12 @@ function RootCausePanel({ token, defectId }: { token: string; defectId: string }
 
   return (
     <div className="mt-3 space-y-2 border-t border-zinc-100 pt-3">
-      <Button onClick={() => run(false)} disabled={busy} className="text-xs">
-        {busy ? "Analizando…" : "Analizar causa raíz"}
-      </Button>
+      <div className="flex items-center gap-1">
+        <Button onClick={() => run(false)} disabled={busy} className="text-xs">
+          {busy ? "Analizando…" : "Analizar causa raíz"}
+        </Button>
+        <InfoTooltip content="Usa el LLM; puede tardar unos segundos." label="Ayuda: Analizar causa raíz" />
+      </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
       {text && (
         <div className="space-y-2">

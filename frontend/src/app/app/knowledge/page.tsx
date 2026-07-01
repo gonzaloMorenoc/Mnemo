@@ -18,6 +18,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const KIND_OPTIONS = [
   { value: "regla_negocio", label: "Regla de negocio" },
@@ -154,18 +161,18 @@ export default function KnowledgePage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="kind">Tipo</Label>
-                <select
-                  id="kind"
-                  className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-400"
-                  value={form.kind}
-                  onChange={(e) => handleFormChange("kind", e.target.value)}
-                >
-                  {KIND_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+                <Select value={form.kind} onValueChange={(v) => handleFormChange("kind", v)}>
+                  <SelectTrigger id="kind" aria-label="Tipo">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {KIND_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-1.5">

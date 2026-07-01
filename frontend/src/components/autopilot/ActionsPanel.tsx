@@ -9,12 +9,31 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 
 const KIND_LABEL: Record<string, string> = {
   quarantine: "Cuarentena",
   ticket: "Ticket",
   self_heal: "Auto-reparación",
 };
+
+const KIND_EFFECT: Record<string, string> = {
+  quarantine: "Esto pondrá el test en cuarentena en el sistema de CI.",
+  ticket: "Esto abrirá un ticket en el gestor de incidencias.",
+  self_heal: "Esto aplicará una auto-reparación al test afectado.",
+};
+
+function getKindEffect(kind: string): string {
+  return KIND_EFFECT[kind] ?? "Esto ejecutará la acción sobre el test.";
+}
 
 export function ActionsPanel({ runId, orgId }: { runId: string; orgId: string }) {
   const { accessToken } = useAuth();
@@ -68,8 +87,41 @@ export function ActionsPanel({ runId, orgId }: { runId: string; orgId: string })
               </span>
               {a.status === "proposed" ? (
                 <span className="flex gap-2">
-                  <Button size="sm" disabled={approve.isPending} onClick={() => approve.mutate(a.id)}>Aprobar</Button>
-                  <Button size="sm" variant="ghost" disabled={reject.isPending} onClick={() => reject.mutate(a.id)}>Rechazar</Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button size="sm" disabled={approve.isPending}>Aprobar</Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogTitle>¿Aprobar acción?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        {getKindEffect(a.kind)}
+                      </AlertDialogDescription>
+                      <div className="mt-4 flex justify-end gap-3">
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => approve.mutate(a.id)}>
+                          Confirmar
+                        </AlertDialogAction>
+                      </div>
+                    </AlertDialogContent>
+                  </AlertDialog>
+
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button size="sm" variant="ghost" disabled={reject.isPending}>Rechazar</Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogTitle>¿Rechazar acción?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Esta acción será descartada y no se ejecutará ningún cambio.
+                      </AlertDialogDescription>
+                      <div className="mt-4 flex justify-end gap-3">
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => reject.mutate(a.id)}>
+                          Confirmar
+                        </AlertDialogAction>
+                      </div>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </span>
               ) : a.artifact_ref ? (
                 <a className="text-blue-600 underline" href={a.artifact_ref} target="_blank" rel="noreferrer">{a.status}</a>
