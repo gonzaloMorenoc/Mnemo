@@ -23,15 +23,22 @@ export function OrgProvider({ children }: PropsWithChildren) {
     queryKey: ["organizations", accessToken],
     queryFn: () => getOrganizations(accessToken!),
     enabled: Boolean(accessToken),
+    staleTime: 5 * 60_000,
   });
   const orgs = useMemo(() => orgsQuery.data ?? [], [orgsQuery.data]);
 
+  const storedOrgId =
+    typeof window !== "undefined"
+      ? (window.localStorage.getItem(STORAGE_KEY) ?? "")
+      : "";
+
   const activeOrgId = useMemo(() => {
     if (explicitOrgId) return explicitOrgId;
-    if (!orgs.length) return "";
-    const stored = typeof window !== "undefined" ? window.localStorage.getItem(STORAGE_KEY) : null;
-    return stored && orgs.some((o) => o.id === stored) ? stored : orgs[0].id;
-  }, [explicitOrgId, orgs]);
+    if (orgs.length) {
+      return orgs.some((o) => o.id === storedOrgId) ? storedOrgId : orgs[0].id;
+    }
+    return storedOrgId; // optimistic: list not yet loaded
+  }, [explicitOrgId, orgs, storedOrgId]);
 
   function setActiveOrgId(id: string) {
     setExplicitOrgId(id);
