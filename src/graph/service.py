@@ -1,8 +1,8 @@
 from typing import Any, Dict, List, Optional
 import psycopg
-from pgvector.psycopg import register_vector
 from psycopg.rows import dict_row
 from src.config import DATABASE_URL
+from src.db.pool import get_pool
 
 
 class GraphService:
@@ -10,9 +10,7 @@ class GraphService:
         self.db_url = db_url
 
     def _connect(self):
-        conn = psycopg.connect(self.db_url, row_factory=dict_row)
-        register_vector(conn)
-        return conn
+        return get_pool().connection()
 
     def _is_member(self, cur, org_id: str, user_id: str) -> bool:
         cur.execute("select exists(select 1 from public.memberships"

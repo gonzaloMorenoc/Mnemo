@@ -8,6 +8,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+
+def _fake_pool(conn_ctx):
+    """Return a fake pool whose .connection() yields conn_ctx."""
+    pool = MagicMock()
+    pool.connection.return_value = conn_ctx
+    return pool
+
 # ---------------------------------------------------------------------------
 # Helpers — mirror graph/service test pattern exactly
 # ---------------------------------------------------------------------------
@@ -70,7 +77,7 @@ class TestDetectGapsNonMember:
     def test_returns_empty_when_not_member(self):
         from src.graph.gaps import detect_gaps
         conn_ctx, conn, cur = _make_conn_ctx(member=False)
-        with patch("src.graph.gaps.psycopg.connect", return_value=conn_ctx):
+        with patch("src.graph.gaps.get_pool", return_value=_fake_pool(conn_ctx)):
             result = detect_gaps(user_id=USER_ID, org_id=ORG_ID)
         assert result == []
 
@@ -86,7 +93,7 @@ class TestDefectoSinConocimiento:
             member=True,
             fetchall_results=[defect_rows, [], []],  # gap1 results, gap2, gap3
         )
-        with patch("src.graph.gaps.psycopg.connect", return_value=conn_ctx):
+        with patch("src.graph.gaps.get_pool", return_value=_fake_pool(conn_ctx)):
             with patch("src.graph.gaps.generate_structured", return_value={"recommendation": "LLM rec"}):
                 return detect_gaps(user_id=USER_ID, org_id=ORG_ID)
 
@@ -138,7 +145,7 @@ class TestDominioSinLeccion:
             member=True,
             fetchall_results=[[], domain_rows, []],
         )
-        with patch("src.graph.gaps.psycopg.connect", return_value=conn_ctx):
+        with patch("src.graph.gaps.get_pool", return_value=_fake_pool(conn_ctx)):
             with patch("src.graph.gaps.generate_structured", return_value={"recommendation": "LLM rec"}):
                 return detect_gaps(user_id=USER_ID, org_id=ORG_ID)
 
@@ -182,7 +189,7 @@ class TestRiesgoSinMitigacion:
             member=True,
             fetchall_results=[[], [], riesgo_rows],
         )
-        with patch("src.graph.gaps.psycopg.connect", return_value=conn_ctx):
+        with patch("src.graph.gaps.get_pool", return_value=_fake_pool(conn_ctx)):
             with patch("src.graph.gaps.generate_structured", return_value={"recommendation": "LLM rec"}):
                 return detect_gaps(user_id=USER_ID, org_id=ORG_ID)
 
@@ -226,7 +233,7 @@ class TestLlmDegradation:
             member=True,
             fetchall_results=[[DEFECT_ROW_HIGH], [], []],
         )
-        with patch("src.graph.gaps.psycopg.connect", return_value=conn_ctx):
+        with patch("src.graph.gaps.get_pool", return_value=_fake_pool(conn_ctx)):
             with patch("src.graph.gaps.generate_structured", return_value=None):
                 gaps = detect_gaps(user_id=USER_ID, org_id=ORG_ID)
         dsk = [g for g in gaps if g["kind"] == "defecto_sin_conocimiento"]
@@ -241,7 +248,7 @@ class TestLlmDegradation:
             member=True,
             fetchall_results=[[], [DOMAIN_ROW_NO_LESSON], []],
         )
-        with patch("src.graph.gaps.psycopg.connect", return_value=conn_ctx):
+        with patch("src.graph.gaps.get_pool", return_value=_fake_pool(conn_ctx)):
             with patch("src.graph.gaps.generate_structured", return_value=None):
                 gaps = detect_gaps(user_id=USER_ID, org_id=ORG_ID)
         dsl = [g for g in gaps if g["kind"] == "dominio_sin_leccion"]
@@ -253,7 +260,7 @@ class TestLlmDegradation:
             member=True,
             fetchall_results=[[], [], [RIESGO_ROW]],
         )
-        with patch("src.graph.gaps.psycopg.connect", return_value=conn_ctx):
+        with patch("src.graph.gaps.get_pool", return_value=_fake_pool(conn_ctx)):
             with patch("src.graph.gaps.generate_structured", return_value=None):
                 gaps = detect_gaps(user_id=USER_ID, org_id=ORG_ID)
         rsm = [g for g in gaps if g["kind"] == "riesgo_sin_mitigacion"]
@@ -271,7 +278,7 @@ class TestDetectionNeverDependsOnLlm:
             member=True,
             fetchall_results=[[DEFECT_ROW_HIGH], [DOMAIN_ROW_NO_LESSON], [RIESGO_ROW]],
         )
-        with patch("src.graph.gaps.psycopg.connect", return_value=conn_ctx):
+        with patch("src.graph.gaps.get_pool", return_value=_fake_pool(conn_ctx)):
             with patch("src.graph.gaps.generate_structured", side_effect=RuntimeError("LLM down")):
                 gaps = detect_gaps(user_id=USER_ID, org_id=ORG_ID)
         kinds = {g["kind"] for g in gaps}
@@ -285,7 +292,7 @@ class TestDetectionNeverDependsOnLlm:
             member=True,
             fetchall_results=[[DEFECT_ROW_HIGH], [], []],
         )
-        with patch("src.graph.gaps.psycopg.connect", return_value=conn_ctx):
+        with patch("src.graph.gaps.get_pool", return_value=_fake_pool(conn_ctx)):
             with patch("src.graph.gaps.generate_structured", side_effect=RuntimeError("LLM down")):
                 gaps = detect_gaps(user_id=USER_ID, org_id=ORG_ID)
         for g in gaps:
@@ -295,7 +302,7 @@ class TestDetectionNeverDependsOnLlm:
         """detect_gaps must catch all exceptions internally."""
         from src.graph.gaps import detect_gaps
         # Make _connect itself raise
-        with patch("src.graph.gaps.psycopg.connect", side_effect=Exception("DB down")):
+        with patch("src.graph.gaps.get_pool", side_effect=Exception("DB down")):
             result = detect_gaps(user_id=USER_ID, org_id=ORG_ID)
         assert result == []
 
@@ -341,7 +348,7 @@ class TestReglaSinTest:
             fetchall_results=[[], [], [], coverage_rows],
             n_tests=n_tests,
         )
-        with patch("src.graph.gaps.psycopg.connect", return_value=conn_ctx):
+        with patch("src.graph.gaps.get_pool", return_value=_fake_pool(conn_ctx)):
             with patch(
                 "src.graph.gaps.generate_structured",
                 return_value={"recommendation": "LLM rec coverage"},
@@ -395,7 +402,7 @@ class TestReglaSinTest:
             fetchall_results=[[], [], [], [REGLA_ROW_UNCOVERED]],
             n_tests=5,
         )
-        with patch("src.graph.gaps.psycopg.connect", return_value=conn_ctx):
+        with patch("src.graph.gaps.get_pool", return_value=_fake_pool(conn_ctx)):
             with patch("src.graph.gaps.generate_structured", return_value=None):
                 gaps = detect_gaps(user_id=USER_ID, org_id=ORG_ID)
         rst = [g for g in gaps if g["kind"] == "regla_sin_test"]
@@ -425,7 +432,7 @@ class TestRepoNoIndexado:
             fetchall_results=[[], [], []],
             n_tests=0,
         )
-        with patch("src.graph.gaps.psycopg.connect", return_value=conn_ctx):
+        with patch("src.graph.gaps.get_pool", return_value=_fake_pool(conn_ctx)):
             return detect_gaps(user_id=USER_ID, org_id=ORG_ID)
 
     def test_exactly_one_repo_no_indexado_gap(self):
@@ -469,6 +476,6 @@ class TestCoverageGapNonMember:
         """Non-member org returns [] regardless of test_assets count."""
         from src.graph.gaps import detect_gaps
         conn_ctx, conn, cur = _make_conn_ctx(member=False, n_tests=10)
-        with patch("src.graph.gaps.psycopg.connect", return_value=conn_ctx):
+        with patch("src.graph.gaps.get_pool", return_value=_fake_pool(conn_ctx)):
             result = detect_gaps(user_id=USER_ID, org_id=ORG_ID)
         assert result == []

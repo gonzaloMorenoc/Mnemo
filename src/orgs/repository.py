@@ -4,6 +4,7 @@ import psycopg
 from psycopg.rows import dict_row
 
 from src.config import DATABASE_URL
+from src.db.pool import get_pool
 
 
 class OrganizationRepository:
@@ -13,8 +14,7 @@ class OrganizationRepository:
         self.db_url = db_url
 
     def _connect(self):
-        conn = psycopg.connect(self.db_url, row_factory=dict_row)
-        return conn
+        return get_pool().connection()
 
     def _set_user_claims(self, conn: psycopg.Connection, user_id: str):
         with conn.cursor() as cur:

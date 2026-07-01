@@ -5,6 +5,7 @@ from psycopg.rows import dict_row
 from cryptography.fernet import InvalidToken
 
 from src.config import DATABASE_URL
+from src.db.pool import get_pool
 from src.jira.crypto import decrypt_token, encrypt_token
 
 
@@ -18,7 +19,7 @@ class IntegrationsRepository:
         self.db_url = db_url
 
     def _connect(self) -> psycopg.Connection:
-        return psycopg.connect(self.db_url, row_factory=dict_row)
+        return get_pool().connection()
 
     def _decrypt(self, enc: str) -> str:
         """Descifra un token cifrado con Fernet.

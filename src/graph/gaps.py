@@ -18,6 +18,7 @@ from psycopg.rows import dict_row
 
 from src.ai.generate import generate_structured
 from src.config import DATABASE_URL
+from src.db.pool import get_pool
 
 # ---------------------------------------------------------------------------
 # Fixed fallback recommendations per gap kind
@@ -52,7 +53,7 @@ _FALLBACK_REC: Dict[str, str] = {
 
 
 def _connect(db_url: str = DATABASE_URL):
-    return psycopg.connect(db_url, row_factory=dict_row)
+    return get_pool().connection()
 
 
 def _is_member(cur, org_id: str, user_id: str) -> bool:

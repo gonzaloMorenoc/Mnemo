@@ -2,10 +2,10 @@ from typing import Dict, List, Sequence
 
 import psycopg
 from pgvector import Vector
-from pgvector.psycopg import register_vector
 from psycopg.rows import dict_row
 
 from src.config import DATABASE_URL
+from src.db.pool import get_pool
 from src.defects.embedder import LocalEmbedder
 
 
@@ -15,9 +15,7 @@ class TestAssetRepository:
         self.embedder = embedder or LocalEmbedder()
 
     def _connect(self) -> psycopg.Connection:
-        conn = psycopg.connect(self.db_url, row_factory=dict_row)
-        register_vector(conn)
-        return conn
+        return get_pool().connection()
 
     def _is_member(self, cur, org_id: str, user_id: str) -> bool:
         cur.execute(
