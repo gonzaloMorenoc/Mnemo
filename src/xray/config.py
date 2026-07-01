@@ -21,10 +21,10 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 
 import psycopg
-from psycopg.rows import dict_row
 from cryptography.fernet import InvalidToken
 
 from src.config import DATABASE_URL
+from src.db.pool import get_pool
 from src.jira.crypto import decrypt_token, encrypt_token
 
 _CLOUD_BASE = "https://xray.cloud.getxray.app"
@@ -43,8 +43,8 @@ class XrayConfig:
     # Private helpers
     # ------------------------------------------------------------------
 
-    def _connect(self) -> psycopg.Connection:
-        return psycopg.connect(self.db_url, row_factory=dict_row)
+    def _connect(self):
+        return get_pool().connection()
 
     def _decrypt(self, enc: str) -> str:
         try:

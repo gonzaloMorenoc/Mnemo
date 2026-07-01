@@ -5,6 +5,7 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Json
 
 from src.config import DATABASE_URL
+from src.db.pool import get_pool
 
 
 class CertificateRepository:
@@ -17,7 +18,7 @@ class CertificateRepository:
         self.db_url = db_url
 
     def _connect(self) -> psycopg.Connection:
-        return psycopg.connect(self.db_url, row_factory=dict_row)
+        return get_pool().connection()
 
     def _set_claims(self, conn: psycopg.Connection, user_id: str) -> None:
         with conn.cursor() as cur:

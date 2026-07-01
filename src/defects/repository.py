@@ -3,11 +3,11 @@ from typing import Any, Dict, List, Optional, Sequence
 
 import psycopg
 from pgvector import Vector
-from pgvector.psycopg import register_vector
 from psycopg.rows import dict_row
 from psycopg.types.json import Json
 
 from src.config import DATABASE_URL
+from src.db.pool import get_pool
 from src.defects.centroid import update_centroid
 from src.defects.match import FamilyCandidate, decide_match
 from src.ingest.models import FailureRecord
@@ -40,9 +40,7 @@ class AssuranceRepository:
         self.db_url = db_url
 
     def _connect(self) -> psycopg.Connection:
-        conn = psycopg.connect(self.db_url, row_factory=dict_row)
-        register_vector(conn)
-        return conn
+        return get_pool().connection()
 
     def _set_claims(self, conn: psycopg.Connection, user_id: str) -> None:
         """Propaga el claim del usuario. NOTA: el rol del pooler hace BYPASS de RLS,

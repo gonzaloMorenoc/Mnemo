@@ -1,10 +1,10 @@
 from typing import Any, Dict, List, Optional
 
 import psycopg
-from psycopg.rows import dict_row
 from psycopg.types.json import Json
 
 from src.config import DATABASE_URL
+from src.db.pool import get_pool
 
 
 class ActionRepository:
@@ -16,8 +16,8 @@ class ActionRepository:
             raise RuntimeError("DATABASE_URL must be configured for Mnemo persistence")
         self.db_url = db_url
 
-    def _connect(self) -> psycopg.Connection:
-        return psycopg.connect(self.db_url, row_factory=dict_row)
+    def _connect(self):
+        return get_pool().connection()
 
     def _set_claims(self, conn: psycopg.Connection, user_id: str) -> None:
         with conn.cursor() as cur:

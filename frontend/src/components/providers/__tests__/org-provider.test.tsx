@@ -79,6 +79,31 @@ describe("OrgProvider", () => {
     await waitFor(() => expect(screen.getByTestId("active-org").textContent).toBe(ORG_B.id));
   });
 
+  // Optimistic: stored id is shown BEFORE the query resolves
+  it("O1 — muestra el id guardado en localStorage antes de que /v2/orgs resuelva", async () => {
+    localStorage.setItem("mnemo.activeOrgId", "org-guardada");
+    let resolveOrgs!: (value: typeof ORG_A[]) => void;
+    const slowPromise = new Promise<typeof ORG_A[]>((res) => { resolveOrgs = res; });
+    (getOrganizations as ReturnType<typeof vi.fn>).mockReturnValue(slowPromise);
+
+    renderWithClient(
+      <OrgProvider>
+        <OrgIdDisplay />
+      </OrgProvider>,
+    );
+
+    // Before the query resolves, the stored id must already be visible
+    await waitFor(() =>
+      expect(screen.getByTestId("active-org").textContent).toBe("org-guardada"),
+    );
+
+    // After resolving with a list that does NOT contain the stored id, correct to orgs[0]
+    resolveOrgs([ORG_A]); // ORG_A.id = "org-a", not "org-guardada"
+    await waitFor(() =>
+      expect(screen.getByTestId("active-org").textContent).toBe(ORG_A.id),
+    );
+  });
+
   // I2: isLoading is exposed and transitions false→true→false as query resolves
   it("I2 — isLoading es true mientras la query está pendiente y false cuando resuelve", async () => {
     let resolveOrgs!: (value: typeof ORG_A[]) => void;
