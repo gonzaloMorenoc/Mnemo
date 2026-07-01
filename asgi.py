@@ -20,8 +20,9 @@ from src.db.pool import get_pool, close_pool
 async def lifespan(app: FastAPI):
     try:
         get_pool()          # pre-calienta el pool; si la BD no está, no tumbar el arranque
-    except Exception:
-        pass
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning("pool pre-warm failed; lazy init on first request: %s", exc)
     yield
     close_pool()
 
