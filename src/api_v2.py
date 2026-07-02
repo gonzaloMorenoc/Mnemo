@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import psycopg
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, Response
 from pydantic import ValidationError
 
@@ -27,7 +28,7 @@ from src.actions.selfheal.selfheal import SelfHealActuator
 from src.actions.service import ActionService
 from src.actions.ticket import TicketActuator
 from src.ci.github_app import GitHubCodeHost, GitHubError
-from src.ci.github_auth import GitHubAppAuth, GitHubAuthError
+from src.ci.github_auth import GitHubAppAuth, GitHubAppNotConfigured, GitHubAuthError
 from src.ci.ingestion_service import CiIngestionService
 from src.triage.service import TriageService
 from src.ci.models import CiRunArtifact
@@ -38,7 +39,7 @@ from src.assurance.narrator import LLMNarrator, Narrator
 from src.llm.factory import get_llm_provider
 from src.assurance.verdict import build_verdict
 from src.jira.client import JiraApiError
-from src.jira.integrations_repository import IntegrationsRepository
+from src.jira.integrations_repository import InstallationAlreadyBound, IntegrationsRepository
 from src.jira.ingestion_service import JiraIngestionService
 from src.jira.safe_url import validate_base_url
 from src.graph.service import GraphService
@@ -225,6 +226,42 @@ def _get_github_auth() -> GitHubAppAuth:
     if _github_auth is None:
         _github_auth = GitHubAppAuth()   # lee env perezosamente
     return _github_auth
+
+
+def get_github_app_auth() -> GitHubAppAuth:
+    """Dependencia inyectable (override en tests) para verificar instalaciones."""
+    return _get_github_auth()
+
+
+def _verify_installation_ownership(
+    auth: GitHubAppAuth, *, installation_id: str, repo_full_name: str
+) -> None:
+    """Verifica, al vincular GitHub, que la instalación reclamada es del cliente.
+
+    Mitiga N-C1 (confused-deputy): sin esto un admin podía apuntar al
+    installation_id de otro tenant. Comprueba que la cuenta dueña de la
+    instalación coincide con el owner del repo. Si la App no está configurada,
+    en multi-tenant se rechaza (no se puede verificar); en self-host se permite.
+    """
+    owner = repo_full_name.split("/", 1)[0]
+    try:
+        account = auth.installation_account(installation_id)
+    except GitHubAppNotConfigured as exc:
+        if multi_tenant_enabled():
+            raise HTTPException(
+                status_code=503,
+                detail="GitHub App no configurada; no se puede verificar la instalación",
+            ) from exc
+        return  # self-host single-tenant: se degrada permitiendo el bind
+    except GitHubAuthError as exc:
+        raise HTTPException(
+            status_code=403, detail="No se pudo verificar la instalación de GitHub"
+        ) from exc
+    if account.lower() != owner.lower():
+        raise HTTPException(
+            status_code=403,
+            detail="El repositorio no pertenece a la cuenta de la instalación de GitHub",
+        )
 
 
 def _github_codehost_factory(org_id: str, user_id: str) -> GitHubCodeHost:
@@ -415,25 +452,13 @@ def ingest_report_v2(
     return IngestReportResponse(**result)
 
 
-@router.post("/ci/webhook", response_model=CiWebhookResponse)
-async def ci_webhook(request: Request) -> CiWebhookResponse:
-    declared = request.headers.get("content-length")
-    if declared is not None and declared.isdigit() and int(declared) > CI_MAX_BODY_BYTES:
-        raise HTTPException(status_code=413, detail="payload too large")
-    body = await request.body()
-    if len(body) > CI_MAX_BODY_BYTES:
-        raise HTTPException(status_code=413, detail="payload too large")
-    signature = request.headers.get("X-Hub-Signature-256", "")
-    if not verify_signature(body, signature, CI_WEBHOOK_SECRET):
-        raise HTTPException(status_code=401, detail="invalid signature")
-    if not CI_SERVICE_USER_ID:
-        raise HTTPException(status_code=503, detail="CI service account not configured")
-    try:
-        artifact = CiRunArtifact.model_validate_json(body)
-    except ValidationError as exc:
-        raise HTTPException(status_code=422, detail="invalid artifact") from exc
-    if CI_SERVICE_ORG_ID and artifact.org_id != CI_SERVICE_ORG_ID:
-        raise HTTPException(status_code=403, detail="org_id not allowed for this CI account")
+def _process_ci_artifact(artifact: CiRunArtifact) -> CiWebhookResponse:
+    """Pipeline post-validación del webhook: ingesta + triaje + certificado + gate.
+
+    Es CPU (embeddings torch) e I/O bloqueante (Postgres, LLM, GitHub API). Se
+    ejecuta en el threadpool (ver `ci_webhook`) para no congelar el event loop
+    del único proceso y bloquear al resto de tenants mientras se procesa un run.
+    """
     service = get_ci_ingestion_service()
     try:
         result = service.ingest_artifact(user_id=CI_SERVICE_USER_ID, artifact=artifact)
@@ -468,6 +493,28 @@ async def ci_webhook(request: Request) -> CiWebhookResponse:
         except Exception:  # noqa: BLE001 — el gate degrada (p.ej. sin GitHub App)
             logger.exception("gate failed for run %s", result["run_id"])
     return CiWebhookResponse(**result, triage=triage_summary, verdict=verdict, gate=gate)
+
+
+@router.post("/ci/webhook", response_model=CiWebhookResponse)
+async def ci_webhook(request: Request) -> CiWebhookResponse:
+    declared = request.headers.get("content-length")
+    if declared is not None and declared.isdigit() and int(declared) > CI_MAX_BODY_BYTES:
+        raise HTTPException(status_code=413, detail="payload too large")
+    body = await request.body()
+    if len(body) > CI_MAX_BODY_BYTES:
+        raise HTTPException(status_code=413, detail="payload too large")
+    signature = request.headers.get("X-Hub-Signature-256", "")
+    if not verify_signature(body, signature, CI_WEBHOOK_SECRET):
+        raise HTTPException(status_code=401, detail="invalid signature")
+    if not CI_SERVICE_USER_ID:
+        raise HTTPException(status_code=503, detail="CI service account not configured")
+    try:
+        artifact = CiRunArtifact.model_validate_json(body)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail="invalid artifact") from exc
+    if CI_SERVICE_ORG_ID and artifact.org_id != CI_SERVICE_ORG_ID:
+        raise HTTPException(status_code=403, detail="org_id not allowed for this CI account")
+    return await run_in_threadpool(_process_ci_artifact, artifact)
 
 
 @router.get("/triage/run/{run_id}", response_model=List[TriageVerdictResponse])
@@ -536,12 +583,18 @@ def set_github_integration(
     body: GitHubConfigRequest,
     user: AuthenticatedUser = Depends(get_current_user),
     integrations: IntegrationsRepository = Depends(get_integrations_repo),
+    gh_auth: GitHubAppAuth = Depends(get_github_app_auth),
 ) -> GitHubConfigResponse:
+    _verify_installation_ownership(
+        gh_auth, installation_id=body.installation_id, repo_full_name=body.repo_full_name
+    )
     try:
         integrations.upsert_github_config(
             user_id=user.user_id, org_id=body.org_id,
             installation_id=body.installation_id, repo_full_name=body.repo_full_name,
         )
+    except InstallationAlreadyBound as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except ValueError as exc:
