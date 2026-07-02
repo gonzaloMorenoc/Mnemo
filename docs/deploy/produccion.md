@@ -18,14 +18,14 @@ El frontend **no habla con la BD directamente**: cada `/api/v2/*` es un proxy se
 
 Render despliega directamente desde el `Dockerfile` con HTTPS y URL estable.
 
-1. **console.groq.com** → crea una API key (gratis) → guárdala. *(El LLM: ver "Decisión de LLM" abajo.)*
+1. **aistudio.google.com/apikey** → "Create API key" (gratis) → guárdala. *(El LLM: ver "Decisión de LLM" abajo.)*
 2. En **render.com** → **New + → Blueprint** → conecta este repo. Render detecta `render.yaml`.
 3. Rellena las variables marcadas `sync: false`:
    - `DATABASE_URL` = la cadena de conexión de tu Supabase (Project → Settings → Database → Connection string, **modo pooler/transaction**).
    - `SUPABASE_URL` = `https://<proyecto>.supabase.co`
    - `SUPABASE_JWKS_URL` = `https://<proyecto>.supabase.co/auth/v1/.well-known/jwks.json`
-   - `OPENAI_API_KEY` = tu key de Groq
-   - (`LLM_PROVIDER`, `OPENAI_BASE_URL`, `LLM_MODEL`, `ALLOW_EXTERNAL_LLM`, `SUPABASE_JWT_AUDIENCE` ya vienen con valor en `render.yaml`).
+   - `OPENAI_API_KEY` = tu key de **Google AI Studio**
+   - (`LLM_PROVIDER`, `OPENAI_BASE_URL`, `LLM_MODEL`, `ALLOW_EXTERNAL_LLM`, `SUPABASE_JWT_AUDIENCE` ya vienen con valor en `render.yaml` → apuntan a Gemini).
 4. **Deploy**. Cuando esté verde, copia la URL pública: `https://mnemo-backend-XXXX.onrender.com`.
 5. Comprueba el backend: abre `https://…onrender.com/v2/health` → debe responder OK.
 
@@ -50,9 +50,12 @@ El proxy de Next corre **server-side**, así que las llamadas al backend salen d
 
 En local usabas **Ollama** (privado, 0 €). En prod no hay Ollama, así que:
 
-- **Opción elegida — Groq (gratis, externo)**: ya configurada en `render.yaml`. Rápida, sin GPU. **Límites**: rate limits del tier gratis (sobra para demo; corto para carga real). **Privacidad**: envía los datos del cliente a Groq → por eso `ALLOW_EXTERNAL_LLM=true`. ⚠️ Choca con el mensaje "privado/on-premise" de Mnemo: úsala para la **demo**, no como promesa de venta.
+- **Opción elegida — Google Gemini (gratis, externo)**: configurada en `render.yaml` vía el endpoint **compatible con OpenAI** de Gemini, así que el código no cambia (mismo `LLM_PROVIDER=openai`, solo cambia `OPENAI_BASE_URL`/`LLM_MODEL`). Clave gratis en `aistudio.google.com/apikey`. **Límites** del tier gratis (p.ej. `gemini-2.0-flash`): del orden de ~15 req/min y ~1.500 req/día — sobra para demo. **Privacidad**: envía datos del cliente a Google → por eso `ALLOW_EXTERNAL_LLM=true`. ⚠️ Choca con el mensaje "privado/on-premise": úsala para la **demo**, no como promesa de venta.
+  - Config exacta: `LLM_PROVIDER=openai`, `ALLOW_EXTERNAL_LLM=true`, `OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/`, `LLM_MODEL=gemini-2.0-flash`, `OPENAI_API_KEY=<tu key de AI Studio>`.
+  - Si `gemini-2.0-flash` diera "model not found", prueba `gemini-2.5-flash` o `gemini-1.5-flash`.
+- **Groq (alternativa, también gratis y compatible OpenAI)**: `OPENAI_BASE_URL=https://api.groq.com/openai/v1`, `LLM_MODEL=llama-3.3-70b-versatile`, `OPENAI_API_KEY=<key de console.groq.com>`.
 - **Ollama propio (privado)**: una VM con `ollama serve` + `qwen3:8b`; en el backend `LLM_PROVIDER=ollama` + `OLLAMA_BASE_URL=http://<host-ollama>:11434`. Coherente con la narrativa on-premise; más coste/operación.
-- **Sin IA (degradado)**: sin variables de LLM, las funciones de IA usan su plantilla/fallback. La app carga y todo lo no-IA funciona.
+- **Sin IA (degradado)**: sin variables de LLM, las funciones de IA usan su plantilla/fallback (es justo lo que muestra "Plan no generado (LLM no accesible)"). La app carga y todo lo no-IA funciona.
 
 Sea cual sea, **el backend arranca igual**: el LLM solo afecta a las funciones de IA, no a crear orgs / indexar / navegar.
 

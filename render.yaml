@@ -23,14 +23,19 @@ services:
         sync: false           # https://<proyecto>.supabase.co/auth/v1/.well-known/jwks.json
       - key: SUPABASE_JWT_AUDIENCE
         value: authenticated
-      # --- LLM: Groq (gratis, API compatible con OpenAI; sin cambios de código) ---
+      # --- LLM: Google Gemini (gratis, API compatible con OpenAI; sin cambios de código) ---
+      # Clave gratis en https://aistudio.google.com/apikey (Google AI Studio).
       - key: LLM_PROVIDER
         value: openai
       - key: ALLOW_EXTERNAL_LLM
         value: "true"
       - key: OPENAI_BASE_URL
-        value: https://api.groq.com/openai/v1
+        value: https://generativelanguage.googleapis.com/v1beta/openai/
       - key: LLM_MODEL
-        value: llama-3.3-70b-versatile
+        value: gemini-2.0-flash        # gratis; alternativa: gemini-2.5-flash / gemini-1.5-flash
       - key: OPENAI_API_KEY
-        sync: false           # tu API key de Groq (console.groq.com/keys)
+        sync: false                    # tu API key de Google AI Studio (aistudio.google.com/apikey)
+      # Alternativa Groq (también gratis, compatible OpenAI):
+      #   OPENAI_BASE_URL=https://api.groq.com/openai/v1
+      #   LLM_MODEL=llama-3.3-70b-versatile
+      #   OPENAI_API_KEY=<key de console.groq.com/keys>
