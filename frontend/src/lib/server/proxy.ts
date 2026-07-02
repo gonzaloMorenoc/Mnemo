@@ -2,6 +2,52 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { getPublicEnv } from "@/lib/env";
 
+// Menor que maxDuration (60s) de los route handlers: así el proxy devuelve un
+// error CLARO antes de que Vercel mate la función con un 504 opaco. Ajustable
+// por llamada para rutas legítimamente lentas (LLM).
+const DEFAULT_TIMEOUT_MS = 55_000;
+
+function notConfigured() {
+  return NextResponse.json(
+    { detail: "NEXT_PUBLIC_API_BASE_URL is not configured." },
+    { status: 500 },
+  );
+}
+
+function isTimeout(err: unknown): boolean {
+  return err instanceof DOMException && err.name === "TimeoutError";
+}
+
+// Convierte un fallo del fetch en una respuesta clara: 504 si expiró el tiempo
+// (backend lento / arrancando en frío), 502 si es inalcanzable.
+function backendError(err: unknown) {
+  if (isTimeout(err)) {
+    return NextResponse.json(
+      {
+        detail:
+          "El servicio tardó demasiado en responder (puede estar iniciándose). Reinténtalo en unos segundos.",
+      },
+      { status: 504 },
+    );
+  }
+  return NextResponse.json(
+    { detail: "No pudimos contactar con el servicio. Reinténtalo en unos segundos." },
+    { status: 502 },
+  );
+}
+
+function authHeaders(request: NextRequest, contentType?: string): Headers {
+  const headers = new Headers();
+  const authHeader = request.headers.get("authorization");
+  if (authHeader) {
+    headers.set("Authorization", authHeader);
+  }
+  if (contentType) {
+    headers.set("Content-Type", contentType);
+  }
+  return headers;
+}
+
 export async function proxyToBackend(
   request: NextRequest,
   endpoint: string,
@@ -9,32 +55,19 @@ export async function proxyToBackend(
     method: "GET" | "POST" | "PATCH" | "DELETE";
     body?: BodyInit;
     contentType?: string;
+    timeoutMs?: number;
   },
 ) {
   const { apiBaseUrl } = getPublicEnv();
-
-  if (!apiBaseUrl) {
-    return NextResponse.json(
-      { detail: "NEXT_PUBLIC_API_BASE_URL is not configured." },
-      { status: 500 },
-    );
-  }
-
-  const headers = new Headers();
-  const authHeader = request.headers.get("authorization");
-  if (authHeader) {
-    headers.set("Authorization", authHeader);
-  }
-  if (init.contentType) {
-    headers.set("Content-Type", init.contentType);
-  }
+  if (!apiBaseUrl) return notConfigured();
 
   try {
     const response = await fetch(`${apiBaseUrl}${endpoint}`, {
       method: init.method,
-      headers,
+      headers: authHeaders(request, init.contentType),
       body: init.body,
       cache: "no-store",
+      signal: AbortSignal.timeout(init.timeoutMs ?? DEFAULT_TIMEOUT_MS),
     });
 
     const text = await response.text();
@@ -49,11 +82,8 @@ export async function proxyToBackend(
     }
 
     return NextResponse.json(payload, { status: response.status });
-  } catch {
-    return NextResponse.json(
-      { detail: "Could not reach backend API. Check NEXT_PUBLIC_API_BASE_URL." },
-      { status: 502 },
-    );
+  } catch (err) {
+    return backendError(err);
   }
 }
 
@@ -62,27 +92,20 @@ export async function proxyToBackend(
  * reenvía el cuerpo y preserva Content-Type / Content-Disposition. En error
  * del backend devuelve el JSON de error tal cual.
  */
-export async function proxyBinaryToBackend(request: NextRequest, endpoint: string) {
+export async function proxyBinaryToBackend(
+  request: NextRequest,
+  endpoint: string,
+  timeoutMs: number = DEFAULT_TIMEOUT_MS,
+) {
   const { apiBaseUrl } = getPublicEnv();
-
-  if (!apiBaseUrl) {
-    return NextResponse.json(
-      { detail: "NEXT_PUBLIC_API_BASE_URL is not configured." },
-      { status: 500 },
-    );
-  }
-
-  const headers = new Headers();
-  const authHeader = request.headers.get("authorization");
-  if (authHeader) {
-    headers.set("Authorization", authHeader);
-  }
+  if (!apiBaseUrl) return notConfigured();
 
   try {
     const response = await fetch(`${apiBaseUrl}${endpoint}`, {
       method: "GET",
-      headers,
+      headers: authHeaders(request),
       cache: "no-store",
+      signal: AbortSignal.timeout(timeoutMs),
     });
 
     if (!response.ok) {
@@ -108,10 +131,7 @@ export async function proxyBinaryToBackend(request: NextRequest, endpoint: strin
       status: response.status,
       headers: outHeaders,
     });
-  } catch {
-    return NextResponse.json(
-      { detail: "Could not reach backend API. Check NEXT_PUBLIC_API_BASE_URL." },
-      { status: 502 },
-    );
+  } catch (err) {
+    return backendError(err);
   }
 }
