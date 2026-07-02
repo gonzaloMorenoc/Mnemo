@@ -100,6 +100,32 @@ def test_verify_endpoint_real_crypto_true_and_false():
     assert bad.status_code == 200 and bad.json()["valido"] is False
 
 
+def test_verify_endpoint_is_public_no_auth():
+    # D1: la verificación es cripto pura (firma+payload+clave pública, nada secreto);
+    # DEBE ser accesible por un tercero sin cuenta en Mnemo, o el certificado
+    # "verificable" no lo es para el auditor/regulador que le da valor.
+    svc = MagicMock()
+    svc.verify_payload.return_value = True
+    resp = _client(service=svc, with_user=False).post(
+        "/v2/certificates/verify", json={"canonical_json": {"verdict": "apto"}, "signature": "s"})
+    assert resp.status_code == 200 and resp.json()["valido"] is True
+
+
+def test_pubkey_endpoint_public_returns_key(monkeypatch):
+    monkeypatch.setattr(api_v2, "MNEMO_SIGNING_PUBLIC_KEY", "-----BEGIN PUBLIC KEY-----\nabc\n-----END PUBLIC KEY-----")
+    resp = _client(service=MagicMock(), with_user=False).get("/v2/certificates/pubkey")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["algorithm"] == "ed25519"
+    assert "BEGIN PUBLIC KEY" in body["public_key_pem"]
+
+
+def test_pubkey_endpoint_503_when_unset(monkeypatch):
+    monkeypatch.setattr(api_v2, "MNEMO_SIGNING_PUBLIC_KEY", "")
+    resp = _client(service=MagicMock(), with_user=False).get("/v2/certificates/pubkey")
+    assert resp.status_code == 503
+
+
 def test_requires_auth():
     assert _client(service=MagicMock(), with_user=False).post("/v2/certificates/run/r1").status_code == 401
 
