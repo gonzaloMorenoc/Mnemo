@@ -901,6 +901,16 @@ def get_certificate_pdf_v2(
     )
 
 
+@router.get("/certificates/pubkey")
+def certificate_pubkey_v2() -> Dict[str, str]:
+    """PÚBLICO: clave pública de firma (Ed25519) para verificar certificados
+    offline o vía POST /certificates/verify, sin necesidad de cuenta en Mnemo.
+    Declarado antes que /certificates/{run_id} para que la ruta estática gane."""
+    if not MNEMO_SIGNING_PUBLIC_KEY:
+        raise HTTPException(status_code=503, detail="clave pública de firma no configurada")
+    return {"algorithm": "ed25519", "public_key_pem": MNEMO_SIGNING_PUBLIC_KEY}
+
+
 @router.get("/certificates/{run_id}", response_model=CertificateResponse)
 def get_certificate_v2(
     run_id: str,
@@ -921,13 +931,13 @@ def get_certificate_v2(
 @router.post("/certificates/verify", response_model=CertificateVerifyResponse)
 def verify_certificate_v2(
     body: CertificateVerifyRequest,
-    user: AuthenticatedUser = Depends(get_current_user),
     service: CertificateService = Depends(get_certificate_service),
 ) -> CertificateVerifyResponse:
-    try:
-        valido = service.verify_payload(cert=body.canonical_json, signature=body.signature)
-    except psycopg.Error as exc:
-        raise HTTPException(status_code=502, detail="Database error") from exc
+    # PÚBLICO (sin auth): la verificación es criptografía pura (firma + payload +
+    # clave pública, nada secreto ni datos de ningún tenant). Un certificado que
+    # solo puede verificar quien está dentro no es verificable por el auditor/
+    # regulador/cliente que le da valor — es el núcleo del diferenciador.
+    valido = service.verify_payload(cert=body.canonical_json, signature=body.signature)
     return CertificateVerifyResponse(valido=valido)
 
 

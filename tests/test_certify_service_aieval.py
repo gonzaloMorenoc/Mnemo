@@ -112,3 +112,36 @@ def test_generate_degrades_to_none_when_judge_raises(monkeypatch):
     assert result["canonical_json"]["self_eval"]["ai_eval"] is None, (
         "ai_eval should be None when compute_ai_eval raises"
     )
+
+
+# ---------------------------------------------------------------------------
+# D2 — certificar un release VERDE (0 fallos, 0 veredictos) vs. uno SIN TRIAR
+# ---------------------------------------------------------------------------
+
+def _make_service_greenish(priv, pub, *, verdicts, n_failures, calibration=None):
+    repo = MagicMock()
+    repo.get_triage_for_run.return_value = verdicts
+    repo.count_failures_for_run.return_value = n_failures
+    repo.get_calibration_metrics.return_value = calibration or {}
+    cert_repo = MagicMock()
+    cert_repo.get_run_meta.return_value = _META
+    cert_repo.save_certificate.return_value = None
+    return CertificateService(repo=repo, cert_repo=cert_repo, private_key=priv, public_key=pub,
+                              mnemo_version="1.0", model_version="test-model")
+
+
+def test_generate_green_run_certifies_apto():
+    priv, pub = _keys()
+    cal = {"accuracy": 0.85, "total": 150, "por_categoria": {}}
+    svc = _make_service_greenish(priv, pub, verdicts=[], n_failures=0, calibration=cal)
+    result = svc.generate(user_id="u1", run_id="r1", created_at=_CREATED_AT)
+    assert result["verdict"] == "apto"
+    assert result["risk_score"] == 0
+    assert result["canonical_json"]["evidence"] == []
+
+
+def test_generate_untriaged_run_raises():
+    priv, pub = _keys()
+    svc = _make_service_greenish(priv, pub, verdicts=[], n_failures=5)
+    with pytest.raises(ValueError):
+        svc.generate(user_id="u1", run_id="r1", created_at=_CREATED_AT)

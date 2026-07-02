@@ -5,9 +5,10 @@ import pytest
 from src.certify.gate import GateService
 
 
-def _service(*, meta, verdicts, codehost=None, calibration=None):
+def _service(*, meta, verdicts, codehost=None, calibration=None, n_failures=0):
     repo = MagicMock()
     repo.get_triage_for_run.return_value = verdicts
+    repo.count_failures_for_run.return_value = n_failures
     repo.get_calibration_metrics.return_value = calibration  # None → or {} → confidence "low"
     cert_repo = MagicMock()
     cert_repo.get_run_meta.return_value = meta
@@ -54,10 +55,20 @@ def test_publish_raises_without_commit_sha():
         svc.publish(user_id="u", run_id="r")
 
 
-def test_publish_raises_without_verdicts():
-    svc, _, _ = _service(meta=_META, verdicts=[])
+def test_publish_raises_when_failures_untriaged():
+    # Fallos ingeridos pero sin veredictos = run sin triar → no publicar gate.
+    svc, _, _ = _service(meta=_META, verdicts=[], n_failures=3)
     with pytest.raises(ValueError):
         svc.publish(user_id="u", run_id="r")
+
+
+def test_publish_green_run_is_success():
+    # D2: run VERDE (0 fallos, 0 veredictos) → gate "apto"/success (caso central).
+    cal = {"accuracy": 0.85, "total": 150, "por_categoria": {}}
+    svc, codehost, _ = _service(meta=_META, verdicts=[], n_failures=0, calibration=cal)
+    out = svc.publish(user_id="u", run_id="r")
+    assert out["verdict"] == "apto" and out["conclusion"] == "success"
+    assert codehost.publish_check_run.called
 
 
 def test_publish_raises_when_run_not_found():

@@ -805,6 +805,24 @@ class AssuranceRepository:
                     for r in cur.fetchall()
                 ]
 
+    def count_failures_for_run(self, *, user_id: str, run_id: str) -> int:
+        """Nº de fallos ingeridos de un run (0 si no es miembro / no existe).
+
+        Distingue un run genuinamente VERDE (0 fallos → certificable como apto) de
+        uno con fallos aún SIN TRIAR (fallos > 0 pero sin veredictos → no certificar).
+        """
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "select count(*) as n from public.failures fl"
+                    " join public.test_runs r on r.id = fl.run_id"
+                    " where fl.run_id = %s and exists (select 1 from public.memberships m"
+                    "   where m.org_id = r.org_id and m.user_id = %s)",
+                    (run_id, user_id),
+                )
+                return int(cur.fetchone()["n"])
+
     def update_triage_verdict(
         self, *, user_id: str, verdict_id: str, category: str, confidence: float,
         requires_approval: bool, llm_assisted: bool, status: str,

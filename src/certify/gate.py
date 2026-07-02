@@ -38,8 +38,10 @@ class GateService:
         if not head_sha:
             raise ValueError("el run no tiene commit_sha; no se puede publicar el check run")
         verdicts = self.repo.get_triage_for_run(user_id=user_id, run_id=run_id)
-        if not verdicts:
-            raise ValueError("run sin veredictos de triaje")
+        if not verdicts and self.repo.count_failures_for_run(user_id=user_id, run_id=run_id) > 0:
+            # Run con fallos sin triar → no publicar gate. Un run verde (0 fallos)
+            # sí publica un check "apto": es el caso central del gate.
+            raise ValueError("run con fallos sin triar: ejecuta el triaje antes de publicar el gate")
         raw_cal = self.repo.get_calibration_metrics(user_id=user_id, org_id=meta["org_id"]) or {}
         confidence = compute_confidence({"tenant_accuracy": raw_cal.get("accuracy", 0.0),
                                          "n_corrections": raw_cal.get("total", 0)})
