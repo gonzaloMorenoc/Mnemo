@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import json
 from typing import Any, Dict
 
@@ -7,6 +8,17 @@ from cryptography.hazmat.primitives import serialization
 
 class SigningKeyMissing(RuntimeError):
     """La clave privada de firma (MNEMO_SIGNING_PRIVATE_KEY) no está configurada."""
+
+
+def key_id(public_key_pem: str) -> str:
+    """Identificador determinista de la clave pública (SHA-256 truncado a 16 hex).
+
+    Va dentro del acta firmada para que un verificador sepa qué clave usar (habilita
+    rotación: certificados viejos siguen verificando con su clave). Cadena vacía si
+    no hay clave configurada."""
+    if not public_key_pem:
+        return ""
+    return hashlib.sha256(public_key_pem.strip().encode("utf-8")).hexdigest()[:16]
 
 
 def canonical_json(cert: Dict[str, Any]) -> bytes:

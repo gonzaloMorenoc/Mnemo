@@ -39,6 +39,17 @@ def test_verdict_low_confidence_downgrades_apto_only():
     assert compute_verdict(pend, confidence="low") == "no-apto"
 
 
+def test_verdict_llm_assisted_never_yields_clean_apto():
+    # D3: invariante ESTRUCTURAL — una categoría asistida por IA nunca produce un
+    # "apto" rotundo, aunque un humano haya quitado requires_approval. Antes esto
+    # colgaba solo de requires_approval=True; ahora compute_verdict lo garantiza.
+    llm = [{"category": "flaky", "requires_approval": False, "llm_assisted": True}]
+    assert compute_verdict(llm, confidence="high") == "apto-con-reservas"
+    # un run determinista equivalente (sin IA) sí puede ser apto
+    det = [{"category": "flaky", "requires_approval": False, "llm_assisted": False}]
+    assert compute_verdict(det, confidence="high") == "apto"
+
+
 def test_build_certificate_is_v2_with_self_eval_and_disclaimer():
     verdicts = [{"category": "flaky", "requires_approval": False, "rule_applied": "R1", "llm_assisted": False,
                  "failure_id": "f1", "confidence": 0.9}]
@@ -52,6 +63,27 @@ def test_build_certificate_is_v2_with_self_eval_and_disclaimer():
     assert "garantía" in cert["disclaimer"].lower()
     assert cert["self_eval"]["confidence"] == "high"
     assert cert["verdict"] == "apto"   # confidence high, todo flaky
+    assert cert["identity"]["algorithm"] == "ed25519"   # D4: verificador sabe algoritmo
+    assert cert["identity"]["key_id"] == ""             # sin key_id explícito → vacío
+
+
+def test_key_id_is_deterministic_and_scoped():
+    from src.certify.signing import key_id
+    pem = "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA\n-----END PUBLIC KEY-----"
+    kid = key_id(pem)
+    assert kid == key_id(pem) and len(kid) == 16          # determinista
+    assert key_id(pem + "x") != kid                       # cambia con la clave
+    assert key_id("") == ""                               # sin clave → vacío
+
+
+def test_build_certificate_includes_key_id_when_provided():
+    se = compute_self_eval(calibration={"tenant_accuracy": 0.9, "n_corrections": 200},
+                           verdicts=[], created_at="t")
+    cert = build_certificate(run={"org_id": "o", "project": "p", "commit_sha": "s", "run_id": "r"},
+                             verdicts=[], sign_offs=[], mnemo_version="1.0", model_version="x",
+                             created_at="t", self_eval=se, key_id="abc123")
+    assert cert["identity"]["key_id"] == "abc123"
+    assert cert["identity"]["algorithm"] == "ed25519"
 
 def test_low_confidence_self_eval_downgrades_cert_verdict():
     verdicts = [{"category": "flaky", "requires_approval": False, "rule_applied": "R1", "llm_assisted": False,
@@ -75,14 +107,15 @@ def test_self_eval_includes_ai_eval_but_does_not_modulate_confidence():
 def test_verdict_identical_with_and_without_ai_eval():
     from src.certify.certificate import compute_self_eval, compute_verdict
     cal = {"tenant_accuracy": 0.9, "n_corrections": 200}        # "high"
-    verdicts = [{"category": "flaky", "llm_assisted": True}]    # sin real/maintenance/approval → apto si confidence high
+    verdicts = [{"category": "flaky", "llm_assisted": True}]    # llm_assisted → apto-con-reservas (D3)
     se_none = compute_self_eval(calibration=cal, verdicts=verdicts, created_at="t", ai_eval=None)
     ai_bad = {"faithfulness": 0.1, "groundedness": 0.1, "n": 1}
     se_ai = compute_self_eval(calibration=cal, verdicts=verdicts, created_at="t", ai_eval=ai_bad)
     assert se_none["confidence"] == se_ai["confidence"] == "high"        # ai_eval no modula
     v_none = compute_verdict(verdicts, confidence=se_none["confidence"])
     v_ai = compute_verdict(verdicts, confidence=se_ai["confidence"])
-    assert v_none == v_ai == "apto"                                       # veredicto reproducible
+    # ai_eval no cambia el veredicto (reproducible); es apto-con-reservas por ser llm_assisted (D3)
+    assert v_none == v_ai == "apto-con-reservas"
 
 def test_self_eval_ai_eval_none_keeps_deterministic_confidence():
     from src.certify.certificate import compute_self_eval
