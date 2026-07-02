@@ -12,7 +12,13 @@ def _user():
     return AuthenticatedUser(user_id="user-1", email="t@e.com", claims={})
 
 
-def _client(*, repo=None, service=None, integrations=None, with_user=True):
+def _gh_auth(account="acme"):
+    auth = MagicMock()
+    auth.installation_account.return_value = account
+    return auth
+
+
+def _client(*, repo=None, service=None, integrations=None, gh_auth=None, with_user=True):
     app = FastAPI()
     app.include_router(api_v2.router)
     if repo is not None:
@@ -22,6 +28,8 @@ def _client(*, repo=None, service=None, integrations=None, with_user=True):
         app.dependency_overrides[api_v2.get_action_service] = lambda: service
     if integrations is not None:
         app.dependency_overrides[api_v2.get_integrations_repo] = lambda: integrations
+    if gh_auth is not None:
+        app.dependency_overrides[api_v2.get_github_app_auth] = lambda: gh_auth
     if with_user:
         app.dependency_overrides[api_v2.get_current_user] = _user
     return TestClient(app)
@@ -110,13 +118,71 @@ def test_inbox_requires_auth():
 
 def test_set_github_integration():
     integ = MagicMock()
-    resp = _client(integrations=integ).post(
+    resp = _client(integrations=integ, gh_auth=_gh_auth("acme")).post(
         "/v2/integrations/github",
         json={"org_id": "o1", "installation_id": "42", "repo_full_name": "acme/web"})
     assert resp.status_code == 200
     assert resp.json() == {"configured": True, "repo_full_name": "acme/web", "installation_id": "42"}
     integ.upsert_github_config.assert_called_once_with(
         user_id="user-1", org_id="o1", installation_id="42", repo_full_name="acme/web")
+
+
+def test_set_github_integration_account_mismatch_403():
+    # N-C1: la instalación pertenece a otra cuenta (attacker) que el repo (acme).
+    integ = MagicMock()
+    resp = _client(integrations=integ, gh_auth=_gh_auth("attacker")).post(
+        "/v2/integrations/github",
+        json={"org_id": "o1", "installation_id": "42", "repo_full_name": "acme/web"})
+    assert resp.status_code == 403
+    integ.upsert_github_config.assert_not_called()
+
+
+def test_set_github_integration_unverifiable_403():
+    from src.ci.github_auth import GitHubAuthError
+    integ = MagicMock()
+    auth = MagicMock()
+    auth.installation_account.side_effect = GitHubAuthError("HTTP 404")
+    resp = _client(integrations=integ, gh_auth=auth).post(
+        "/v2/integrations/github",
+        json={"org_id": "o1", "installation_id": "42", "repo_full_name": "acme/web"})
+    assert resp.status_code == 403
+    integ.upsert_github_config.assert_not_called()
+
+
+def test_set_github_integration_already_bound_409():
+    from src.jira.integrations_repository import InstallationAlreadyBound
+    integ = MagicMock()
+    integ.upsert_github_config.side_effect = InstallationAlreadyBound("ya vinculada")
+    resp = _client(integrations=integ, gh_auth=_gh_auth("acme")).post(
+        "/v2/integrations/github",
+        json={"org_id": "o1", "installation_id": "42", "repo_full_name": "acme/web"})
+    assert resp.status_code == 409
+
+
+def test_set_github_integration_app_unconfigured_multitenant_503(monkeypatch):
+    from src.ci.github_auth import GitHubAppNotConfigured
+    monkeypatch.setattr(api_v2, "multi_tenant_enabled", lambda: True)
+    integ = MagicMock()
+    auth = MagicMock()
+    auth.installation_account.side_effect = GitHubAppNotConfigured("no app")
+    resp = _client(integrations=integ, gh_auth=auth).post(
+        "/v2/integrations/github",
+        json={"org_id": "o1", "installation_id": "42", "repo_full_name": "acme/web"})
+    assert resp.status_code == 503
+    integ.upsert_github_config.assert_not_called()
+
+
+def test_set_github_integration_app_unconfigured_selfhost_allows(monkeypatch):
+    from src.ci.github_auth import GitHubAppNotConfigured
+    monkeypatch.setattr(api_v2, "multi_tenant_enabled", lambda: False)
+    integ = MagicMock()
+    auth = MagicMock()
+    auth.installation_account.side_effect = GitHubAppNotConfigured("no app")
+    resp = _client(integrations=integ, gh_auth=auth).post(
+        "/v2/integrations/github",
+        json={"org_id": "o1", "installation_id": "42", "repo_full_name": "acme/web"})
+    assert resp.status_code == 200
+    integ.upsert_github_config.assert_called_once()
 
 
 def test_get_github_integration():
@@ -130,7 +196,7 @@ def test_get_github_integration():
 def test_set_github_integration_non_member_403():
     integ = MagicMock()
     integ.upsert_github_config.side_effect = PermissionError("nope")
-    resp = _client(integrations=integ).post(
+    resp = _client(integrations=integ, gh_auth=_gh_auth("acme")).post(
         "/v2/integrations/github",
         json={"org_id": "o1", "installation_id": "42", "repo_full_name": "acme/web"})
     assert resp.status_code == 403

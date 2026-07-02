@@ -14,6 +14,15 @@ class GitHubAuthError(RuntimeError):
     """Credenciales de la GitHub App ausentes/ inválidas o fallo al pedir el token."""
 
 
+class GitHubAppNotConfigured(GitHubAuthError):
+    """La GitHub App no tiene app_id/private_key configurados en el entorno.
+
+    Se distingue de `GitHubAuthError` genérico para que la capa de API decida:
+    en multi-tenant, sin App no se puede verificar la propiedad de la instalación
+    (se rechaza); en self-host single-tenant, se degrada permitiendo el bind.
+    """
+
+
 def _parse_expiry(value: Optional[str]) -> float:
     if not value:
         return time.time() + 3000.0
@@ -34,13 +43,36 @@ class GitHubAppAuth:
 
     def app_jwt(self) -> str:
         if not self._app_id or not self._private_key:
-            raise GitHubAuthError("GitHub App no configurada (GITHUB_APP_ID/PRIVATE_KEY)")
+            raise GitHubAppNotConfigured("GitHub App no configurada (GITHUB_APP_ID/PRIVATE_KEY)")
         now = int(time.time())
         payload = {"iat": now - 60, "exp": now + 540, "iss": self._app_id}  # exp ≤ 10 min
         try:
             return jwt.encode(payload, self._private_key, algorithm="RS256")
         except Exception as exc:  # clave malformada
             raise GitHubAuthError("private key de la GitHub App inválida") from exc
+
+    def installation_account(self, installation_id: str) -> str:
+        """Cuenta (login de la org/usuario de GitHub) dueña de una instalación.
+
+        Usa el JWT de la App (no un installation token) para consultar
+        `GET /app/installations/{id}`. Sirve para verificar, al vincular una
+        integración, que la instalación reclamada es la del cliente y no la de
+        otro tenant (mitiga el confused-deputy: acuñar tokens para cualquier
+        installation_id arbitrario). Lanza GitHubAppNotConfigured si la App no
+        está configurada, o GitHubAuthError si la instalación no es visible.
+        """
+        resp = self._session.get(
+            f"{_API}/app/installations/{installation_id}",
+            headers={"Authorization": f"Bearer {self.app_jwt()}",
+                     "Accept": "application/vnd.github+json"},
+            timeout=15,
+        )
+        if resp.status_code >= 300:
+            raise GitHubAuthError(f"installation lookup falló: HTTP {resp.status_code}")
+        account = (resp.json().get("account") or {}).get("login")
+        if not account:
+            raise GitHubAuthError("installation sin cuenta asociada")
+        return account
 
     def installation_token(self, installation_id: str) -> str:
         cached = self._cache.get(installation_id)

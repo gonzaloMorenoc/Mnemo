@@ -9,6 +9,10 @@ from src.db.pool import get_pool
 from src.jira.crypto import decrypt_token, encrypt_token
 
 
+class InstallationAlreadyBound(Exception):
+    """Un installation_id de GitHub ya pertenece a otra organización."""
+
+
 class IntegrationsRepository:
     """Credenciales de integraciones por org. El pooler bypassa RLS, así que el
     aislamiento es por membership en cada consulta. El token va cifrado (Fernet)."""
@@ -92,22 +96,29 @@ class IntegrationsRepository:
 
     def upsert_github_config(self, *, user_id: str, org_id: str,
                              installation_id: str, repo_full_name: str) -> None:
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                self._require_admin(cur, org_id, user_id)
-                cur.execute(
-                    """
-                    insert into public.org_integrations
-                        (org_id, provider, base_url, installation_id, repo_full_name)
-                    values (%s, 'github', 'https://github.com', %s, %s)
-                    on conflict (org_id, provider) do update
-                       set installation_id = excluded.installation_id,
-                           repo_full_name = excluded.repo_full_name,
-                           updated_at = now()
-                    """,
-                    (org_id, installation_id, repo_full_name),
-                )
-            conn.commit()
+        try:
+            with self._connect() as conn:
+                with conn.cursor() as cur:
+                    self._require_admin(cur, org_id, user_id)
+                    cur.execute(
+                        """
+                        insert into public.org_integrations
+                            (org_id, provider, base_url, installation_id, repo_full_name)
+                        values (%s, 'github', 'https://github.com', %s, %s)
+                        on conflict (org_id, provider) do update
+                           set installation_id = excluded.installation_id,
+                               repo_full_name = excluded.repo_full_name,
+                               updated_at = now()
+                        """,
+                        (org_id, installation_id, repo_full_name),
+                    )
+                conn.commit()
+        except psycopg.errors.UniqueViolation as exc:
+            # El índice único sobre installation_id (migración 021) impide que dos
+            # organizaciones reclamen la misma instalación de GitHub.
+            raise InstallationAlreadyBound(
+                "esta instalación de GitHub ya está vinculada a otra organización"
+            ) from exc
 
     def get_github_config(self, *, user_id: str, org_id: str) -> Dict[str, Any]:
         with self._connect() as conn:
