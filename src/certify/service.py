@@ -23,8 +23,10 @@ class CertificateService:
         if meta is None:
             raise ValueError("run no encontrado o sin acceso")
         verdicts = self.repo.get_triage_for_run(user_id=user_id, run_id=run_id)
-        if not verdicts:
-            raise ValueError("run sin veredictos de triaje")
+        if not verdicts and self.repo.count_failures_for_run(user_id=user_id, run_id=run_id) > 0:
+            # Fallos ingeridos pero sin veredictos = run sin triar → no certificar.
+            # Sin fallos (run verde) sí se certifica: es el caso central "pasó QA".
+            raise ValueError("run con fallos sin triar: ejecuta el triaje antes de certificar")
         raw_cal = self.repo.get_calibration_metrics(user_id=user_id, org_id=meta["org_id"]) or {}
         calibration = {
             "tenant_accuracy": raw_cal.get("accuracy", 0.0),
