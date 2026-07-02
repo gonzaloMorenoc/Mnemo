@@ -147,6 +147,15 @@ export interface Certificate {
   created_at?: string | null;
 }
 
+export interface CertificateVerifyResponse {
+  valido: boolean;
+}
+
+export interface CertificatePubkey {
+  algorithm: string;
+  public_key_pem: string;
+}
+
 export interface GateResult {
   verdict: string;
   conclusion: string;

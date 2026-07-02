@@ -8,6 +8,8 @@ import type {
   BriefingResponse,
   CalibrationMetrics,
   Certificate,
+  CertificatePubkey,
+  CertificateVerifyResponse,
   CoverageGap,
   DefectFamilyResponse,
   DefectLineageResponse,
@@ -146,6 +148,19 @@ export function generateCertificate(token: string, runId: string) {
 export function getCertificate(token: string, runId: string) {
   return apiRequest<Certificate>(
     `/api/v2/certificates/${encodeURIComponent(runId)}`, "GET", { token });
+}
+
+// Verificación PÚBLICA — sin token: cualquiera (auditor, cliente, regulador)
+// valida la firma de un acta sin cuenta en Mnemo.
+export function verifyCertificate(body: {
+  canonical_json: Record<string, unknown>;
+  signature: string;
+}) {
+  return apiRequest<CertificateVerifyResponse>("/api/v2/certificates/verify", "POST", { body });
+}
+
+export function getCertificatePubkey() {
+  return apiRequest<CertificatePubkey>("/api/v2/certificates/pubkey", "GET", {});
 }
 
 export function publishGate(token: string, runId: string) {
