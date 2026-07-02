@@ -60,4 +60,25 @@ describe("paridad endpoints.ts ↔ route handlers", () => {
     const missing = requiredPaths().filter((p) => !existing.has(p));
     expect(missing, `Faltan route handlers para: ${missing.join(", ")}`).toEqual([]);
   });
+
+  it("no hay slugs dinámicos hermanos con nombres distintos (crashea el runtime de Next)", () => {
+    // `next build` NO detecta esto; el runtime lanza "You cannot use different
+    // slug names for the same dynamic path" y TODA función serverless 504ea.
+    const appRoot = path.join(process.cwd(), "src/app");
+    const conflicts: string[] = [];
+
+    function walk(dir: string) {
+      const dirs = fs
+        .readdirSync(dir, { withFileTypes: true })
+        .filter((e) => e.isDirectory());
+      const slugs = dirs.map((e) => e.name).filter((n) => n.startsWith("[") && n.endsWith("]"));
+      if (new Set(slugs).size > 1) {
+        conflicts.push(`${path.relative(appRoot, dir) || "."} → ${slugs.join(", ")}`);
+      }
+      for (const e of dirs) walk(path.join(dir, e.name));
+    }
+
+    walk(appRoot);
+    expect(conflicts, `Slugs dinámicos en conflicto: ${conflicts.join(" | ")}`).toEqual([]);
+  });
 });
