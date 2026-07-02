@@ -1,7 +1,7 @@
 from typing import Any, Dict, Optional
 
 from src.certify.certificate import build_certificate, compute_self_eval
-from src.certify.signing import canonical_json, sign
+from src.certify.signing import canonical_json, key_id, sign
 from src.ai.judge import compute_ai_eval
 
 
@@ -45,6 +45,7 @@ class CertificateService:
                  "commit_sha": meta["commit_sha"], "run_id": run_id},
             verdicts=verdicts, sign_offs=[], mnemo_version=self._mnemo_version,
             model_version=self._model_version, created_at=created_at, self_eval=self_eval,
+            key_id=key_id(self._public_key),
         )
         canonical = canonical_json(cert)
         signature = sign(canonical, self._private_key)  # SigningKeyMissing si falta

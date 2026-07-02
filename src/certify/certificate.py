@@ -61,15 +61,19 @@ def compute_verdict(verdicts: List[Dict[str, Any]], confidence: str = "high") ->
         return "no-apto"
     if any(v.get("category") in ("real", "maintenance") for v in verdicts):
         return "apto-con-reservas"
-    if confidence == "low":
-        return "apto-con-reservas"   # baja calibración del motor → no certificar apto rotundo
+    # Invariante estructural: si la IA asistió alguna categoría (desempate LLM,
+    # R6), el acta NUNCA es un "apto" rotundo — a lo sumo "apto-con-reservas",
+    # con independencia de requires_approval. Así "la IA no produce un veredicto
+    # favorable" deja de colgar de un único booleano.
+    if confidence == "low" or any(v.get("llm_assisted") for v in verdicts):
+        return "apto-con-reservas"
     return "apto"
 
 
 def build_certificate(*, run: Dict[str, Any], verdicts: List[Dict[str, Any]],
                       sign_offs: List[Dict[str, Any]], mnemo_version: str,
                       model_version: str, created_at: str,
-                      self_eval: Dict[str, Any]) -> Dict[str, Any]:
+                      self_eval: Dict[str, Any], key_id: str = "") -> Dict[str, Any]:
     """Certificado determinista de un run a partir de sus veredictos de triaje.
     Puro: el timestamp se inyecta (created_at). Schema v2: acta de evidencia con self_eval firmado."""
     breakdown = {c: 0 for c in _CATEGORIES}
@@ -106,7 +110,8 @@ def build_certificate(*, run: Dict[str, Any], verdicts: List[Dict[str, Any]],
         "identity": {"org_id": run["org_id"], "project": run["project"],
                      "commit_sha": run.get("commit_sha"), "run_id": run["run_id"],
                      "created_at": created_at, "mnemo_version": mnemo_version,
-                     "model_version": model_version},
+                     "model_version": model_version,
+                     "algorithm": "ed25519", "key_id": key_id},
         "verdict": verdict,
         "risk_score": risk_score,
         "breakdown": breakdown,

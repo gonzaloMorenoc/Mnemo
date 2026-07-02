@@ -791,7 +791,9 @@ class AssuranceRepository:
                     " join public.test_runs r on r.id = tv.run_id"
                     " where tv.run_id = %s and exists (select 1 from public.memberships m"
                     "   where m.org_id = r.org_id and m.user_id = %s)"
-                    " order by tv.created_at",
+                    # orden TOTAL: created_at empata en el insert transaccional; failure_id
+                    # (único por fallo) rompe el empate → evidencia byte-reproducible.
+                    " order by tv.created_at, tv.failure_id",
                     (run_id, user_id),
                 )
                 return [
