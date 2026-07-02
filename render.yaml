@@ -32,7 +32,8 @@ services:
       - key: OPENAI_BASE_URL
         value: https://generativelanguage.googleapis.com/v1beta/openai/
       - key: LLM_MODEL
-        value: gemini-2.0-flash        # gratis; alternativa: gemini-2.5-flash / gemini-1.5-flash
+        value: gemini-2.5-flash        # con cuota gratis; alternativa: gemini-flash-latest.
+                                       # OJO: gemini-2.0-flash puede dar 429 "limit: 0" en algunas cuentas.
       - key: OPENAI_API_KEY
         sync: false                    # tu API key de Google AI Studio (aistudio.google.com/apikey)
       # Alternativa Groq (también gratis, compatible OpenAI):
