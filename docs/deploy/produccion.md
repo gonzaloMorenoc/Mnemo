@@ -73,6 +73,19 @@ Sea cual sea, **el backend arranca igual**: el LLM solo afecta a las funciones d
 
 El `Dockerfile` ya es **portable**: escucha en `${PORT:-8080}`, así que sirve para todos (Render/Railway inyectan `$PORT`; Fly/Oracle/HF usan 8080).
 
+### Configurar el LLM en Hugging Face Spaces
+
+En HF las env vars no están en `render.yaml`; se ponen en la UI del Space:
+
+1. Abre tu Space del backend → pestaña **Settings**.
+2. Sección **Variables and secrets**:
+   - **New secret** → `OPENAI_API_KEY` = tu clave de Google AI Studio *(secret, porque es sensible)*.
+   - **New variable** (×4, no son secretos): `LLM_PROVIDER=openai`, `ALLOW_EXTERNAL_LLM=true`, `OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/`, `LLM_MODEL=gemini-2.5-flash`.
+3. El Space se reinicia solo al guardar; si no, menú **⋮ → Restart this Space** (o **Factory rebuild**).
+4. Espera a **Running** (verde). La **primera** petición puede tardar ~30 s (cold start del tier free + carga de `torch`); reintenta.
+
+> HF Spaces gratis se **duermen** por inactividad → cold start de ~30 s. Para la demo, un pinger externo (GET `/v2/health` cada 5 min) lo mantiene despierto.
+
 ---
 
 ## Checklist de verificación
