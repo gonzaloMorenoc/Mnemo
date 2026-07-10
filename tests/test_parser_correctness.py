@@ -16,10 +16,12 @@ TESTNG_CONFIG = b"""<?xml version="1.0"?>
 </testng-results>"""
 
 
-def test_testng_skips_config_methods():
+def test_testng_captures_failed_config_methods():
+    # Un @BeforeMethod/@BeforeSuite FALLIDO es un fallo real (deja los tests en SKIP);
+    # ya no se descarta — se captura junto al test real. (B1: no perder fallos de setup.)
     recs = parse_testng(TESTNG_CONFIG, project="p")
-    assert len(recs) == 1
-    assert recs[0].test_name == "C.realTest"
+    names = {r.test_name for r in recs}
+    assert names == {"C.setUp (config)", "C.realTest"}
 
 
 CYPRESS_PENDING_ERR = b"""{

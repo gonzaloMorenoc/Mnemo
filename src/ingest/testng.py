@@ -1,11 +1,20 @@
 import xml.etree.ElementTree as ET
 from typing import List
 
-from src.ingest.models import FailureRecord, parse_error_type, strip_ansi, strip_ansi_bytes
+from src.ingest.models import (
+    FailureRecord,
+    int_attr,
+    parse_error_type,
+    strip_ansi,
+    strip_ansi_bytes,
+    synthetic_failure_record,
+)
 
 
 def parse_testng(data: bytes, *, project: str) -> List[FailureRecord]:
-    """Parsea un testng-results.xml; devuelve los test-method con status FAIL."""
+    """Parsea un testng-results.xml; devuelve los test-method FAIL, INCLUIDOS los
+    métodos de configuración (@BeforeMethod/@BeforeSuite) que fallan — un setup roto
+    es un fallo real que deja los tests en SKIP y no debe pasar como run verde."""
     data = strip_ansi_bytes(data)
     try:
         root = ET.fromstring(data)
@@ -15,11 +24,12 @@ def parse_testng(data: bytes, *, project: str) -> List[FailureRecord]:
     for cls in root.iter("class"):
         classname = cls.get("name") or ""
         for tm in cls.findall("test-method"):
-            if (tm.get("is-config") or "").lower() == "true":
-                continue
             if (tm.get("status") or "").upper() != "FAIL":
                 continue
+            is_config = (tm.get("is-config") or "").lower() == "true"
             name = tm.get("name") or "unknown"
+            if is_config:
+                name = f"{name} (config)"
             full = f"{classname}.{name}" if classname else name
             exc_node = tm.find("exception")
             error_type = exc_node.get("class") if exc_node is not None else None
@@ -44,4 +54,10 @@ def parse_testng(data: bytes, *, project: str) -> List[FailureRecord]:
                     source="testng",
                 )
             )
+
+    # Red de seguridad: la cabecera declara fallos pero no se extrajo ninguno.
+    if not records:
+        declared = int_attr(root, "failed")
+        if declared > 0:
+            records.append(synthetic_failure_record(project=project, source="testng", declared=declared))
     return records
