@@ -19,8 +19,9 @@ from src.certify.render import render_html, render_pdf
 from src.certify.service import CertificateService
 from src.certify.signing import SigningKeyMissing, canonical_json, verify
 from src.config import (CI_MAX_BODY_BYTES, CI_SERVICE_ORG_ID, CI_SERVICE_USER_ID,
-                        CI_WEBHOOK_SECRET, LLM_MODEL, MNEMO_SIGNING_PRIVATE_KEY,
-                        MNEMO_SIGNING_PUBLIC_KEY, MNEMO_VERSION, multi_tenant_enabled)
+                        CI_WEBHOOK_SECRET, INGEST_MAX_BYTES, LLM_MODEL,
+                        MNEMO_SIGNING_PRIVATE_KEY, MNEMO_SIGNING_PUBLIC_KEY,
+                        MNEMO_VERSION, multi_tenant_enabled)
 from src.actions.ai_repair import AIRepairActuator
 from src.actions.quarantine import QuarantineActuator
 from src.actions.repository import ActionRepository
@@ -429,6 +430,22 @@ def health_v2() -> Dict[str, Any]:
     return {"status": "active", "multi_tenant_enabled": multi_tenant_enabled()}
 
 
+def _read_upload_capped(file: UploadFile) -> bytes:
+    """Lee una subida acotada a INGEST_MAX_BYTES (anti-DoS por archivo enorme).
+    Lee 1 byte de más para detectar el exceso sin cargar todo en memoria."""
+    data = file.file.read(INGEST_MAX_BYTES + 1)
+    if len(data) > INGEST_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="archivo demasiado grande")
+    return data
+
+
+async def _read_upload_capped_async(file: UploadFile) -> bytes:
+    data = await file.read(INGEST_MAX_BYTES + 1)
+    if len(data) > INGEST_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="archivo demasiado grande")
+    return data
+
+
 @router.post("/ingest/report", response_model=IngestReportResponse)
 def ingest_report_v2(
     file: UploadFile = File(...),
@@ -439,7 +456,7 @@ def ingest_report_v2(
     service: IngestionService = Depends(get_ingestion_service),
 ) -> IngestReportResponse:
     try:
-        data = file.file.read()
+        data = _read_upload_capped(file)
         result = service.ingest_report(
             user_id=user.user_id, org_id=org_id, project=project, source=source, data=data
         )
@@ -629,7 +646,7 @@ def ingest_jira_file(
     service: JiraIngestionService = Depends(get_jira_ingestion_service),
 ) -> JiraIngestResponse:
     try:
-        data = file.file.read()
+        data = _read_upload_capped(file)
         result = service.ingest_from_export(
             user_id=user.user_id, org_id=org_id, project=project, data=data)
     except PermissionError as exc:
@@ -1185,7 +1202,7 @@ async def generate_test_plan_v2(
                 url=jira_url, org_id=org_id, user_id=user.user_id, repo=integrations
             )
         elif file is not None:
-            data = await file.read()
+            data = await _read_upload_capped_async(file)
             resolved_hu = resolve_hu_from_upload(file.filename, data)
         else:
             raise ValueError(

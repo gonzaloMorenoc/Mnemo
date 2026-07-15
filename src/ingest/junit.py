@@ -1,5 +1,8 @@
-import xml.etree.ElementTree as ET
 from typing import List
+from xml.etree.ElementTree import ParseError
+
+import defusedxml.ElementTree as ET
+from defusedxml.common import DefusedXmlException
 
 from src.ingest.models import (
     FailureRecord,
@@ -14,8 +17,8 @@ def parse_junit(data: bytes, *, project: str) -> List[FailureRecord]:
     suite (@BeforeClass) y una red de seguridad si la cabecera declara fallos sin extraer."""
     try:
         root = ET.fromstring(data)
-    except ET.ParseError as exc:
-        raise ValueError(f"Invalid JUnit XML: {exc}") from exc
+    except (ParseError, DefusedXmlException) as exc:
+        raise ValueError(f"Invalid or unsafe JUnit XML: {exc}") from exc
     records: List[FailureRecord] = []
     for tc in root.iter("testcase"):
         node = tc.find("failure")

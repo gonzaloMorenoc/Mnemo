@@ -38,6 +38,20 @@ def test_ingest_report_happy():
     assert kw["org_id"] == "org-1" and kw["source"] == "allure" and kw["data"] == b"[]"
 
 
+def test_ingest_report_rejects_oversized_file(monkeypatch):
+    # B9: subida por encima de INGEST_MAX_BYTES → 413, sin cargar todo en memoria.
+    monkeypatch.setattr(api_v2, "INGEST_MAX_BYTES", 10)
+    service = MagicMock()
+    client = make_client(service=service)
+    resp = client.post(
+        "/v2/ingest/report",
+        data={"project": "p", "source": "auto", "org_id": "o"},
+        files={"file": ("big.xml", b"x" * 5000, "application/xml")},
+    )
+    assert resp.status_code == 413
+    service.ingest_report.assert_not_called()
+
+
 def test_ingest_report_unknown_source_is_400():
     service = MagicMock()
     service.ingest_report.side_effect = ValueError("unsupported source: xml")

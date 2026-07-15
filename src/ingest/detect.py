@@ -1,6 +1,9 @@
 import json
-import xml.etree.ElementTree as ET
 from typing import Optional
+from xml.etree.ElementTree import ParseError
+
+import defusedxml.ElementTree as ET
+from defusedxml.common import DefusedXmlException
 
 
 def _localname(tag: str) -> str:
@@ -16,7 +19,7 @@ def detect_source(data: bytes, filename: Optional[str] = None) -> Optional[str]:
     # 1) XML por root tag
     try:
         root = ET.fromstring(data)
-    except ET.ParseError:
+    except (ParseError, DefusedXmlException):
         root = None
     if root is not None:
         tag = _localname(root.tag)

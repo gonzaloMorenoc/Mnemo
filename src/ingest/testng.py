@@ -1,5 +1,8 @@
-import xml.etree.ElementTree as ET
 from typing import List
+from xml.etree.ElementTree import ParseError
+
+import defusedxml.ElementTree as ET
+from defusedxml.common import DefusedXmlException
 
 from src.ingest.models import (
     FailureRecord,
@@ -18,8 +21,8 @@ def parse_testng(data: bytes, *, project: str) -> List[FailureRecord]:
     data = strip_ansi_bytes(data)
     try:
         root = ET.fromstring(data)
-    except ET.ParseError as exc:
-        raise ValueError(f"Invalid TestNG XML: {exc}") from exc
+    except (ParseError, DefusedXmlException) as exc:
+        raise ValueError(f"Invalid or unsafe TestNG XML: {exc}") from exc
     records: List[FailureRecord] = []
     for cls in root.iter("class"):
         classname = cls.get("name") or ""
