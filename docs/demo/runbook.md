@@ -1,227 +1,122 @@
-# Runbook de ensayo — Mnemo Autopilot Demo
+# Runbook de demo — Mnemo
 
-Instrucciones para dejar la demo lista y el plan B.
+Cómo dejar la demo lista y el plan B. La demo se hace contra **producción** (sección 1);
+el entorno local queda como alternativa de desarrollo (sección 2).
 
----
-
-## 1. Pre-requisitos
-
-### Variables de entorno (`.env` o entorno del sistema)
-
-| Variable | Descripción | Obligatoria |
-|----------|-------------|-------------|
-| `DATABASE_URL` | Cadena de conexión Postgres — usar el **Session pooler** de Supabase (no la URL directa IPv6-only). Ejemplo: `postgresql://postgres.xxx:password@aws-0-eu-west-1.pooler.supabase.com:5432/postgres` | Sí |
-| `SUPABASE_URL` | URL del proyecto Supabase (`https://xxx.supabase.co`) | Sí |
-| `SUPABASE_JWKS_URL` | URL de las claves públicas JWT (`https://xxx.supabase.co/auth/v1/.well-known/jwks.json`) | Sí |
-| `SUPABASE_JWT_SECRET` | Secreto JWT del proyecto (alternativa a JWKS para verificación local) | Cond. |
-| `SERVICE_ROLE_KEY` | Clave service-role de Supabase (para que `docker_init.py` cree el usuario demo vía GoTrue) | Solo para init |
-| `DEMO_EMAIL` | Email del usuario demo (ej. `demo@mnemo.local`) | Solo para init |
-| `DEMO_PASSWORD` | Contraseña del usuario demo | Solo para init |
-| `CI_WEBHOOK_SECRET` | Secreto compartido HMAC-SHA256 del webhook (`POST /v2/ci/webhook`). El push en vivo usa este valor para firmar. | Sí |
-| `CI_SERVICE_USER_ID` | UUID del usuario de servicio que recibirá los runs del webhook (el mismo `demo_user_id`) | Sí |
-| `CI_SERVICE_ORG_ID` | UUID de Org A "Demo MTP" (se obtiene tras correr el seed). El webhook rechaza runs de otras orgs. | Sí |
-| `MNEMO_SIGNING_PRIVATE_KEY` | Clave privada ECDSA en PEM para firmar certificados | Para certs firmados |
-| `MNEMO_SIGNING_PUBLIC_KEY` | Clave pública ECDSA en PEM para verificar certificados | Para certs firmados |
-| `ALLOW_EXTERNAL_LLM` | `false` (por defecto). Poner `true` solo si se quiere usar un proveedor LLM externo — **enviará datos fuera**. En demo dejar `false`. | No (defecto OK) |
-
-### Modelos locales (Ollama)
-
-```bash
-ollama pull qwen3:8b
-ollama serve   # si no está corriendo como servicio
-```
-
-Si Ollama no está disponible, el sistema **degrada con elegancia**: el briefing narrativo omite la parte LLM y muestra el veredicto determinista. Mencionarlo como feature durante la demo.
+Los **valores concretos** del despliegue (URLs con UUIDs, secreto del webhook, run_ids
+sembrados) viven en `prod.local.md` — un archivo **local, ignorado por git**: este runbook es
+público y no debe contener identificadores del entorno real.
 
 ---
 
-## 2. Levantar el entorno
+## 1. Demo contra producción (recomendado)
 
-### 2a. Backend (FastAPI)
+### 1a. Arquitectura del despliegue
 
-```bash
-# Desde la raíz del repo
-pip install -r requirements.txt
+| Pieza | Dónde | Notas |
+|-------|-------|-------|
+| Frontend (Next.js) | Vercel | habla con el backend vía proxy server-side (`NEXT_PUBLIC_API_BASE_URL`) |
+| Backend (FastAPI) | contenedor en la nube (HF Space) | keep-warm por GitHub Action cada 15 min |
+| BD + Auth | Supabase | RLS multi-tenant |
+| LLM | Gemini free tier (configurable: Groq / Ollama on-premise) | las funciones no-LLM no dependen de él |
 
-uvicorn asgi:app --host 0.0.0.0 --port 8000 --reload
-```
+### 1b. Estado pre-sembrado
 
-El backend queda en `http://localhost:8000`. Verificar salud:
+El seed (`src/demo/seed.py`) ya está aplicado en producción:
 
-```bash
-curl http://localhost:8000/v2/health
-```
+- **Org A "Demo MTP"** — 5 runs procesados (ingesta → triaje → acta firmada Ed25519):
+  mantenimiento verde→rojo, flaky, **real (no-apto)** y re-run verde.
+- **Org B "Cliente Beta"** — 1 run propio (demostración de aislamiento RLS).
+- Actas firmadas con la clave de producción → verifican en la página pública `/verify`.
 
-### 2b. Frontend (Next.js)
-
-```bash
-cd frontend
-npm install
-
-# Desarrollo (HMR activo, recomendado para demo)
-npm run dev
-# → http://localhost:3000
-
-# O producción
-npm run build && npm start
-```
-
-Variables de entorno del frontend (fichero `frontend/.env.local`):
-
-```env
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
-NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-```
-
-Ver `frontend/.env.example` para la lista completa.
-
-### 2c. Correr el seed (Org A + Org B)
-
-El seed es idempotente — se puede re-ejecutar sin duplicar datos.
-
-**Opción A — directo (sin Docker):**
+Para re-sembrar desde cero: borrar las dos orgs (SQL en §1f) y ejecutar el seed **con
+`MNEMO_SIGNING_PRIVATE_KEY`/`_PUBLIC_KEY` de producción en el entorno** — si faltan, las
+actas salen sin firmar y el momento `/verify` de la demo no funciona:
 
 ```bash
-# Asegurarse de que DATABASE_URL, SUPABASE_URL, SERVICE_ROLE_KEY,
-# DEMO_EMAIL y DEMO_PASSWORD están en el entorno.
-
-python3 scripts/docker_init.py
+python3 -c "
+import os
+from src.demo.seed import seed_demo
+print(seed_demo(db_url=os.environ['DATABASE_URL'], demo_user_id='<TU_USER_UUID>'))"
 ```
 
-`docker_init.py` ejecuta en orden: espera a la BD, aplica las migraciones (`db/migrations/*.sql`), crea el usuario demo vía la admin API de GoTrue de Supabase y llama a `src.demo.seed.seed_demo`.
+### 1c. El push en vivo (Acto 1)
 
-**Opción B — Docker Compose (si existe un `docker-compose.yml` local):**
+`scripts/demo_fixtures/fresh_push.json` es la munición: el run de `test_perfil` con el error
+`locator not found: #guardar` (el DOM ya trae `#guardar-cambios`). El webhook exige firma
+HMAC-SHA256 del cuerpo en `X-Hub-Signature-256` (estilo GitHub webhooks).
 
-El servicio `init` del compose llama a `docker_init.py` automáticamente al arrancar.
+Reglas del comando (versión ejecutable con valores reales: `prod.local.md`):
 
-**Resultado esperado del seed:**
+- `org_id` del payload = UUID de Org A (el webhook rechaza otras orgs).
+- **`run_uid` aleatorio en cada envío** → cada ensayo ingesta un run fresco (la ingesta es
+  idempotente por `run_uid`: reenviar el mismo valor devuelve `deduplicated: true`).
+- Secreto: `CI_WEBHOOK_SECRET` configurado como secret del backend.
 
+Respuesta esperada: `"triage": {"maintenance": 1}`, acta `apto-con-reservas`,
+`"gate": null` si la org no tiene GitHub App conectada (esperado).
+
+### 1d. Requisitos del backend en producción
+
+Secrets/variables que deben existir en el host del backend (ver `docs/deploy/produccion.md`):
+
+| Variable | Para qué |
+|----------|----------|
+| `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_JWKS_URL`, `SUPABASE_JWT_AUDIENCE` | BD y auth |
+| `MNEMO_SIGNING_PRIVATE_KEY` / `MNEMO_SIGNING_PUBLIC_KEY` | firma Ed25519 de las actas |
+| `CI_WEBHOOK_SECRET`, `CI_SERVICE_USER_ID`, `CI_SERVICE_ORG_ID` | push en vivo del Acto 1 |
+| `LLM_PROVIDER`, `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `LLM_MODEL`, `ALLOW_EXTERNAL_LLM` | LLM (opcional: sin él, degradación elegante) |
+
+### 1e. Checklist 30 minutos antes
+
+- [ ] `GET <backend>/v2/health` → 200 (keep-warm activo; si tarda, abrirlo y esperar).
+- [ ] `GET <backend>/v2/certificates/pubkey` → 200 (la firma está encendida).
+- [ ] Login en el frontend y el selector muestra las dos orgs de demo.
+- [ ] Run **real** seleccionado → gate rojo + acta no-apto + el PDF descarga.
+- [ ] `/verify` con un acta pegada → "válido"; alterada → "inválido".
+- [ ] Terminal con el bloque del push en vivo preparado (`prod.local.md`) y secreto exportado.
+- [ ] Runs de ensayos anteriores podados (§1f) si se quiere la org limpia.
+
+### 1f. Mantenimiento de los datos de demo
+
+```sql
+-- Podar los runs de ensayo del Acto 1 (conserva los 5 del seed)
+delete from public.test_runs
+ where org_id = '<ORG_A_UUID>' and run_uid like 'demo-%';
+
+-- Reset TOTAL (borra las dos orgs; después, re-seed según §1b)
+delete from public.organizations
+ where name in ('Demo MTP','Cliente Beta') and created_by = '<TU_USER_UUID>';
 ```
-migración aplicada: db/migrations/001_*.sql
-...
-demo sembrada: {
-  "org_a": "<UUID-Org-A>",
-  "org_b": "<UUID-Org-B>",
-  "runs": [
-    {"fixture": "maintenance_green.json", "run_id": "..."},
-    {"fixture": "maintenance_red.json",   "run_id": "..."},
-    {"fixture": "flaky.json",             "run_id": "..."},
-    {"fixture": "real.json",              "run_id": "..."},
-    {"fixture": "perfil_green.json",      "run_id": "..."}
-  ],
-  "fresh_artifact_path": "scripts/demo_fixtures/fresh_push.json"
-}
-```
 
-Anotar el `org_a` UUID — se necesita para `CI_SERVICE_ORG_ID`.
+### 1g. Plan B (si el push en vivo falla)
+
+Los datos pre-sembrados cubren el discurso completo sin el curl:
+
+| Pre-sembrado | Sustituye a |
+|--------------|-------------|
+| run `maintenance_red` | el push del Acto 1 ("acaba de llegar del CI, ya triado") |
+| run `real` (no-apto) | el bloqueo rotundo del Acto 1 |
+| run `perfil_green` | el re-run del Acto 3 |
+
+El Acto 2 no depende del push: "Proponer acciones" → "Aprobar" → acta → `/verify` funciona
+sobre cualquier run sembrado. El Acto 3 (calibración + Org B + ROI) es independiente.
 
 ---
 
-## 3. El push en vivo (Acto 1)
+## 2. Alternativa: entorno local (desarrollo)
 
-`scripts/demo_fixtures/fresh_push.json` contiene el run de `test_perfil` con el error `locator not found: #guardar` (el DOM ya tiene `#guardar-cambios`). Este payload **no** se ingesta durante el seed; es la munición del Acto 1.
+<details>
+<summary>Desplegar la demo en localhost (solo para desarrollo)</summary>
 
-Antes de enviarlo, actualizar el campo `org_id` del JSON para que coincida con el UUID de Org A:
+1. **Backend**: `pip install -r requirements.txt && uvicorn asgi:app --port 8000`
+   con `.env` completo (mismas variables de §1d; para LLM local: `ollama pull qwen3:8b`
+   y `LLM_PROVIDER=ollama`).
+2. **Frontend**: `cd frontend && npm install && npm run dev` con `frontend/.env.local`
+   (`NEXT_PUBLIC_API_BASE_URL=http://localhost:8000` + claves de Supabase).
+3. **Seed + usuario demo**: `python3 scripts/docker_init.py` (necesita `SERVICE_ROLE_KEY`,
+   `DEMO_EMAIL`, `DEMO_PASSWORD`) — espera BD, aplica migraciones, crea el usuario vía GoTrue
+   y ejecuta `seed_demo`.
+4. El push en vivo es idéntico a §1c apuntando a `http://localhost:8000`.
 
-```bash
-# Sustituir __ORG__ por el UUID real de Org A
-sed -i '' "s/__ORG__/$CI_SERVICE_ORG_ID/g" scripts/demo_fixtures/fresh_push.json
-```
-
-> Nota: `fresh_push.json` ya viene con `"org_id": "__ORG__"` como placeholder.
-> Si ya fue editado en una ejecución anterior, verificar que el valor es correcto.
-
-### Comando de push en vivo
-
-El webhook espera la firma HMAC-SHA256 en la cabecera `X-Hub-Signature-256: sha256=<hex>`,
-calculada sobre el cuerpo raw (idéntico al estilo de GitHub webhooks).
-
-```bash
-# Asegurarse de que CI_WEBHOOK_SECRET está en el entorno
-PAYLOAD=$(cat scripts/demo_fixtures/fresh_push.json)
-
-# Calcular la firma con openssl
-SIG=$(printf '%s' "$PAYLOAD" | openssl dgst -sha256 -hmac "$CI_WEBHOOK_SECRET" | awk '{print $2}')
-
-# Enviar al webhook
-curl -s -X POST http://localhost:8000/v2/ci/webhook \
-  -H "Content-Type: application/json" \
-  -H "X-Hub-Signature-256: sha256=$SIG" \
-  -d "$PAYLOAD" | python3 -m json.tool
-```
-
-**Respuesta esperada (éxito):**
-
-```json
-{
-  "run_id": "<UUID del run ingresado>",
-  "deduplicated": false,
-  "triage": {
-    "category": "maintenance",
-    "confidence": 0.9,
-    ...
-  },
-  "verdict": "no-apto",
-  "gate": "failure"
-}
-```
-
-Apuntar el `run_id` para seleccionarlo en el `RunSelector` del frontend.
-
----
-
-## 4. Checklist pre-demo
-
-Ejecutar este checklist **30 minutos antes** de la presentación:
-
-- [ ] Backend arrancado: `curl http://localhost:8000/v2/health` responde `200 OK`.
-- [ ] Frontend arrancado: `http://localhost:3000` carga sin errores de consola.
-- [ ] Seed aplicado: Org A "Demo MTP" existe con 5 runs pre-sembrados.
-- [ ] Org B "Cliente Beta" existe con 1 run.
-- [ ] Login funciona con `DEMO_EMAIL` / `DEMO_PASSWORD`.
-- [ ] El selector de organización (topbar) muestra al menos 2 orgs.
-- [ ] Seleccionar el run `maintenance_red` de Org A → gate rojo visible (`GateCard`).
-- [ ] Descargar el PDF del certificado de ese run → se descarga sin error (verificar que `MNEMO_SIGNING_PRIVATE_KEY` está configurada; si no, el certificado degrada a "sin firma").
-- [ ] Ir a `/app/calibration` → la tabla de métricas carga (aunque sea con ceros si no hay datos de calibración previos).
-- [ ] `fresh_push.json` tiene el `org_id` actualizado con el UUID de Org A.
-- [ ] `CI_SERVICE_ORG_ID` en el entorno coincide con ese UUID.
-- [ ] Ollama corriendo (opcional pero recomendado): `ollama list` muestra `qwen3:8b`.
-- [ ] Terminal con el comando curl del push en vivo preparado y listo para ejecutar.
-
----
-
-## 5. Plan B (si el push en vivo falla)
-
-Si el comando curl falla (red, firma incorrecta, backend reiniciado), los datos **pre-sembrados**
-del seed cubren el mismo discurso:
-
-| Fixture pre-sembrado | Equivale a |
-|----------------------|------------|
-| `maintenance_red.json` | El run "roto" del Acto 1 — triaje `mantenimiento`, gate rojo |
-| `maintenance_green.json` | El run "verde previo" — contexto del cambio |
-| `perfil_green.json` | El re-run apto del Acto 3 |
-
-**Guion adaptado para Plan B:**
-
-- **Acto 1:** seleccionar directamente el run `maintenance_red` pre-sembrado. Decir: "Este es el run que acaba de llegar del CI — ya triado en tiempo real". El gate rojo y el triaje de mantenimiento están ahí; solo se omite el curl en vivo.
-- **Acto 2:** el seed **nunca** propone acciones automáticamente — `seed_demo` solo ingesta, triaja y certifica. Con el run `maintenance_red` seleccionado, hacer clic en **"Proponer acciones"** en vivo (mismo botón del panel `ActionsPanel` → `POST /v2/actions/run/{run_id}/propose`); esperar el toast "Acciones propuestas." y la aparición de la acción `self_heal`; luego clic en **"Aprobar"**. Si el sistema está caído por completo, describir el flujo proponer→aprobar verbalmente y mostrar el certificado pre-generado del run.
-- **Acto 3:** no depende del push en vivo — el re-run apto (`perfil_green.json`), la calibración y el cambio de org son independientes.
-
-El Acto 3 (calibración + Org B + ROI) **no depende del push en vivo** en ningún escenario.
-
----
-
-## 6. Atajos útiles durante la demo
-
-```bash
-# Ver los UUIDs de las orgs del usuario demo
-psql "$DATABASE_URL" -c "SELECT id, name FROM public.organizations WHERE created_by='<DEMO_USER_ID>';"
-
-# Ver los runs de Org A
-psql "$DATABASE_URL" -c "SELECT id, project, created_at FROM public.test_runs WHERE org_id='<ORG_A_ID>' ORDER BY created_at DESC LIMIT 10;"
-
-# Resetear el seed (eliminar Org A y Org B para empezar de cero)
-psql "$DATABASE_URL" -c "DELETE FROM public.organizations WHERE name IN ('Demo MTP','Cliente Beta') AND created_by='<DEMO_USER_ID>';"
-# Luego volver a correr: python3 scripts/docker_init.py
-```
+</details>
