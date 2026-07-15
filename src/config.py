@@ -61,6 +61,8 @@ CI_WEBHOOK_SECRET = os.getenv("CI_WEBHOOK_SECRET", "")
 CI_SERVICE_USER_ID = os.getenv("CI_SERVICE_USER_ID", "")
 # Límite de tamaño del cuerpo del webhook de CI (anti-DoS). Por defecto 10 MiB.
 CI_MAX_BODY_BYTES = int(os.getenv("CI_MAX_BODY_BYTES", str(10 * 1024 * 1024)))
+# Límite de tamaño de las subidas de archivo (reportes/HU). Por defecto 10 MiB.
+INGEST_MAX_BYTES = int(os.getenv("INGEST_MAX_BYTES", str(10 * 1024 * 1024)))
 # Org único al que está ligada la cuenta de servicio del CI. Si se define, el webhook
 # rechaza (403) cualquier artefacto con otro org_id (aislamiento mono-org).
 CI_SERVICE_ORG_ID = os.getenv("CI_SERVICE_ORG_ID", "")

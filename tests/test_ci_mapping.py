@@ -19,9 +19,11 @@ def test_only_failed_and_flaky_become_records():
     assert {r.test_name for r in recs} == {"c", "d"}
 
 
-def test_excludes_failed_without_message():
+def test_keeps_failed_without_message():
+    # Un fallo sin mensaje NO se descarta: antes → 0 records → acta 'apto' de run rojo.
     art = _art([{"test_name": "c", "status": "fail"}])
-    assert to_failure_records(art) == []
+    recs = to_failure_records(art)
+    assert len(recs) == 1 and recs[0].test_name == "c" and recs[0].message
 
 
 def test_infers_error_type_when_missing():

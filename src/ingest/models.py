@@ -43,3 +43,26 @@ class FailureRecord:
     source: str  # allure | junit | testng | cucumber | playwright | cypress | robot
     file: Optional[str] = None
     line: Optional[int] = None
+
+
+def int_attr(el, name: str) -> int:
+    """Lee un atributo entero de un elemento XML; 0 si falta o no es numérico."""
+    try:
+        return int(el.get(name) or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def synthetic_failure_record(*, project: str, source: str, declared: int) -> "FailureRecord":
+    """Registro sintético para la RED DE SEGURIDAD: la cabecera del reporte declara
+    fallos pero el parser no extrajo ninguno (hueco del parser / formato inesperado).
+    Nunca se debe dejar pasar un run rojo como verde y firmar un acta 'apto'."""
+    return FailureRecord(
+        test_name="unknown (fallos declarados no extraídos)",
+        error_type=None,
+        message=(f"El reporte declara {declared} fallo(s) que el parser no pudo extraer; "
+                 "revisa el reporte antes de confiar en un veredicto 'apto'."),
+        trace=None,
+        project=project,
+        source=source,
+    )
