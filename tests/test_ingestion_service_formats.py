@@ -21,9 +21,10 @@ class _CapturingRepo:
     def __init__(self):
         self.captured = None
 
-    def ingest_run(self, *, user_id, org_id, project, source, items):
-        self.captured = {"source": source, "items": items}
-        return {"run_id": "r", "ingested": len(items), "known": 0, "novel": len(items)}
+    def ingest_run(self, *, user_id, org_id, project, source, items, run_uid=None):
+        self.captured = {"source": source, "items": items, "run_uid": run_uid}
+        return {"run_id": "r", "ingested": len(items), "known": 0, "novel": len(items),
+                "deduplicated": False}
 
 
 def _service():

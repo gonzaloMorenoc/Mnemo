@@ -152,6 +152,45 @@ class AssuranceRepository:
         )
         return is_new
 
+    def _insert_run_or_get_existing(
+        self,
+        cur,
+        *,
+        org_id: str,
+        project: str,
+        source: str,
+        commit_sha: Optional[str],
+        run_uid: Optional[str],
+    ):
+        """Inserta el test_run del ingest. Si run_uid viene y ya existe (org_id, run_uid)
+        — entrega duplicada concurrente o reintento — devuelve el run existente con su
+        summary en vez de insertar. Devuelve (run_id, existing_summary | None); summary
+        None significa "run recién creado". Debe ejecutarse dentro de la transacción."""
+        if run_uid is None:
+            cur.execute(
+                "insert into public.test_runs (org_id, project, source, commit_sha)"
+                " values (%s, %s, %s, %s) returning id",
+                (org_id, project, source, commit_sha),
+            )
+            return cur.fetchone()["id"], None
+        cur.execute(
+            "insert into public.test_runs (org_id, project, source, commit_sha, run_uid)"
+            " values (%s, %s, %s, %s, %s)"
+            " on conflict (org_id, run_uid) where run_uid is not null do nothing"
+            " returning id",
+            (org_id, project, source, commit_sha, run_uid),
+        )
+        inserted = cur.fetchone()
+        if inserted is not None:
+            return inserted["id"], None
+        cur.execute(
+            "select id, summary from public.test_runs"
+            " where org_id = %s and run_uid = %s",
+            (org_id, run_uid),
+        )
+        existing = cur.fetchone()
+        return existing["id"], (existing["summary"] or {})
+
     def ingest_run(
         self,
         *,
@@ -161,10 +200,15 @@ class AssuranceRepository:
         source: str,
         items: List[IngestItem],
         commit_sha: Optional[str] = None,
+        run_uid: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Ingest a test run and classify each failure into a defect family.
 
-        Returns a dict with keys: run_id, ingested, known, novel.
+        Idempotente por (org_id, run_uid) si run_uid viene: un re-upload del mismo
+        reporte devuelve el run existente con deduplicated=True en vez de crear otro
+        run y doblar occurrence_count de las familias.
+
+        Returns a dict with keys: run_id, ingested, known, novel, deduplicated.
         Raises PermissionError if the user is not a member of the org.
         """
         known = 0
@@ -185,12 +229,18 @@ class AssuranceRepository:
                 if not cur.fetchone()["ok"]:
                     raise PermissionError("user is not a member of the organization")
 
-                cur.execute(
-                    "insert into public.test_runs (org_id, project, source, commit_sha)"
-                    " values (%s, %s, %s, %s) returning id",
-                    (org_id, project, source, commit_sha),
+                run_id, existing_summary = self._insert_run_or_get_existing(
+                    cur, org_id=org_id, project=project, source=source,
+                    commit_sha=commit_sha, run_uid=run_uid,
                 )
-                run_id = cur.fetchone()["id"]
+                if existing_summary is not None:
+                    return {
+                        "run_id": str(run_id),
+                        "ingested": existing_summary.get("ingested", 0),
+                        "known": existing_summary.get("known", 0),
+                        "novel": existing_summary.get("novel", 0),
+                        "deduplicated": True,
+                    }
 
                 for item in items:
                     if self._match_and_insert_failure(cur, org_id=org_id, run_id=run_id, item=item):
@@ -211,6 +261,7 @@ class AssuranceRepository:
             "ingested": len(items),
             "known": known,
             "novel": novel,
+            "deduplicated": False,
         }
 
     def ingest_ci_run(
@@ -245,41 +296,21 @@ class AssuranceRepository:
                 if not cur.fetchone()["ok"]:
                     raise PermissionError("user is not a member of the organization")
 
-                if run_uid is not None:
-                    cur.execute(
-                        "insert into public.test_runs (org_id, project, source, commit_sha, run_uid)"
-                        " values (%s, %s, %s, %s, %s)"
-                        " on conflict (org_id, run_uid) where run_uid is not null do nothing"
-                        " returning id",
-                        (org_id, project, source, commit_sha, run_uid),
-                    )
-                    inserted = cur.fetchone()
-                    if inserted is None:
-                        # entrega duplicada concurrente o reintento → devolver el run existente
-                        cur.execute(
-                            "select id, summary from public.test_runs"
-                            " where org_id = %s and run_uid = %s",
-                            (org_id, run_uid),
-                        )
-                        existing = cur.fetchone()
-                        summary = (existing["summary"] if existing else None) or {}
-                        return {
-                            "run_id": str(existing["id"]),
-                            "ingested": summary.get("ingested", 0),
-                            "known": summary.get("known", 0),
-                            "novel": summary.get("novel", 0),
-                            "results_recorded": summary.get("results_recorded", 0),
-                            "snapshots_saved": summary.get("snapshots_saved", 0),
-                            "deduplicated": True,
-                        }
-                    run_id = inserted["id"]
-                else:
-                    cur.execute(
-                        "insert into public.test_runs (org_id, project, source, commit_sha, run_uid)"
-                        " values (%s, %s, %s, %s, %s) returning id",
-                        (org_id, project, source, commit_sha, run_uid),
-                    )
-                    run_id = cur.fetchone()["id"]
+                run_id, existing_summary = self._insert_run_or_get_existing(
+                    cur, org_id=org_id, project=project, source=source,
+                    commit_sha=commit_sha, run_uid=run_uid,
+                )
+                if existing_summary is not None:
+                    # entrega duplicada concurrente o reintento → devolver el run existente
+                    return {
+                        "run_id": str(run_id),
+                        "ingested": existing_summary.get("ingested", 0),
+                        "known": existing_summary.get("known", 0),
+                        "novel": existing_summary.get("novel", 0),
+                        "results_recorded": existing_summary.get("results_recorded", 0),
+                        "snapshots_saved": existing_summary.get("snapshots_saved", 0),
+                        "deduplicated": True,
+                    }
 
                 for item in items:
                     if self._match_and_insert_failure(cur, org_id=org_id, run_id=run_id, item=item):

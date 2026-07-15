@@ -30,6 +30,7 @@ class IngestReportResponse(BaseModel):
     ingested: int
     known: int
     novel: int
+    deduplicated: bool = False
 
 
 class DefectFamilyResponse(BaseModel):

@@ -1,3 +1,4 @@
+import hashlib
 from dataclasses import replace
 from typing import Any, Dict
 
@@ -58,6 +59,10 @@ class IngestionService:
             fp = fingerprint(clean)
             embedding = self.embedder.embed(f"{clean.error_type or ''} {message}".strip())
             items.append(IngestItem(rec=clean, fingerprint=fp, embedding=embedding))
+        # Idempotencia (B3): el run_uid se deriva del contenido → re-subir el mismo
+        # archivo al mismo proyecto deduplica en vez de doblar occurrence_count.
+        run_uid = f"report:{project}:{hashlib.sha256(data).hexdigest()}"
         return self.repo.ingest_run(
-            user_id=user_id, org_id=org_id, project=project, source=source, items=items
+            user_id=user_id, org_id=org_id, project=project, source=source,
+            items=items, run_uid=run_uid,
         )
