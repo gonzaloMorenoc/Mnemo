@@ -27,6 +27,12 @@ htmlcov/
 .claude/
 .superpowers/
 
+# Documentación interna de trabajo (auditorías, planes de proceso, material de concurso)
+docs/superpowers/
+docs/auditoria/
+doc/AUDITORIA_CONCURSO_MTP.md
+doc/*.pdf
+
 # Modelos y caches de HuggingFace/Transformers
 .cache/
 
@@ -39,3 +45,5 @@ TECHNICAL_GUIDE.md
 
 # Configuración de entornos
 .env
+docs/demo/*.local.md
+docs/concurso/
