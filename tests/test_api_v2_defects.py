@@ -33,7 +33,8 @@ def test_ingest_report_happy():
         files={"file": ("r.json", b"[]", "application/json")},
     )
     assert resp.status_code == 200
-    assert resp.json() == {"run_id": "r1", "ingested": 2, "known": 1, "novel": 1}
+    assert resp.json() == {"run_id": "r1", "ingested": 2, "known": 1, "novel": 1,
+                           "deduplicated": False}
     kw = service.ingest_report.call_args.kwargs
     assert kw["org_id"] == "org-1" and kw["source"] == "allure" and kw["data"] == b"[]"
 
