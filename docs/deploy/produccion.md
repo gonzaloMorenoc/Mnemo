@@ -61,6 +61,32 @@ Sea cual sea, **el backend arranca igual**: el LLM solo afecta a las funciones d
 
 ---
 
+## Claves de firma del acta (Ed25519) — sin esto el certificado está APAGADO
+
+El diferenciador del producto (acta firmada y verificable) necesita **dos variables en el backend**. Si faltan, `GET /v2/certificates/pubkey` devuelve `503 "clave pública de firma no configurada"` y no se puede generar ni verificar ningún acta.
+
+1. Genera el par (una sola vez, en tu máquina):
+   ```bash
+   openssl genpkey -algorithm ed25519 -out mnemo-signing-private.pem
+   openssl pkey -in mnemo-signing-private.pem -pubout -out mnemo-signing-public.pem
+   ```
+2. En el host del backend (Render → Environment / HF Space → Settings):
+   - `MNEMO_SIGNING_PRIVATE_KEY` = contenido completo de `mnemo-signing-private.pem` (**como Secret**, incluye las líneas `-----BEGIN/END PRIVATE KEY-----`).
+   - `MNEMO_SIGNING_PUBLIC_KEY` = contenido completo de `mnemo-signing-public.pem` (puede ser Variable pública; es la clave publicable).
+3. Comprueba: `GET https://<backend>/v2/certificates/pubkey` → `{"algorithm":"ed25519","public_key_pem":...}`.
+
+> **Rotación**: cada acta lleva el `key_id` (SHA-256 truncado) de la clave con la que se firmó; los certificados antiguos siguen verificando con su clave. **No pierdas la privada** y no la reutilices en otros entornos.
+
+---
+
+## Keep-warm (hosting gratuito que se duerme)
+
+Los hosts gratuitos (HF Spaces) duermen el backend por inactividad → la primera petición tarda ~60 s y el usuario ve un **504 al primer clic**. El workflow **`.github/workflows/keep-warm.yml`** pingea `GET /v2/health` cada 15 min y falla (→ email de aviso) si no responde 200.
+
+Para activarlo: GitHub → Settings → Secrets and variables → Actions → **Variables** → `BACKEND_HEALTH_URL` = `https://<backend>/v2/health`. Sin la variable, el job se salta sin ruido.
+
+---
+
 ## Alternativas de hosting del backend
 
 | Host | 0 € real | RAM (torch) | Nota |
@@ -82,3 +108,5 @@ El `Dockerfile` ya es **portable**: escucha en `${PORT:-8080}`, así que sirve p
 - [ ] En el sitio: la consola del navegador (Network) muestra `/api/v2/orgs` con **200** (no 500/502).
 - [ ] Crear una organización funciona.
 - [ ] Migraciones aplicadas en Supabase prod (ya lo están; verificable con `relrowsecurity` en `pg_class`).
+- [ ] `GET https://<backend>/v2/certificates/pubkey` responde 200 con la clave pública (→ el acta firmada está operativa).
+- [ ] Variable `BACKEND_HEALTH_URL` creada en GitHub → el workflow keep-warm corre verde cada 15 min.

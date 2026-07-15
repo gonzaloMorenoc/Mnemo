@@ -1,0 +1,35 @@
+name: Keep-warm del backend
+
+# El backend en hosting gratuito (HF Spaces) se duerme por inactividad y la primera
+# petición real tarda ~60 s → 504 al primer clic (adoption-killer P1 de la auditoría
+# 2026-07-10). Este ping periódico lo mantiene despierto y, de paso, avisa por email
+# (workflow fallido) si el backend deja de responder 200.
+#
+# Requiere la variable de repositorio BACKEND_HEALTH_URL (Settings → Secrets and
+# variables → Actions → Variables), p.ej.:
+#   https://<space>.hf.space/v2/health
+# Si la variable no existe, el job se salta sin fallar.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    if: ${{ vars.BACKEND_HEALTH_URL != '' }}
+    timeout-minutes: 5
+    steps:
+      - name: Ping /v2/health
+        run: |
+          # --max-time 120: si el Space estaba dormido, la propia petición lo despierta
+          # (el arranque en frío carga torch y puede tardar ~60 s).
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 120 "$BACKEND_HEALTH_URL" || echo "000")
+          echo "GET $BACKEND_HEALTH_URL → HTTP $code"
+          if [ "$code" != "200" ]; then
+            echo "::error::El backend no responde 200 en /v2/health (HTTP $code). Revisa el estado del Space."
+            exit 1
+          fi
+        env:
+          BACKEND_HEALTH_URL: ${{ vars.BACKEND_HEALTH_URL }}
