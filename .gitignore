@@ -45,3 +45,4 @@ TECHNICAL_GUIDE.md
 
 # Configuración de entornos
 .env
+docs/demo/*.local.md
