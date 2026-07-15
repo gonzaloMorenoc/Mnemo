@@ -29,7 +29,6 @@ Python 3.13 · FastAPI · Postgres + pgvector (Supabase) · Supabase JWT · Olla
 | [`docs/technical/arquitectura.md`](docs/technical/arquitectura.md) | Arquitectura, capas, componentes, flujo de datos |
 | [`docs/technical/modelo-datos.md`](docs/technical/modelo-datos.md) | Esquema y aislamiento multi-tenant (RLS) |
 | [`docs/technical/api.md`](docs/technical/api.md) | Referencia completa de endpoints `/v2` |
-| [`docs/AUDITORIA_CONCURSO_MTP.md`](docs/AUDITORIA_CONCURSO_MTP.md) | Auditoría y encaje con el concurso MTP AI Innovation Award |
 
 ## Puesta en marcha
 
