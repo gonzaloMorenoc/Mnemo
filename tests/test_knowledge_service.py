@@ -13,8 +13,12 @@ def _make_service():
     ]
 
     fake_assurance_repo = MagicMock()
+    # El contrato REAL de AssuranceRepository.search_families_semantic devuelve la
+    # familia bajo la clave "family_id" (no "id"). El mock debe reflejarlo o el test
+    # valida una ficción — que fue justo lo que dejó pasar el KeyError en producción.
     fake_assurance_repo.search_families_semantic.return_value = [
-        {"id": "f1", "title": "checkout 500", "label": "real", "root_cause": "backend 500"},
+        {"family_id": "f1", "title": "checkout 500", "label": "real",
+         "root_cause": "backend 500", "signature": "sig", "occurrence_count": 3},
     ]
 
     fake_embedder = MagicMock()

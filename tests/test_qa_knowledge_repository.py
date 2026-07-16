@@ -156,6 +156,25 @@ class TestListItemsMember:
         assert result[0]["id"] == "1"
 
 
+class TestGetItemMember:
+    def test_does_not_select_star_nor_expose_embedding(self):
+        """get_item debe seleccionar columnas explícitas (sin `embedding`): un
+        `select *` trae el vector como numpy.ndarray y rompe la serialización JSON
+        de FastAPI (500 en prod)."""
+        repo = QaKnowledgeRepository(db_url="dummy", embedder=FakeEmb())
+        row = {"id": "abc", "kind": "flujo", "title": "T", "domain": "auth",
+               "tags": [], "confidence": "confirmado", "created_at": "2026-01-01"}
+        conn_ctx, conn, cur = _make_conn_ctx(member=True, fetchone_extra=row)
+        with patch.object(repo, "_connect", return_value=conn_ctx):
+            result = repo.get_item(user_id="u", org_id="o", item_id="abc")
+        assert result is not None and result["id"] == "abc"
+        assert "embedding" not in result
+        # la consulta del item no debe usar `select *` ni traer el embedding
+        sql = cur.execute.call_args_list[-1].args[0].lower()
+        assert "*" not in sql
+        assert "embedding" not in sql
+
+
 class TestSearchSemanticMember:
     def test_returns_rows_from_cursor(self):
         repo = QaKnowledgeRepository(db_url="dummy", embedder=FakeEmb())
@@ -276,6 +295,10 @@ def test_get_item(org_with_member):
     fetched = repo.get_item(user_id=u, org_id=o, item_id=str(item["id"]))
     assert fetched is not None
     assert fetched["title"] == "Flakiness"
+    # el embedding (vector) NO debe salir en la respuesta: rompe la serialización JSON
+    assert "embedding" not in fetched
+    import json
+    json.dumps(fetched, default=str)  # debe ser serializable sin explotar
 
 
 @pytest.mark.integration

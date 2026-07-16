@@ -17,7 +17,8 @@ class KnowledgeService:
         out = [{"id": str(i["id"]), "type": "knowledge", "title": i.get("title"),
                 "content": " ".join(str(i.get(x) or "") for x in ("title", "challenge", "approach", "outcome")).strip(),
                 "confidence": i.get("confidence")} for i in items]
-        out += [{"id": str(f["id"]), "type": "defect", "title": f.get("title"),
+        # search_families_semantic devuelve la familia bajo "family_id" (no "id").
+        out += [{"id": str(f["family_id"]), "type": "defect", "title": f.get("title"),
                  "content": f"defecto={f.get('title')} etiqueta={f.get('label')} causa={f.get('root_cause') or 'n/d'}",
                  "confidence": "confirmado"} for f in fams]
         return out

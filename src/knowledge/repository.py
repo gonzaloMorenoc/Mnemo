@@ -70,7 +70,14 @@ class QaKnowledgeRepository:
         with self._connect() as conn, conn.cursor() as cur:
             if not self._is_member(cur, org_id, user_id):
                 return None
-            cur.execute("select * from public.qa_knowledge where id=%s and org_id=%s", (item_id, org_id))
+            # Columnas explícitas (NUNCA `select *`): el `embedding vector(384)` vuelve
+            # como numpy.ndarray y rompe la serialización JSON de la respuesta (500).
+            cur.execute(
+                "select id, kind, title, challenge, approach, outcome, domain, tags,"
+                " project, source, confidence, defect_family_id, run_id, created_by, created_at"
+                " from public.qa_knowledge where id=%s and org_id=%s",
+                (item_id, org_id),
+            )
             row = cur.fetchone()
             return dict(row) if row else None
 
