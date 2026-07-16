@@ -49,8 +49,9 @@ HMAC-SHA256 del cuerpo en `X-Hub-Signature-256` (estilo GitHub webhooks).
 Reglas del comando (versión ejecutable con valores reales: `prod.local.md`):
 
 - `org_id` del payload = UUID de Org A (el webhook rechaza otras orgs).
-- **`run_uid` aleatorio en cada envío** → cada ensayo ingesta un run fresco (la ingesta es
-  idempotente por `run_uid`: reenviar el mismo valor devuelve `deduplicated: true`).
+- **`run_uid` aleatorio en cada envío, con prefijo `demo-`** (p.ej. `demo-$(uuidgen)`) →
+  cada ensayo ingesta un run fresco (la ingesta es idempotente por `run_uid`: reenviar el
+  mismo valor devuelve `deduplicated: true`), y la poda de §1f (`like 'demo-%'`) los captura.
 - Secreto: `CI_WEBHOOK_SECRET` configurado como secret del backend.
 
 Respuesta esperada: `"triage": {"maintenance": 1}`, acta `apto-con-reservas`,
@@ -114,9 +115,10 @@ sobre cualquier run sembrado. El Acto 3 (calibración + Org B + ROI) es independ
    y `LLM_PROVIDER=ollama`).
 2. **Frontend**: `cd frontend && npm install && npm run dev` con `frontend/.env.local`
    (`NEXT_PUBLIC_API_BASE_URL=http://localhost:8000` + claves de Supabase).
-3. **Seed + usuario demo**: `python3 scripts/docker_init.py` (necesita `SERVICE_ROLE_KEY`,
-   `DEMO_EMAIL`, `DEMO_PASSWORD`) — espera BD, aplica migraciones, crea el usuario vía GoTrue
-   y ejecuta `seed_demo`.
+3. **Seed + usuario demo**: `python3 scripts/docker_init.py` — espera BD, aplica las
+   migraciones, crea el usuario vía GoTrue y ejecuta `seed_demo`. Lee el `.env` de la raíz;
+   necesita 5 variables: `DATABASE_URL`, `SUPABASE_URL`, `SERVICE_ROLE_KEY`, `DEMO_EMAIL`
+   y `DEMO_PASSWORD`.
 4. El push en vivo es idéntico a §1c apuntando a `http://localhost:8000`.
 
 </details>

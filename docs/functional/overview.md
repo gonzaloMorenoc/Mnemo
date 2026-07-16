@@ -10,7 +10,7 @@ El nombre viene de *Mnemosyne*, la personificación de la memoria. La idea centr
 
 ## Propuesta de valor
 
-- **Privado por diseño:** LLM y embeddings 100% locales (Ollama `qwen3:8b` + HuggingFace). Las trazas y logs de los clientes nunca salen a una nube externa. Coste de API = 0 €. Diferenciador real frente a herramientas cloud para clientes enterprise bajo NDA/GDPR/LGPD.
+- **Privado por diseño:** embeddings siempre locales y LLM intercambiable — en modo on-premise (Ollama `qwen3:8b`, el default de código) las trazas y logs de los clientes nunca salen a una nube externa y el coste de API es 0 €. Diferenciador real frente a herramientas cloud para clientes enterprise bajo NDA/GDPR/LGPD. Un proveedor cloud (Gemini/Groq/OpenAI-compatible) es opcional y exige opt-in explícito (`ALLOW_EXTERNAL_LLM=true`); es lo que usa la demo pública.
 - **Conocimiento federado multi-tenant:** cada organización/cliente tiene su base aislada (RLS + `org_id`); el conocimiento puede compartirse al acervo `global` sanitizado.
 - **RAG operacional, no chatbot:** recupera el conocimiento del proyecto y lo transforma en planes, casos y automatización — con fuente y nivel de confianza citados.
 - **Cita siempre la fuente:** confirmado vs. inferido; detecta conocimiento contradictorio u obsoleto.
@@ -27,7 +27,7 @@ El nombre viene de *Mnemosyne*, la personificación de la memoria. La idea centr
 
 ### 1. Memoria del proyecto (`/app/knowledge`)
 
-Captura y organiza el conocimiento de QA del proyecto: reglas de negocio, flujos, riesgos, glosario, lecciones aprendidas y retos abiertos. La búsqueda semántica unificada (`search_unified`) cruza la memoria con el **Defect DNA** (familias de defecto, fingerprints, linaje entre proyectos) producido por el Autopilot. Módulo: `src/knowledge/`, tabla `qa_knowledge`. Endpoints: `/v2/knowledge/*`.
+Captura y organiza el conocimiento de QA del proyecto en 7 tipos: reglas de negocio, flujos, riesgos, glosario, lecciones aprendidas, retos abiertos y patrones. La búsqueda semántica unificada (`search_unified`) cruza la memoria con el **Defect DNA** (familias de defecto, fingerprints, linaje entre proyectos) producido por el Autopilot. Módulo: `src/knowledge/`, tabla `qa_knowledge`. Endpoints: `/v2/knowledge/*`.
 
 ### 2. Test Plan Agent (`/app/test-plan`)
 
@@ -35,7 +35,7 @@ Dada una historia de usuario — como URL de Jira, PDF/Word o texto libre — ge
 
 ### 3. Onboarding Agent (`/app/onboarding`)
 
-"Modo persona nueva": responde ¿qué sabe el proyecto sobre X?, genera una ruta de aprendizaje personalizada y mantiene un chat guiado apoyado en la memoria del proyecto. Módulo: `src/onboarding/`. Endpoints: `/v2/onboarding/*`.
+"Modo persona nueva": responde ¿qué sabe el proyecto sobre X?, genera una ruta de aprendizaje personalizada y mantiene un chat guiado apoyado en la memoria del proyecto. Módulo: `src/onboarding/`. Endpoints: `/v2/onboarding/domain-summary` y `/v2/onboarding/learning-path`; el chat usa `/v2/knowledge/ask`.
 
 ### 4. Automation Agent (botón en `/app/test-plan`)
 
@@ -49,7 +49,7 @@ Grafo de relaciones derivado del conocimiento y los tests (HU → servicio → t
 
 El **Autopilot** (ingesta CI → triaje automático → certificado firmado → self-heal) no desaparece: se convierte en una de las fuentes que alimentan la memoria. Aporta:
 
-- **Ingesta de runs** (webhook `POST /v2/ci/webhook`, HMAC; reportes Allure/JUnit) → fallos sanitizados con fingerprint.
+- **Ingesta de runs** (webhook `POST /v2/ci/webhook`, HMAC; o upload de reportes con autodetección de 7 formatos: JUnit, TestNG, Robot Framework, Allure, Playwright, Cypress, Cucumber) → fallos sanitizados con fingerprint.
 - **Defect DNA**: familias de defecto con linaje cross-proyecto.
 - **Veredicto de aseguramiento**: por run — conocidos vs. nuevos, señal de riesgo, narrativa LLM.
 - **Self-heal**: propone PR de mantenimiento cuando detecta un locator roto con confianza suficiente.
@@ -70,4 +70,4 @@ Cada organización/cliente tiene su base aislada (RLS + `org_id`). Las familias 
 
 ## Estado
 
-Todas las capacidades descritas están en producción (`main`). Migraciones aplicadas: `001`–`019`. Ver roadmap y próximos pasos en [`docs/vision/qa-continuity-ai.md`](../vision/qa-continuity-ai.md).
+Todas las capacidades descritas están en producción (`main`), con las migraciones de `db/migrations/` aplicadas al completo. Ver roadmap y próximos pasos en [`docs/vision/qa-continuity-ai.md`](../vision/qa-continuity-ai.md).

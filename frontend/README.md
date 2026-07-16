@@ -14,7 +14,10 @@ Frontend web de **Mnemo** con Next.js (App Router), Tailwind + shadcn/ui, autent
 
 ## Rutas
 
-`/` · `/login` · `/signup` · `/app` · `/app/analyze` · `/app/assurance` · `/app/defects` · `/app/integrations` · `/app/knowledge` · `/app/org` · `/app/settings`
+`/` · `/login` · `/signup` · **`/verify`** (verificación pública de actas, sin login) ·
+`/app` · `/app/assurance` · `/app/autopilot` · `/app/calibration` · `/app/defects` ·
+`/app/graph` · `/app/integrations` · `/app/knowledge` · `/app/onboarding` · `/app/org` ·
+`/app/settings` · `/app/test-plan`
 
 ## Cómo habla con el backend (proxy server-side)
 

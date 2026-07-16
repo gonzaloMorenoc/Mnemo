@@ -31,4 +31,14 @@ describe("buildArtifact", () => {
     expect(a.tests).toHaveLength(1);
     expect(a.tests[0].dom).toBe("<html></html>");
   });
+
+  it("incluye run_uid cuando la meta lo trae (idempotencia del webhook)", () => {
+    const a = buildArtifact([], { project: "demo", orgId: "o", commitSha: "abc", runUid: "gh-1-1" });
+    expect(a.run_uid).toBe("gh-1-1");
+  });
+
+  it("run_uid queda null si la meta no lo trae (retrocompatible)", () => {
+    const a = buildArtifact([], { project: "demo", orgId: "o", commitSha: "abc" });
+    expect(a.run_uid).toBeNull();
+  });
 });

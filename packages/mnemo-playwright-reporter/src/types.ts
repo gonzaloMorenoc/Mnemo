@@ -17,6 +17,8 @@ export interface CiRunArtifact {
   org_id: string;
   commit_sha: string;
   source: string;
+  /** Idempotencia: el backend deduplica por (org_id, run_uid). null = sin dedup. */
+  run_uid?: string | null;
   tests: CiTestResult[];
 }
 
@@ -26,6 +28,7 @@ export interface MnemoConfig {
   orgId: string;
   project: string;
   commitSha: string;
+  runUid: string | null;
 }
 
 /** Forma mínima que el builder necesita (independiente de Playwright). */
@@ -45,4 +48,5 @@ export interface ArtifactMeta {
   project: string;
   orgId: string;
   commitSha: string;
+  runUid?: string | null;
 }
