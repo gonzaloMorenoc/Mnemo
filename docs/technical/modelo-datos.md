@@ -6,15 +6,15 @@ Base reutilizada del producto original:
 
 - `organizations` (org/cliente; `created_by`, `join_code`). Un **trigger** crea automáticamente la membership `owner` del creador.
 - `memberships` (`org_id`, `user_id`, `role` ∈ owner/admin/member/viewer). **Es la fuente de verdad del aislamiento.**
-- `profiles`, y las tablas del KB original (`documents`, `chunks`, `embeddings`) con scopes `org`/`user`/`global`.
+- `profiles`, `analyses`, y las tablas del KB original (`documents`, `chunks`, `embeddings`) con scopes `org`/`user`/`global`.
 
 ## Esquema de aseguramiento (migración `002_assurance.sql`)
 
-| Tabla | Campos clave |
+| Tabla | Campos clave (estado ACTUAL, con las columnas añadidas por migraciones posteriores) |
 |---|---|
-| `test_runs` | `id`, `org_id`, `project`, `source` (`allure`/`junit`), `ci_ref`, `summary` jsonb, `created_at` |
-| `defect_families` | `id`, `scope` (`org`/`global`), `org_id`, `signature`, `title`, `root_cause`, `status` (`open`/`resolved`), `occurrence_count`, `centroid vector(384)`, `first_seen`, `last_seen` |
-| `failures` | `id`, `run_id`, `org_id`, `test_name`, `error_type`, `message`, `trace`, `fingerprint`, `embedding vector(384)`, `sanitized`, `defect_family_id`, `created_at` |
+| `test_runs` | `id`, `org_id`, `project`, `source` (8 valores: `allure`/`junit`/`testng`/`cucumber`/`playwright`/`cypress`/`robot` +004, `jira` +005), `ci_ref`, `commit_sha` (+007), `run_uid` (+008, idempotencia), `summary` jsonb, `created_at` |
+| `defect_families` | `id`, `scope` (`org`/`global`), `org_id`, `signature`, `title`, `root_cause`, `status` (`open`/`resolved`), `label` (+009), `occurrence_count`, `centroid vector(384)`, `first_seen`, `last_seen` |
+| `failures` | `id`, `run_id`, `org_id`, `test_name`, `error_type`, `message`, `trace`, `fingerprint`, `embedding vector(384)`, `sanitized`, `defect_family_id`, `external_ref`/`external_url` (+005, Jira), `file`/`line` (+012, self-heal), `created_at` |
 
 Índices: `ivfflat (embedding vector_cosine_ops)` para el matching por coseno; índices por `org_id`, `defect_family_id`, `fingerprint`, `signature`.
 
@@ -37,7 +37,7 @@ where ... and exists (
 )
 ```
 
-y `ingest_run` lanza `PermissionError` si el usuario no es miembro. Esto está **cubierto por tests de integración** contra el Supabase real (`tests/test_assurance_repository.py`): aislamiento cross-org, rechazo de no-miembro, y agrupación cross-proyecto.
+y `ingest_run` lanza `PermissionError` si el usuario no es miembro. Esto está **cubierto por tests de integración** contra el Supabase real: `tests/test_assurance_repository.py` (aislamiento cross-org, rechazo de no-miembro, agrupación cross-proyecto) más las suites conductuales de RLS `tests/test_rls_behavioral.py`, `tests/test_migration_016_rls.py`, `tests/test_qa_knowledge_rls.py` y `tests/test_test_assets_rls.py`. Estas suites sustituyen al antiguo checklist manual de validación RLS.
 
 `FORCE RLS` queda como **red de seguridad** para el futuro (si se conecta vía un rol `authenticated` real / PostgREST en vez del rol pooler con BYPASS).
 
@@ -51,7 +51,30 @@ y `ingest_run` lanza `PermissionError` si el usuario no es miembro. Esto está *
 
 ---
 
-## Migraciones Autopilot (009–019)
+## Migraciones (003–021)
+
+### 003 — invariantes del matching
+
+Índice único parcial `uq_defect_families_org_signature` sobre `(org_id, signature)` — la invariante anti-familia-duplicada del matching — e `ivfflat` sobre `defect_families.centroid`.
+
+### 004 / 005 / 006 — más fuentes + Jira
+
+`004` amplía `test_runs.source` a 7 formatos de report; `005` añade `jira` como fuente y `external_ref`/`external_url` a `failures` (dedup de issues); `006` añade el índice de dedup `(org_id, external_ref)`.
+
+### 007 — `test_results` y `dom_snapshots`
+
+Base de la señal flaky (resultado por test, incluidos los `pass`) y del self-heal (DOM verde/rojo).
+
+| Tabla | Campos clave |
+|-------|-------------|
+| `test_results` | `id`, `run_id`, `org_id`, `test_name`, `status` (`pass`/`fail`/`flaky`/`skipped`), `retried bool`, `created_at` |
+| `dom_snapshots` | `id`, `org_id`, `project`, `test_name`, `kind` (`last_green`/`failure`), `content text`, `commit_sha`, `created_at` |
+
+Ambas con RLS + FORCE + policy `is_org_member(org_id)`. También añade `test_runs.commit_sha`.
+
+### 008 — `run_uid` (idempotencia de ingesta)
+
+`test_runs.run_uid text` + índice único **parcial** `(org_id, run_uid) where run_uid is not null`: reentregar el mismo run (retry del webhook, re-upload del mismo reporte) devuelve el run existente en vez de duplicar.
 
 ### 009 — `triage_verdicts`
 
@@ -71,9 +94,17 @@ RLS habilitado + FORCE + policy `is_org_member(org_id)`.
 
 RLS habilitado + FORCE + policy `is_org_member(org_id)`.
 
+### 011 — `org_integrations` — soporte GitHub App
+
+Añade `provider='github'` al constraint, columnas `installation_id`/`repo_full_name`, pasa `email`/`api_token_enc`/`jql` a nullable (solo aplican a Jira) y añade la FK `actions.approved_by → auth.users`.
+
+### 012 — `failures.file` / `failures.line`
+
+Ubicación del fallo en el código del test — la base del parche de self-heal.
+
 ### 013 — `org_integrations` — hotfix RLS
 
-La tabla `org_integrations` (creada en `005_jira_integration.sql`) almacena credenciales por org (token Jira cifrado con Fernet, base_url/email/jql, installation_id/repo_full_name de GitHub App). Se creó sin RLS — Supabase advisor la clasificó como CRITICAL. Esta migración habilita RLS + FORCE + policy `is_org_member(org_id)`. El backend no se ve afectado (accede por el Session pooler, que bypasea RLS); solo se bloquea el acceso directo no autorizado.
+La tabla `org_integrations` (creada en `005_jira_integration.sql`; columnas GitHub añadidas en `011`) almacena credenciales por org (token Jira cifrado con Fernet, base_url/email/jql, installation_id/repo_full_name de GitHub App). Se creó sin RLS — Supabase advisor la clasificó como CRITICAL. Esta migración habilita RLS + FORCE + policy `is_org_member(org_id)`. El backend no se ve afectado (accede por el Session pooler, que bypasea RLS); solo se bloquea el acceso directo no autorizado.
 
 ### 014 — `certificates`
 
@@ -121,3 +152,17 @@ Añade `provider='xray'` al constraint de `org_integrations.provider` (antes sol
 Añade `xray_mode text check (xray_mode in ('cloud', 'server'))`.
 
 Reutiliza el mismo patrón de cifrado Fernet: `api_token_enc` lleva el `client_secret` (Xray Cloud) o la API token (Xray Server); `email` lleva el `client_id` (Cloud); `base_url` lleva el host de Xray Server/DC.
+
+### 020 — `test_assets`
+
+Los tests del repo del cliente, indexados para el estilo few-shot de Automation y el detector de gaps.
+
+| Tabla | Campos clave |
+|-------|-------------|
+| `test_assets` | `id`, `org_id`, `repo_full_name`, `path`, `framework`, `domain`, `content text`, `embedding vector(384)`, `created_at` |
+
+Índices: `(org_id)`, `(org_id, domain)` parcial, `ivfflat` parcial. RLS + FORCE + policy `is_org_member(org_id)`.
+
+### 021 — GitHub App: instalación única
+
+Índice único sobre `org_integrations.installation_id`: impide que dos organizaciones reclamen la misma instalación de GitHub (mitigación del confused-deputy cross-tenant).

@@ -17,6 +17,7 @@ describe("resolveConfig", () => {
       orgId: "o",
       project: "p",
       commitSha: "abc",
+      runUid: null,
     });
   });
 
@@ -31,5 +32,33 @@ describe("resolveConfig", () => {
 
   it("MNEMO_COMMIT_SHA tiene prioridad sobre GITHUB_SHA", () => {
     expect(resolveConfig({ ...full, MNEMO_COMMIT_SHA: "xyz" })?.commitSha).toBe("xyz");
+  });
+});
+
+describe("resolveConfig · runUid (dedup del backend)", () => {
+  it("MNEMO_RUN_UID tiene prioridad máxima", () => {
+    expect(
+      resolveConfig({ ...full, MNEMO_RUN_UID: "custom-1", GITHUB_RUN_ID: "99" })?.runUid,
+    ).toBe("custom-1");
+  });
+
+  it("deriva de GITHUB_RUN_ID + GITHUB_RUN_ATTEMPT (re-run del job = mismo run_uid → dedup)", () => {
+    expect(
+      resolveConfig({ ...full, GITHUB_RUN_ID: "12345", GITHUB_RUN_ATTEMPT: "2" })?.runUid,
+    ).toBe("gh-12345-2");
+  });
+
+  it("GITHUB_RUN_ATTEMPT ausente asume intento 1", () => {
+    expect(resolveConfig({ ...full, GITHUB_RUN_ID: "12345" })?.runUid).toBe("gh-12345-1");
+  });
+
+  it("sin fuentes queda null (retrocompatible: el backend no deduplica)", () => {
+    expect(resolveConfig(full)?.runUid).toBeNull();
+  });
+
+  it("la opción programática gana a todo", () => {
+    expect(
+      resolveConfig({ ...full, MNEMO_RUN_UID: "env" }, { runUid: "opt" })?.runUid,
+    ).toBe("opt");
   });
 });

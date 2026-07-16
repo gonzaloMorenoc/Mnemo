@@ -20,6 +20,7 @@ export function buildArtifact(results: TestResultInput[], meta: ArtifactMeta): C
     org_id: meta.orgId,
     commit_sha: meta.commitSha,
     source: "playwright",
+    run_uid: meta.runUid ?? null,
     tests: results.map(buildTestResult),
   };
 }

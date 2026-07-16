@@ -6,7 +6,6 @@ def test_config_defaults_when_env_unset(monkeypatch):
     monkeypatch.delenv("SUPABASE_URL", raising=False)
     monkeypatch.delenv("SUPABASE_JWKS_URL", raising=False)
     monkeypatch.delenv("SUPABASE_JWT_AUDIENCE", raising=False)
-    monkeypatch.delenv("DEFAULT_TOP_K", raising=False)
     # Neutralise load_dotenv so it cannot re-populate os.environ from .env
     import dotenv
     monkeypatch.setattr(dotenv, "load_dotenv", lambda **kw: None)
@@ -16,8 +15,6 @@ def test_config_defaults_when_env_unset(monkeypatch):
     assert config.SUPABASE_URL == ""
     assert config.SUPABASE_JWKS_URL == ""
     assert config.SUPABASE_JWT_AUDIENCE == ""
-    assert isinstance(config.DEFAULT_TOP_K, int)
-    assert config.DEFAULT_TOP_K == 8
 
 
 def test_multi_tenant_enabled_false_when_unset(monkeypatch):

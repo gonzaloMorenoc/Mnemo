@@ -40,3 +40,19 @@ services:
       #   OPENAI_BASE_URL=https://api.groq.com/openai/v1
       #   LLM_MODEL=llama-3.3-70b-versatile
       #   OPENAI_API_KEY=<key de console.groq.com/keys>
+      # --- Firma de actas Ed25519 (SIN esto el certificado está APAGADO: pubkey → 503) ---
+      # Generación y formato: docs/deploy/produccion.md → "Claves de firma del acta".
+      - key: MNEMO_SIGNING_PRIVATE_KEY
+        sync: false                    # PEM completo (BEGIN/END PRIVATE KEY)
+      - key: MNEMO_SIGNING_PUBLIC_KEY
+        sync: false                    # PEM completo (BEGIN/END PUBLIC KEY) — publicable
+      # --- Webhook de CI (ingesta automática; sin esto /v2/ci/webhook devuelve 401/503) ---
+      - key: CI_WEBHOOK_SECRET
+        sync: false                    # secreto compartido HMAC-SHA256
+      - key: CI_SERVICE_USER_ID
+        sync: false                    # UUID del usuario de servicio (miembro del org)
+      - key: CI_SERVICE_ORG_ID
+        sync: false                    # opcional: único org aceptado por el webhook
+      # --- Cifrado de credenciales Jira/Xray por-org (obligatoria si se usa Jira) ---
+      - key: MNEMO_SECRET_KEY
+        sync: false                    # clave Fernet (ver .env.example para generarla)

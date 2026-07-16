@@ -1,6 +1,6 @@
 # QA Continuity AI — Roadmap de cierre de gaps
 
-**Fecha:** 2026-06-28 · **Parte de:** [QA Continuity AI](qa-continuity-ai.md)
+**Fecha:** 2026-06-28 · **Actualizado:** 2026-07-16 (G1 y G2 entregados) · **Parte de:** [QA Continuity AI](qa-continuity-ai.md)
 
 ## Propósito
 
@@ -9,35 +9,28 @@ Mnemo ya entrega el **núcleo** de la visión QA Continuity AI: las 4 capacidade
 Cada fase de cierre (G1…G6), cuando se aborde, pasa por el flujo del proyecto: **brainstorming → spec → plan → subagentes → review → PR**. Este doc es el mapa, no el spec de ninguna.
 
 ## Lo que ya está (no se replantea)
-Memoria (`qa_knowledge` + `search_unified`), Test Plan Agent, Onboarding Agent, Automation Agent (→ draft PR), Knowledge Graph derivado + Coverage Gap; multitenancy RLS, config cifrada por org, LLM/embeddings locales, GitHub App (`open_pr_with_new_file`, `read_file`), integraciones Jira/Xray, ingesta de reportes CI + Jira + PDF/Word/texto.
+Memoria (`qa_knowledge` + `search_unified`), Test Plan Agent, Onboarding Agent, Automation Agent (→ draft PR), Knowledge Graph derivado + Coverage Gap; **ingesta del repo del cliente** (`src/repo_ingest/`, tabla `test_assets`, migración 020) con **gap de cobertura real** (memoria × tests del repo) y estilo few-shot desde los assets; multitenancy RLS, config cifrada por org, embeddings locales + LLM intercambiable, GitHub App (`open_pr_with_new_file`, `read_file`, `list_tree`), integraciones Jira/Xray, ingesta de reportes CI (7 formatos) + Jira + PDF/Word/texto.
 
 ## Los gaps (del análisis) → fases de cierre
 
-| # | Gap | Estado hoy |
+| # | Gap | Estado |
 |---|---|---|
-| G1 | **Ingesta del repositorio** (tests + código existentes) | ❌ no se lee el repo del cliente |
-| G2 | **Coverage Gap real** (reglas/HU sin test del repo) | ⚠️ hoy mide huecos sobre la memoria, no sobre tests reales |
+| G1 | **Ingesta del repositorio** (tests + código existentes) | ✅ **entregado** — `POST /v2/repo/index` indexa los tests del repo (vía GitHub App) como `test_assets` con embeddings; cotas de 200 ficheros / 100 KB |
+| G2 | **Coverage Gap real** (reglas/HU sin test del repo) | ✅ **entregado** — `src/graph/gaps.py` cruza `qa_knowledge` × `test_assets` por similitud de embeddings |
 | G3 | **Ingesta multi-fuente** (Confluence, OpenAPI, transcripciones, Postman…) | ⚠️ solo Jira + ficheros + reportes CI |
 | G4 | **Knowledge Graph rico** (servicio/evento/flujo/HU como nodos) | ⚠️ grafo derivado simple (knowledge/defect/domain) |
-| G5 | **Automation+** (API/contract/SQL, page objects del repo, ejecutar) | ⚠️ solo Playwright `.spec.ts`, estilo vía sample pegado |
+| G5 | **Automation+** (API/contract/SQL, ejecutar antes del PR) | ⚠️ parcial — el estilo ya sale de los assets reales del repo (G1); solo Playwright, sin ejecutar/compilar |
 | G6 | **Frescura** (contradicciones, obsolescencia, reingesta periódica) | ⚠️ hay `last_seen`/`confidence`; falta detección + jobs |
 
 ---
 
 ## Detalle por fase
 
-### G1 · Ingesta del repositorio — *el desbloqueador clave*
-- **Objetivo:** leer el repo del cliente (vía la GitHub App ya configurada por org) para indexar los **tests existentes** (`.feature`/`.spec.ts`/API) y capturar el **estilo** (estructura de carpetas, naming, page objects, fixtures, tags).
-- **Incluye:** `list_tree`/`read_file` sobre el repo (extender `GitHubCodeHost`); extractor que clasifica los tests → `qa_knowledge` (nuevo kind, p. ej. `test_existente`) con su `domain`/relación a reglas; un "perfil de estilo" del repo.
-- **Desbloquea:** G2 (gap real), G5 (Automation "from project style" de verdad) y enriquece G4 (test↔regla↔dominio). **Es el de mayor efecto palanca.**
-- **Depende de:** GitHub App por org (✅ existe). **Reusa:** `GitHubCodeHost`, `qa_knowledge`, `search_unified`, `LocalEmbedder`.
-- **Esfuerzo:** M-L · **Riesgo:** repos grandes → filtrado/cotas; variedad de frameworks.
+### G1 · Ingesta del repositorio — ✅ ENTREGADO
+Implementado en `src/repo_ingest/` (migración `020_test_assets.sql`): `POST /v2/repo/index` lee el repo de la org vía la GitHub App (`list_tree`/`read_file`), filtra los tests, detecta framework y dominio, y los indexa como `test_assets` con embeddings (cotas: 200 ficheros / 100 KB por fichero). `GET /v2/repo/tests` los lista. Alcance no cubierto (queda para G5/G4): perfil de estilo explícito más allá del few-shot y la relación test↔regla tipada.
 
-### G2 · Coverage Gap real — *quick win sobre G1*
-- **Objetivo:** que el detector pase de "huecos de conocimiento" a "**esta regla/HU/dominio no tiene test real**", cruzando `qa_knowledge` × tests ingeridos (G1).
-- **Desbloquea:** la funcionalidad estrella "Knowledge Gap Detector" del documento de idea.
-- **Depende de:** G1. **Reusa:** `src/graph/gaps.py` (extender con un nuevo kind de gap).
-- **Esfuerzo:** S-M · **Riesgo:** bajo. **Alto valor / bajo coste una vez hecho G1.**
+### G2 · Coverage Gap real — ✅ ENTREGADO
+`src/graph/gaps.py` cruza `qa_knowledge` × `test_assets` por similitud de embeddings: el detector señala "esta regla/flujo no tiene test real del repo" además de los huecos de conocimiento.
 
 ### G3 · Ingesta multi-fuente de conocimiento
 - **Objetivo:** el "Project Memory Ingestor" más allá de Jira/ficheros. **Orden sugerido dentro de la fase:** Confluence (la config `CONFLUENCE_URL` ya existe) → OpenAPI/Swagger (define servicios/endpoints, alimenta G4) → transcripciones (texto) → Postman.
@@ -53,9 +46,10 @@ Memoria (`qa_knowledge` + `search_unified`), Test Plan Agent, Onboarding Agent, 
 - **Depende de:** G1 (tests) + G3 (OpenAPI/servicios). **Reusa:** `src/graph` (de derivado → modelado).
 - **Esfuerzo:** L · **Riesgo:** el más alto — modelado + poblado fiable; empezar por un dominio piloto.
 
-### G5 · Automation+
-- **Objetivo:** el Automation Agent genera más allá de Playwright: **API/contract tests, SQL/Data validations**, reutiliza **page objects/fixtures reales** del repo (G1), y opcionalmente **ejecuta/compila** el test antes del PR.
-- **Depende de:** G1 (estilo + assets del repo). **Reusa:** `src/automation`, `GitHubCodeHost`.
+### G5 · Automation+ — parcial (el estilo del repo ya está)
+- **Ya cubierto:** `src/automation/style.py` recupera los `test_assets` más similares como ejemplos few-shot → el estilo sale del repo real, no de un sample pegado.
+- **Pendiente:** generar más allá de Playwright (**API/contract tests, SQL/Data validations**) y **ejecutar/compilar** el test antes del PR.
+- **Reusa:** `src/automation`, `GitHubCodeHost`.
 - **Esfuerzo:** L · **Riesgo:** ejecutar tests requiere entorno (out-of-scope inicial: limitarse a compilar/parsear).
 
 ### G6 · Frescura del conocimiento
@@ -67,32 +61,28 @@ Memoria (`qa_knowledge` + `search_unified`), Test Plan Agent, Onboarding Agent, 
 
 ---
 
-## Secuencia recomendada
+## Secuencia recomendada (viva, tras entregar G1+G2)
 
 ```
-G1 (ingesta repo) ─┬─► G2 (gap real)        [quick win, alto valor]
-                   ├─► G5 (automation+)
-                   └─► G4 (grafo rico) ◄─┐
-G3 (multi-fuente) ──────────────────────┘
-                                         G6 (frescura)  [transversal, al final]
+G1 ✅ ── G2 ✅
+G3 (multi-fuente) ──► G4 (grafo rico) ◄── [tests de G1 ya disponibles]
+G5 (automation+, el resto)
+G6 (frescura)  [transversal, al final]
 ```
 
-1. **G1 + G2 primero** — el mayor salto de valor con la reusa más alta: convierten "estilo vía sample" en "estilo del repo" y "gap de conocimiento" en "gap de cobertura real" (la funcionalidad estrella). G2 es casi gratis tras G1.
-2. **G3 en paralelo** — empezar por **Confluence** (config ya presente) y **OpenAPI** (alimenta G4); incremental, una fuente por PR.
-3. **G4 (grafo rico)** — cuando G1 (tests) y G3 (OpenAPI/servicios) den con qué poblarlo; pilotar con un dominio.
-4. **G5 (automation+)** — sobre el estilo/assets del repo de G1.
-5. **G6 (frescura)** — transversal, al final, cuando haya varias fuentes que puedan contradecirse o envejecer.
+1. **G3** — empezar por **Confluence** (la config `CONFLUENCE_URL` ya existe) y **OpenAPI** (alimenta G4); incremental, una fuente por PR.
+2. **G4 (grafo rico)** — G1 ya aporta los tests; cuando G3 aporte OpenAPI/servicios, pilotar con un dominio.
+3. **G5 (resto de automation+)** — API/contract/SQL + compilar antes del PR.
+4. **G6 (frescura)** — transversal, al final, cuando haya varias fuentes que puedan contradecirse o envejecer.
 
 ## Prioridad de un vistazo
-| Fase | Valor | Esfuerzo | Desbloquea | Cuándo |
+| Fase | Valor | Esfuerzo | Desbloquea | Estado |
 |---|---|---|---|---|
-| **G1** Ingesta repo | 🟢 Alto | M-L | G2, G4, G5 | **Ahora** |
-| **G2** Gap real | 🟢 Alto | S-M | estrella "Knowledge Gap" | tras G1 |
-| **G3** Multi-fuente | 🟡 Medio-Alto | M/fuente | G4 | paralelo |
-| **G4** Grafo rico | 🟢 Alto | L | preguntas de impacto | tras G1+G3 |
-| **G5** Automation+ | 🟡 Medio | L | cobertura real de código | tras G1 |
+| **G1** Ingesta repo | 🟢 Alto | M-L | G2, G4, G5 | ✅ entregado |
+| **G2** Gap real | 🟢 Alto | S-M | estrella "Knowledge Gap" | ✅ entregado |
+| **G3** Multi-fuente | 🟡 Medio-Alto | M/fuente | G4 | **siguiente** |
+| **G4** Grafo rico | 🟢 Alto | L | preguntas de impacto | tras G3 |
+| **G5** Automation+ | 🟡 Medio | L | cobertura real de código | parcial (estilo ✅) |
 | **G6** Frescura | 🟡 Medio | M | confianza a largo plazo | final |
-
-**Recomendación de arranque:** **G1**, y dentro de G1 acotar el MVP a *leer los tests existentes de un repo + perfil de estilo* (deja el código/PRs para después). Con eso, G2 y la mejora de G5 caen casi solas y se nota de inmediato en el producto.
 
 > ⚠️ Antes de invertir en este roadmap conviene cerrar el checkpoint de la **base 11 (IP)** del concurso — es ortogonal al código pero condiciona la estrategia.

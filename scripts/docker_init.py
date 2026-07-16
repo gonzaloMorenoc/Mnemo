@@ -5,10 +5,20 @@ Idempotente: re-ejecutar no duplica. Pensado para correr como el servicio `init`
 
 import glob
 import os
+import sys
 import time
+from pathlib import Path
 
 import psycopg
 import requests
+from dotenv import load_dotenv
+
+# Ejecutable como `python3 scripts/docker_init.py` desde cualquier cwd:
+# ancla la raíz del repo para el import de `src` y para el glob de migraciones,
+# y carga el .env (mismo bootstrap que scripts/eval_ai.py).
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+load_dotenv(ROOT / ".env")
 
 DBURL = os.environ["DATABASE_URL"]
 SUPABASE_URL = os.environ["SUPABASE_URL"]
@@ -16,7 +26,7 @@ SERVICE_ROLE_KEY = os.environ["SERVICE_ROLE_KEY"]
 DEMO_EMAIL = os.environ["DEMO_EMAIL"]
 DEMO_PASSWORD = os.environ["DEMO_PASSWORD"]
 
-MIGRATIONS = sorted(glob.glob("db/migrations/*.sql"))
+MIGRATIONS = sorted(glob.glob(str(ROOT / "db" / "migrations" / "*.sql")))
 
 
 def _wait_db():

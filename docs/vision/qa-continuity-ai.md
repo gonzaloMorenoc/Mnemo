@@ -52,7 +52,7 @@ La clave diferencial: **RAG + grafo de conocimiento**. El grafo (HU → afecta �
 |---|---|---|
 | Backend / RAG / vector / LLM local | FastAPI · pgvector · `LocalEmbedder` · `generate_structured` (Ollama, degrada) · `nl_query` | Reusar (stack ligero propio; sin LangChain/Qdrant) |
 | Memoria semántica (captura+consumo) | — (nueva entidad `qa_knowledge`) | **Fase 1** (K1+K2 ya especificado) |
-| Ingesta de fuentes | CI runs/tests ✓ · Jira bugs (`src/jira`) ✓ | Ampliar a historias/criterios/Confluence/Git/OpenAPI |
+| Ingesta de fuentes | CI runs/tests ✓ · Jira bugs (`src/jira`) ✓ · tests del repo Git (`src/repo_ingest`) ✓ | Ampliar a historias/criterios/Confluence/OpenAPI |
 | Knowledge Graph | Defect DNA (familias + linaje) = grafo embrionario | Extender (relaciones en Postgres) |
 | Agentes (onboarding/plan/risk/gap) | `generate_structured` + el conocimiento + Jira | Nuevos |
 | Automation Agent (Gherkin→Playwright→PR) | `ai_repair.propose` + self-heal + `github_app.open_draft_pr` + reporter | Ampliar (ya abre PRs con código) |
@@ -72,18 +72,20 @@ Relacionado: `BusinessRule —covered_by→ test`, `—affected_by→ UserStory`
 ## Roadmap por fases
 
 - **Fase 1 — Memoria + RAG operacional + Test Plan** ✅ **Entregado (main)**
-  - **1a (cimiento):** entidad `qa_knowledge` (reglas/flujos/riesgos/glosario/lecciones/retos, vinculable a familias/runs) + captura + búsqueda/asistente unificados con el Defect DNA (`search_unified`). Módulo `src/knowledge/`, migración `018`.
+  - **1a (cimiento):** entidad `qa_knowledge` (7 kinds: reglas/flujos/riesgos/glosario/lecciones/retos/patrones, vinculable a familias/runs) + captura + búsqueda/asistente unificados con el Defect DNA (`search_unified`). Módulo `src/knowledge/`, migración `018`.
   - **1b:** **Test Plan Agent** — dada una HU (URL Jira / PDF-Word / texto): contexto, sistemas, riesgos, datos, casos por nivel, citando el conocimiento. Exportar Markdown / importar a Jira-Xray. Módulo `src/testplan/` + `src/xray/`, migración `019`.
 - **Fase 2 — Knowledge Graph + Coverage Gap Detector** ✅ **Entregado (main)**
   - Grafo de relaciones derivado en Postgres (`src/graph/`) + detector de huecos de cobertura (`/v2/graph/gaps`). Página `/app/graph`.
 - **Automation Agent + Onboarding Agent** ✅ **Entregado (main)**
   - **Automation Agent:** caso del plan → código Playwright `.spec.ts` al estilo del repo → draft PR (GitHub App, nunca auto-merge). Módulo `src/automation/`.
   - **Onboarding Agent:** "modo persona nueva" — ¿qué sabe el proyecto sobre X? + ruta de aprendizaje + chat. Módulo `src/onboarding/`. Página `/app/onboarding`.
+- **Ingesta del repo + Coverage Gap real (G1+G2)** ✅ **Entregado (main)**
+  - Indexación de los tests del repo del cliente vía GitHub App (`src/repo_ingest/`, tabla `test_assets`, migración `020`) y detector de gaps que cruza memoria × tests reales por embeddings. El estilo few-shot del Automation Agent sale de estos assets.
 
-**Pendiente (roadmap real):**
-- **Ingesta multi-fuente más allá de Jira:** Confluence, Git (commits/PRs), OpenAPI/Postman, con clasificación automática, nivel de confianza y fuente citada.
-- **Detección de contradicción/obsolescencia:** identificar conocimiento que se contradice entre fuentes o que ha quedado obsoleto (por cambio de código o de requisito).
-- **Knowledge Gap Detector más profundo:** qué NO sabe el proyecto (áreas sin cobertura semántica, no solo tests sin asociar).
+**Pendiente (roadmap real — detalle en [qa-continuity-gaps-roadmap.md](qa-continuity-gaps-roadmap.md)):**
+- **Ingesta multi-fuente más allá de Jira/Git (G3):** Confluence, OpenAPI/Postman, transcripciones, con clasificación automática, nivel de confianza y fuente citada.
+- **Knowledge Graph rico (G4):** servicio/evento/flujo/HU como nodos de primera clase con relaciones tipadas.
+- **Detección de contradicción/obsolescencia (G6):** identificar conocimiento que se contradice entre fuentes o que ha quedado obsoleto.
 
 Funcionalidades estrella (transversales, ya disponibles): *modo persona nueva* (onboarding), *¿qué sabe el proyecto?* (knowledge + graph), *generar plan + automatización con aprobación* (test-plan + automation), *test automation al estilo del repo*.
 
@@ -104,4 +106,4 @@ Funcionalidades estrella (transversales, ya disponibles): *modo persona nueva* (
 
 ## Estado
 
-Las Fases 1 y 2, el Automation Agent y el Onboarding Agent están todos en producción (`main`). Migraciones aplicadas: `001`–`019`. El siguiente paso es la **ingesta multi-fuente** (Confluence, Git, OpenAPI) y la detección de contradicción/obsolescencia — ver sección Pendiente del roadmap.
+Las Fases 1 y 2, el Automation Agent, el Onboarding Agent y la ingesta del repo con gap real (G1+G2) están todos en producción (`main`), con las migraciones de `db/migrations/` aplicadas al completo. El siguiente paso es la **ingesta multi-fuente** (G3: Confluence, OpenAPI) y después el grafo rico (G4) — ver [qa-continuity-gaps-roadmap.md](qa-continuity-gaps-roadmap.md).

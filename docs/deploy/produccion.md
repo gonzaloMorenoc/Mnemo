@@ -1,5 +1,9 @@
 # Desplegar Mnemo en producción
 
+> **Estado actual:** el despliegue vigente de la demo corre en **Hugging Face Spaces**
+> (gratis; ver `docs/demo/runbook.md`). Esta guía documenta **Render** como la ruta
+> recomendada de pago (URL estable, sin sleep, auto-deploy); las variables son las mismas.
+
 Mnemo son **dos piezas** que se despliegan por separado:
 
 | Pieza | Qué es | Dónde va |
@@ -79,6 +83,24 @@ El diferenciador del producto (acta firmada y verificable) necesita **dos variab
 
 ---
 
+## Webhook de CI (ingesta automática desde el CI del cliente)
+
+Para que `POST /v2/ci/webhook` funcione (reporter de Playwright o cualquier emisor del
+artefacto), el backend necesita **tres variables** (sin ellas responde 401/503):
+
+| Variable | Qué es |
+|----------|--------|
+| `CI_WEBHOOK_SECRET` | Secreto compartido para la firma HMAC-SHA256 (`X-Hub-Signature-256`) |
+| `CI_SERVICE_USER_ID` | UUID del usuario de servicio al que se atribuye la ingesta (debe ser miembro del org) |
+| `CI_SERVICE_ORG_ID` | Opcional: si se define, el webhook rechaza (403) artefactos de cualquier otro org |
+
+Relacionadas: `MNEMO_SECRET_KEY` (clave Fernet, **obligatoria si se usa la integración
+Jira/Xray** — cifra las credenciales por-org) y las cotas anti-DoS `CI_MAX_BODY_BYTES`
+e `INGEST_MAX_BYTES` (10 MiB por defecto; subidas/cuerpos mayores → 413). Todas
+documentadas en `.env.example` y pre-declaradas en `render.yaml`.
+
+---
+
 ## Keep-warm (hosting gratuito que se duerme)
 
 Los hosts gratuitos (HF Spaces) duermen el backend por inactividad → la primera petición tarda ~60 s y el usuario ve un **504 al primer clic**. El workflow **`.github/workflows/keep-warm.yml`** pingea `GET /v2/health` cada 15 min y falla (→ email de aviso) si no responde 200.
@@ -95,9 +117,12 @@ Para activarlo: GitHub → Settings → Secrets and variables → Actions → **
 | **Fly.io** | casi | ✅ 1 GB configurable | `fly launch` detecta el Dockerfile; sin `$PORT` (usa 8080) |
 | **Railway** | ~5 $/mes crédito | ✅ flexible | el más fácil; luego de pago |
 | **Oracle Cloud Free** | ✅ siempre gratis | ✅ hasta 24 GB (VM ARM) | más setup (VM cruda) |
-| **Hugging Face Spaces** (Docker) | ✅ | ✅ 16 GB | el Space es público y se duerme |
+| **Hugging Face Spaces** (Docker) | ✅ | ✅ 16 GB | el Space es público y se duerme; requiere `app_port: 8080` en el frontmatter del README del Space (sin eso HF asume 7860) |
 
 El `Dockerfile` ya es **portable**: escucha en `${PORT:-8080}`, así que sirve para todos (Render/Railway inyectan `$PORT`; Fly/Oracle/HF usan 8080).
+
+> Ver también: `docs/demo/runbook.md` (operativa de la demo sobre este despliegue) y
+> `docs/demo/guion.md` (guion de presentación).
 
 ---
 

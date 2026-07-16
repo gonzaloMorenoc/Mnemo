@@ -84,6 +84,7 @@ export class MnemoReporter implements Reporter {
       project: config.project,
       orgId: config.orgId,
       commitSha: config.commitSha,
+      runUid: config.runUid,
     };
     await postArtifact(config, buildArtifact([...this.results.values()], meta));
   }
