@@ -1,0 +1,233 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3440" height="3440" viewBox="0 0 1720 1720">
+<defs>
+<marker id="areq" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#334155"/></marker>
+<marker id="aauth" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#2563eb"/></marker>
+<marker id="aext" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#ea580c"/></marker>
+<marker id="adata" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#15803d"/></marker>
+<linearGradient id="hdr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0b1220"/><stop offset="1" stop-color="#111a2e"/></linearGradient>
+</defs>
+<rect x="0" y="0" width="1720" height="1720" rx="0" ry="0" fill="#f5f7fb" stroke="none" stroke-width="0" opacity="1"/>
+<text x="50" y="52" font-size="30" fill="#0f172a" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">Mnemo — Arquitectura del sistema</text>
+<text x="50" y="78" font-size="14.5" fill="#5b6b82" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">QA Continuity AI · plataforma de continuidad operativa de QA — triaje automático · acta de release firmada · memoria de QA</text>
+<text x="1670" y="52" font-size="13" fill="#8a97a8" font-weight="500" text-anchor="end" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">v0.4 · 2026-07</text>
+<text x="1670" y="72" font-size="12" fill="#8a97a8" font-weight="500" text-anchor="end" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">3 planos: Vercel · HF Space · Supabase</text>
+<circle cx="61" cy="104" r="5.5" fill="#6366f1"/>
+<text x="76" y="109" font-size="16" fill="#0f172a" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">Actores y fuentes de datos</text>
+<rect x="50.0" y="122" width="391.5" height="78" rx="12" ry="12" fill="#ffffff" stroke="#dbe2ec" stroke-width="1.4" opacity="1"/>
+<rect x="50.0" y="122" width="5" height="78" rx="2" ry="2" fill="#6366f1" stroke="none" stroke-width="0" opacity="1"/>
+<text x="66.0" y="148" font-size="13.5" fill="#1f2a3d" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">👤  QA / Test Engineer</text>
+<text x="66.0" y="167" font-size="11" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">usa la aplicación en el navegador</text>
+<rect x="459.5" y="122" width="391.5" height="78" rx="12" ry="12" fill="#ffffff" stroke="#dbe2ec" stroke-width="1.4" opacity="1"/>
+<rect x="459.5" y="122" width="5" height="78" rx="2" ry="2" fill="#6366f1" stroke="none" stroke-width="0" opacity="1"/>
+<text x="475.5" y="148" font-size="13.5" fill="#1f2a3d" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">⚙️  CI del cliente</text>
+<text x="475.5" y="167" font-size="11" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">GitHub Actions · Jenkins · Azure…</text>
+<rect x="475.5" y="176" width="86.0" height="18" rx="9.0" ry="9.0" fill="#eef2f7" stroke="none" stroke-width="0" opacity="1"/>
+<text x="482.5" y="186.5" font-size="10" fill="#475569" font-weight="500" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">webhook HMAC</text>
+<rect x="567.5" y="176" width="128.0" height="18" rx="9.0" ry="9.0" fill="#eef2f7" stroke="none" stroke-width="0" opacity="1"/>
+<text x="574.5" y="186.5" font-size="10" fill="#475569" font-weight="500" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">reporter Playwright</text>
+<rect x="869.0" y="122" width="391.5" height="78" rx="12" ry="12" fill="#ffffff" stroke="#dbe2ec" stroke-width="1.4" opacity="1"/>
+<rect x="869.0" y="122" width="5" height="78" rx="2" ry="2" fill="#6366f1" stroke="none" stroke-width="0" opacity="1"/>
+<text x="885.0" y="148" font-size="13.5" fill="#1f2a3d" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">🐙  Repositorio GitHub</text>
+<text x="885.0" y="167" font-size="11" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">tests + código · Pull Requests</text>
+<rect x="885.0" y="176" width="74.0" height="18" rx="9.0" ry="9.0" fill="#eef2f7" stroke="none" stroke-width="0" opacity="1"/>
+<text x="892.0" y="186.5" font-size="10" fill="#475569" font-weight="500" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">GitHub App</text>
+<rect x="1278.5" y="122" width="391.5" height="78" rx="12" ry="12" fill="#ffffff" stroke="#dbe2ec" stroke-width="1.4" opacity="1"/>
+<rect x="1278.5" y="122" width="5" height="78" rx="2" ry="2" fill="#6366f1" stroke="none" stroke-width="0" opacity="1"/>
+<text x="1294.5" y="148" font-size="13.5" fill="#1f2a3d" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">🗂️  Jira / Xray</text>
+<text x="1294.5" y="167" font-size="11" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">bugs · historias de usuario · casos</text>
+<rect x="1294.5" y="176" width="122.0" height="18" rx="9.0" ry="9.0" fill="#eef2f7" stroke="none" stroke-width="0" opacity="1"/>
+<text x="1301.5" y="186.5" font-size="10" fill="#475569" font-weight="500" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">API token (Fernet)</text>
+<rect x="50" y="230" width="1620" height="116" rx="14" ry="14" fill="#eef1f6" stroke="#cfd8e3" stroke-width="1.4" opacity="1"/>
+<circle cx="70" cy="254" r="6" fill="#0f172a"/>
+<text x="84" y="259" font-size="15.5" fill="#0f172a" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">Vercel</text>
+<text x="146" y="259" font-size="12.5" fill="#64748b" font-weight="500" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">— Frontend (edge/CDN)</text>
+<rect x="70" y="272" width="780.0" height="58" rx="10" ry="10" fill="#ffffff" stroke="#dbe2ec" stroke-width="1.3" opacity="1"/>
+<text x="84" y="294" font-size="13" fill="#1f2a3d" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">Next.js App · App Router</text>
+<text x="84" y="312" font-size="10.3" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">páginas /verify (pública) · /app/* (autopilot, assurance, defects, knowledge, test-plan, graph, onboarding, calibration…)</text>
+<rect x="84" y="318" width="62.0" height="18" rx="9.0" ry="9.0" fill="#eef2f7" stroke="none" stroke-width="0" opacity="1"/>
+<text x="91" y="328.5" font-size="10" fill="#475569" font-weight="500" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">React 19</text>
+<rect x="152.0" y="318" width="74.0" height="18" rx="9.0" ry="9.0" fill="#eef2f7" stroke="none" stroke-width="0" opacity="1"/>
+<text x="159.0" y="328.5" font-size="10" fill="#475569" font-weight="500" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">TypeScript</text>
+<rect x="232.0" y="318" width="98.0" height="18" rx="9.0" ry="9.0" fill="#eef2f7" stroke="none" stroke-width="0" opacity="1"/>
+<text x="239.0" y="328.5" font-size="10" fill="#475569" font-weight="500" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">TanStack Query</text>
+<rect x="336.0" y="318" width="68.0" height="18" rx="9.0" ry="9.0" fill="#eef2f7" stroke="none" stroke-width="0" opacity="1"/>
+<text x="343.0" y="328.5" font-size="10" fill="#475569" font-weight="500" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">shadcn/ui</text>
+<rect x="410.0" y="318" width="62.0" height="18" rx="9.0" ry="9.0" fill="#eef2f7" stroke="none" stroke-width="0" opacity="1"/>
+<text x="417.0" y="328.5" font-size="10" fill="#475569" font-weight="500" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">Tailwind</text>
+<rect x="478.0" y="318" width="80.0" height="18" rx="9.0" ry="9.0" fill="#eef2f7" stroke="none" stroke-width="0" opacity="1"/>
+<text x="485.0" y="328.5" font-size="10" fill="#475569" font-weight="500" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">Supabase JS</text>
+<rect x="870.0" y="272" width="780.0" height="58" rx="10" ry="10" fill="#ffffff" stroke="#dbe2ec" stroke-width="1.3" opacity="1"/>
+<text x="884.0" y="294" font-size="13" fill="#1f2a3d" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">Proxy server-side · /api/v2/*</text>
+<text x="884.0" y="312" font-size="10.5" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">route handlers reenvían al backend · propagan el JWT · sin CORS</text>
+<rect x="884.0" y="318" width="158.0" height="18" rx="9.0" ry="9.0" fill="#eef2f7" stroke="none" stroke-width="0" opacity="1"/>
+<text x="891.0" y="328.5" font-size="10" fill="#475569" font-weight="500" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">NEXT_PUBLIC_API_BASE_URL</text>
+<rect x="1048.0" y="318" width="104.0" height="18" rx="9.0" ry="9.0" fill="#eef2f7" stroke="none" stroke-width="0" opacity="1"/>
+<text x="1055.0" y="328.5" font-size="10" fill="#475569" font-weight="500" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">maxDuration 60s</text>
+<rect x="50" y="372" width="1620" height="386" rx="16" ry="16" fill="#e9f4f7" stroke="#b6dde7" stroke-width="1.6" opacity="1"/>
+<rect x="50" y="372" width="1620" height="34" rx="16" fill="url(#hdr)"/>
+<rect x="50" y="390" width="1620" height="16" fill="url(#hdr)"/>
+<text x="68" y="395" font-size="15" fill="#ffffff" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">🤗  Hugging Face Space — Backend</text>
+<text x="418" y="395" font-size="11.5" fill="#9fb3d6" font-weight="500" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">Docker · uvicorn asgi:app · :8080 · keep-warm (GitHub Action /15 min)</text>
+<rect x="68" y="418" width="1584" height="46" rx="9" ry="9" fill="#ffffff" stroke="#c7dbe2" stroke-width="1.3" opacity="1"/>
+<text x="82" y="438" font-size="13" fill="#0e7490" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">FastAPI  ·  router /v2</text>
+<text x="218" y="438" font-size="11.5" fill="#5b7683" font-weight="500" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">· capa de API + orquestación</text>
+<rect x="82" y="445" width="80.0" height="18" rx="9.0" ry="9.0" fill="#e4f0f4" stroke="none" stroke-width="0" opacity="1"/>
+<text x="89" y="455.5" font-size="10" fill="#0e7490" font-weight="500" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">Python 3.13</text>
+<rect x="168.0" y="445" width="158.0" height="18" rx="9.0" ry="9.0" fill="#e4f0f4" stroke="none" stroke-width="0" opacity="1"/>
+<text x="175.0" y="455.5" font-size="10" fill="#0e7490" font-weight="500" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">auth Supabase JWT (JWKS)</text>
+<rect x="332.0" y="445" width="170.0" height="18" rx="9.0" ry="9.0" fill="#e4f0f4" stroke="none" stroke-width="0" opacity="1"/>
+<text x="339.0" y="455.5" font-size="10" fill="#0e7490" font-weight="500" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">pool psycopg pre-calentado</text>
+<rect x="508.0" y="445" width="98.0" height="18" rx="9.0" ry="9.0" fill="#e4f0f4" stroke="none" stroke-width="0" opacity="1"/>
+<text x="515.0" y="455.5" font-size="10" fill="#0e7490" font-weight="500" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">deps perezosas</text>
+<rect x="612.0" y="445" width="140.0" height="18" rx="9.0" ry="9.0" fill="#e4f0f4" stroke="none" stroke-width="0" opacity="1"/>
+<text x="619.0" y="455.5" font-size="10" fill="#0e7490" font-weight="500" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">cota INGEST_MAX_BYTES</text>
+<rect x="758.0" y="445" width="74.0" height="18" rx="9.0" ry="9.0" fill="#e4f0f4" stroke="none" stroke-width="0" opacity="1"/>
+<text x="765.0" y="455.5" font-size="10" fill="#0e7490" font-weight="500" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">defusedxml</text>
+<text x="68" y="470" font-size="12" fill="#0e7490" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">Módulos de capacidad  ·  src/</text>
+<rect x="68.0" y="478" width="216.0" height="74" rx="9" ry="9" fill="#ffffff" stroke="#cbd9e0" stroke-width="1.2" opacity="1"/>
+<rect x="68.0" y="478" width="216.0" height="4" rx="2" ry="2" fill="#0891b2" stroke="none" stroke-width="0" opacity="1"/>
+<text x="79.0" y="505" font-size="12.5" fill="#164e63" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">Ingest</text>
+<text x="79.0" y="523" font-size="10" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">7 parsers + autodetección</text>
+<rect x="296.0" y="478" width="216.0" height="74" rx="9" ry="9" fill="#ffffff" stroke="#cbd9e0" stroke-width="1.2" opacity="1"/>
+<rect x="296.0" y="478" width="216.0" height="4" rx="2" ry="2" fill="#0891b2" stroke="none" stroke-width="0" opacity="1"/>
+<text x="307.0" y="505" font-size="12.5" fill="#164e63" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">Defects / DNA</text>
+<text x="307.0" y="523" font-size="10" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">familias · fingerprint ·</text>
+<text x="307.0" y="536" font-size="10" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">centroide</text>
+<rect x="524.0" y="478" width="216.0" height="74" rx="9" ry="9" fill="#ffffff" stroke="#cbd9e0" stroke-width="1.2" opacity="1"/>
+<rect x="524.0" y="478" width="216.0" height="4" rx="2" ry="2" fill="#0891b2" stroke="none" stroke-width="0" opacity="1"/>
+<text x="535.0" y="505" font-size="12.5" fill="#164e63" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">Triage</text>
+<text x="535.0" y="523" font-size="10" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">reglas R0–R6 · LLM solo</text>
+<text x="535.0" y="536" font-size="10" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">ambiguos</text>
+<rect x="752.0" y="478" width="216.0" height="74" rx="9" ry="9" fill="#ffffff" stroke="#cbd9e0" stroke-width="1.2" opacity="1"/>
+<rect x="752.0" y="478" width="216.0" height="4" rx="2" ry="2" fill="#0891b2" stroke="none" stroke-width="0" opacity="1"/>
+<text x="763.0" y="505" font-size="12.5" fill="#164e63" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">Actions</text>
+<text x="763.0" y="523" font-size="10" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">self-heal · quarantine ·</text>
+<text x="763.0" y="536" font-size="10" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">ticket</text>
+<rect x="980.0" y="478" width="216.0" height="74" rx="9" ry="9" fill="#fbf8ff" stroke="#7c3aed" stroke-width="1.6" opacity="1"/>
+<rect x="980.0" y="478" width="216.0" height="4" rx="2" ry="2" fill="#7c3aed" stroke="none" stroke-width="0" opacity="1"/>
+<text x="991.0" y="505" font-size="12.5" fill="#4c1d95" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">Certify  ★</text>
+<text x="991.0" y="523" font-size="10" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">acta firmada Ed25519 ·</text>
+<text x="991.0" y="536" font-size="10" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">gate</text>
+<rect x="1208.0" y="478" width="216.0" height="74" rx="9" ry="9" fill="#ffffff" stroke="#cbd9e0" stroke-width="1.2" opacity="1"/>
+<rect x="1208.0" y="478" width="216.0" height="4" rx="2" ry="2" fill="#0891b2" stroke="none" stroke-width="0" opacity="1"/>
+<text x="1219.0" y="505" font-size="12.5" fill="#164e63" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">Knowledge</text>
+<text x="1219.0" y="523" font-size="10" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">memoria QA (7 tipos) · RAG</text>
+<rect x="1436.0" y="478" width="216.0" height="74" rx="9" ry="9" fill="#ffffff" stroke="#cbd9e0" stroke-width="1.2" opacity="1"/>
+<rect x="1436.0" y="478" width="216.0" height="4" rx="2" ry="2" fill="#0891b2" stroke="none" stroke-width="0" opacity="1"/>
+<text x="1447.0" y="505" font-size="12.5" fill="#164e63" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">Graph</text>
+<text x="1447.0" y="523" font-size="10" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">grafo + coverage gaps</text>
+<text x="1447.0" y="536" font-size="10" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">reales</text>
+<rect x="68.0" y="564" width="216.0" height="74" rx="9" ry="9" fill="#ffffff" stroke="#cbd9e0" stroke-width="1.2" opacity="1"/>
+<rect x="68.0" y="564" width="216.0" height="4" rx="2" ry="2" fill="#0891b2" stroke="none" stroke-width="0" opacity="1"/>
+<text x="79.0" y="591" font-size="12.5" fill="#164e63" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">TestPlan</text>
+<text x="79.0" y="609" font-size="10" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">HU → plan · export Xray</text>
+<rect x="296.0" y="564" width="216.0" height="74" rx="9" ry="9" fill="#ffffff" stroke="#cbd9e0" stroke-width="1.2" opacity="1"/>
+<rect x="296.0" y="564" width="216.0" height="4" rx="2" ry="2" fill="#0891b2" stroke="none" stroke-width="0" opacity="1"/>
+<text x="307.0" y="591" font-size="12.5" fill="#164e63" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">Automation</text>
+<text x="307.0" y="609" font-size="10" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">caso → Playwright .spec.ts</text>
+<rect x="524.0" y="564" width="216.0" height="74" rx="9" ry="9" fill="#ffffff" stroke="#cbd9e0" stroke-width="1.2" opacity="1"/>
+<rect x="524.0" y="564" width="216.0" height="4" rx="2" ry="2" fill="#0891b2" stroke="none" stroke-width="0" opacity="1"/>
+<text x="535.0" y="591" font-size="12.5" fill="#164e63" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">Repo ingest</text>
+<text x="535.0" y="609" font-size="10" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">indexa los tests del repo</text>
+<rect x="752.0" y="564" width="216.0" height="74" rx="9" ry="9" fill="#ffffff" stroke="#cbd9e0" stroke-width="1.2" opacity="1"/>
+<rect x="752.0" y="564" width="216.0" height="4" rx="2" ry="2" fill="#0891b2" stroke="none" stroke-width="0" opacity="1"/>
+<text x="763.0" y="591" font-size="12.5" fill="#164e63" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">Onboarding</text>
+<text x="763.0" y="609" font-size="10" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">resumen de dominio + ruta</text>
+<rect x="980.0" y="564" width="216.0" height="74" rx="9" ry="9" fill="#ffffff" stroke="#cbd9e0" stroke-width="1.2" opacity="1"/>
+<rect x="980.0" y="564" width="216.0" height="4" rx="2" ry="2" fill="#0891b2" stroke="none" stroke-width="0" opacity="1"/>
+<text x="991.0" y="591" font-size="12.5" fill="#164e63" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">CI</text>
+<text x="991.0" y="609" font-size="10" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">webhook HMAC · GitHub App</text>
+<rect x="1208.0" y="564" width="216.0" height="74" rx="9" ry="9" fill="#ffffff" stroke="#cbd9e0" stroke-width="1.2" opacity="1"/>
+<rect x="1208.0" y="564" width="216.0" height="4" rx="2" ry="2" fill="#0891b2" stroke="none" stroke-width="0" opacity="1"/>
+<text x="1219.0" y="591" font-size="12.5" fill="#164e63" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">Orgs</text>
+<text x="1219.0" y="609" font-size="10" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">crear · join · list</text>
+<rect x="1436.0" y="564" width="216.0" height="74" rx="9" ry="9" fill="#ffffff" stroke="#cbd9e0" stroke-width="1.2" opacity="1"/>
+<rect x="1436.0" y="564" width="216.0" height="4" rx="2" ry="2" fill="#0891b2" stroke="none" stroke-width="0" opacity="1"/>
+<text x="1447.0" y="591" font-size="12.5" fill="#164e63" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">Integrations</text>
+<text x="1447.0" y="609" font-size="10" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">Jira · GitHub · Xray</text>
+<text x="1447.0" y="622" font-size="10" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">(Fernet)</text>
+<text x="68" y="656" font-size="12" fill="#0e7490" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">Servicios del motor</text>
+<rect x="68.0" y="664" width="387.0" height="52" rx="9" ry="9" fill="#ffffff" stroke="#cbd9e0" stroke-width="1.2" opacity="1"/>
+<rect x="68.0" y="664" width="4" height="52" rx="2" ry="2" fill="#059669" stroke="none" stroke-width="0" opacity="1"/>
+<text x="81.0" y="686" font-size="12" fill="#059669" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">Embeddings — LOCAL</text>
+<text x="81.0" y="704" font-size="10" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">all-MiniLM-L6-v2 · 384d · CPU (torch)</text>
+<rect x="467.0" y="664" width="387.0" height="52" rx="9" ry="9" fill="#ffffff" stroke="#cbd9e0" stroke-width="1.2" opacity="1"/>
+<rect x="467.0" y="664" width="4" height="52" rx="2" ry="2" fill="#7c3aed" stroke="none" stroke-width="0" opacity="1"/>
+<text x="480.0" y="686" font-size="12" fill="#7c3aed" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">Firma Ed25519</text>
+<text x="480.0" y="704" font-size="10" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">cryptography · key_id · /verify público</text>
+<rect x="866.0" y="664" width="387.0" height="52" rx="9" ry="9" fill="#ffffff" stroke="#cbd9e0" stroke-width="1.2" opacity="1"/>
+<rect x="866.0" y="664" width="4" height="52" rx="2" ry="2" fill="#dc2626" stroke="none" stroke-width="0" opacity="1"/>
+<text x="879.0" y="686" font-size="12" fill="#dc2626" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">Sanitizer</text>
+<text x="879.0" y="704" font-size="10" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">redacta secretos y PII antes de persistir</text>
+<rect x="1265.0" y="664" width="387.0" height="52" rx="9" ry="9" fill="#ffffff" stroke="#cbd9e0" stroke-width="1.2" opacity="1"/>
+<rect x="1265.0" y="664" width="4" height="52" rx="2" ry="2" fill="#0891b2" stroke="none" stroke-width="0" opacity="1"/>
+<text x="1278.0" y="686" font-size="12" fill="#0891b2" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">LLM factory</text>
+<text x="1278.0" y="704" font-size="10" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">OpenAI-compat · Ollama · Anthropic</text>
+<rect x="50" y="784" width="1620" height="150" rx="14" ry="14" fill="#eafaf1" stroke="#b7e6cd" stroke-width="1.5" opacity="1"/>
+<circle cx="70" cy="808" r="6" fill="#16a34a"/>
+<text x="84" y="813" font-size="15.5" fill="#0f172a" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">Supabase</text>
+<text x="176" y="813" font-size="12.5" fill="#5b7683" font-weight="500" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">— Datos gestionados &amp; Auth</text>
+<rect x="70" y="826" width="1004.4" height="92" rx="10" ry="10" fill="#ffffff" stroke="#c5e6d3" stroke-width="1.3" opacity="1"/>
+<text x="84" y="850" font-size="13.5" fill="#15803d" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">Postgres + pgvector</text>
+<text x="259" y="850" font-size="11" fill="#5b7683" font-weight="500" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">· 20 tablas · RLS + FORCE</text>
+<text x="84" y="870" font-size="10" fill="#15803d" font-weight="700" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">Runs &amp; fallos</text>
+<text x="204" y="870" font-size="9.6" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">test_runs · failures · test_results · dom_snapshots</text>
+<text x="84" y="887" font-size="10" fill="#15803d" font-weight="700" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">Defect DNA</text>
+<text x="204" y="887" font-size="9.6" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">defect_families · triage_verdicts · triage_corrections</text>
+<text x="84" y="904" font-size="10" fill="#15803d" font-weight="700" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">Actas &amp; acciones</text>
+<text x="204" y="904" font-size="9.6" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">certificates · actions</text>
+<text x="612.376" y="870" font-size="10" fill="#15803d" font-weight="700" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">Conocimiento</text>
+<text x="712.376" y="870" font-size="9.6" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">qa_knowledge · test_assets</text>
+<text x="612.376" y="887" font-size="10" fill="#15803d" font-weight="700" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">Tenancy</text>
+<text x="712.376" y="887" font-size="9.6" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">organizations · memberships · org_integrations</text>
+<rect x="1094.4" y="826" width="575.6" height="44" rx="10" ry="10" fill="#ffffff" stroke="#c5e6d3" stroke-width="1.3" opacity="1"/>
+<text x="1108.4" y="850" font-size="13" fill="#15803d" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">Auth · GoTrue</text>
+<text x="1108.4" y="866" font-size="10" fill="#64748b" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">JWT ES256/RS256 · verificación por JWKS</text>
+<rect x="1094.4" y="878" width="575.6" height="40" rx="10" ry="10" fill="#f0fdf4" stroke="#86efac" stroke-width="1.3" opacity="1"/>
+<text x="1108.4" y="896" font-size="11.5" fill="#166534" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">🔒 Aislamiento multi-tenant</text>
+<text x="1108.4" y="911" font-size="9.8" fill="#3f6b4e" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">RLS + filtro por membership · probado con tests</text>
+<circle cx="61" cy="960" r="5.5" fill="#ea580c"/>
+<text x="76" y="965" font-size="16" fill="#0f172a" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">Servicios externos</text>
+<rect x="50.0" y="976" width="528.0" height="74" rx="12" ry="12" fill="#fff7ed" stroke="#fdba74" stroke-width="1.4" opacity="1"/>
+<rect x="50.0" y="976" width="5" height="74" rx="2" ry="2" fill="#ea580c" stroke="none" stroke-width="0" opacity="1"/>
+<text x="66.0" y="1002" font-size="13.5" fill="#9a3412" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">🧠  Proveedor LLM</text>
+<text x="66.0" y="1021" font-size="10.3" fill="#7c5230" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">Google Gemini (free, OpenAI-compat) · Groq · Ollama · Anthropic</text>
+<rect x="66.0" y="1029" width="122.0" height="18" rx="9.0" ry="9.0" fill="#ffedd5" stroke="none" stroke-width="0" opacity="1"/>
+<text x="73.0" y="1039.5" font-size="10" fill="#9a3412" font-weight="500" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">ALLOW_EXTERNAL_LLM</text>
+<rect x="596.0" y="976" width="528.0" height="74" rx="12" ry="12" fill="#fff7ed" stroke="#fdba74" stroke-width="1.4" opacity="1"/>
+<rect x="596.0" y="976" width="5" height="74" rx="2" ry="2" fill="#ea580c" stroke="none" stroke-width="0" opacity="1"/>
+<text x="612.0" y="1002" font-size="13.5" fill="#9a3412" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">🐙  GitHub App</text>
+<text x="612.0" y="1021" font-size="10.3" fill="#7c5230" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">commit status (quality gate) · draft PR (self-heal / automation)</text>
+<rect x="612.0" y="1029" width="110.0" height="18" rx="9.0" ry="9.0" fill="#ffedd5" stroke="none" stroke-width="0" opacity="1"/>
+<text x="619.0" y="1039.5" font-size="10" fill="#9a3412" font-weight="500" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">nunca auto-merge</text>
+<rect x="1142.0" y="976" width="528.0" height="74" rx="12" ry="12" fill="#fff7ed" stroke="#fdba74" stroke-width="1.4" opacity="1"/>
+<rect x="1142.0" y="976" width="5" height="74" rx="2" ry="2" fill="#ea580c" stroke="none" stroke-width="0" opacity="1"/>
+<text x="1158.0" y="1002" font-size="13.5" fill="#9a3412" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">🗂️  Jira / Xray API</text>
+<text x="1158.0" y="1021" font-size="10.3" fill="#7c5230" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">pull de bugs · export de casos de prueba</text>
+<line x1="245.75" y1="200" x2="245.75" y2="230" stroke="#334155" stroke-width="2.2" marker-end="url(#areq)"/>
+<line x1="245.75" y1="215.0" x2="245.75" y2="215.0" stroke="#334155" stroke-width="2.2" marker-end="url(#areq)"/>
+<line x1="1260.0" y1="346" x2="1260.0" y2="372" stroke="#2563eb" stroke-width="2.2" marker-end="url(#aauth)" stroke-dasharray="6 4"/>
+<text x="1330.0" y="363.0" font-size="10.5" fill="#2563eb" font-weight="600" text-anchor="middle" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">HTTPS + JWT</text>
+<path d="M655.25,200 C655.25,254 1630,254 1630,492 L1670,492" fill="none" stroke="#ea580c" stroke-width="2.2" stroke-dasharray="2 5" marker-end="url(#aext)"/>
+<text x="1420" y="249" font-size="10.5" fill="#ea580c" font-weight="600" text-anchor="middle" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">webhook HMAC  (POST /v2/ci/webhook)</text>
+<line x1="617.0" y1="758" x2="617.0" y2="784" stroke="#15803d" stroke-width="2.2" marker-end="url(#adata)" stroke-dasharray="8 4"/>
+<text x="555.0" y="775.0" font-size="10.5" fill="#15803d" font-weight="600" text-anchor="middle" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">SQL (pooler)</text>
+<line x1="1022.0" y1="784" x2="1022.0" y2="758" stroke="#2563eb" stroke-width="2.2" marker-end="url(#aauth)" stroke-dasharray="6 4"/>
+<text x="1056.0" y="775.0" font-size="10.5" fill="#2563eb" font-weight="600" text-anchor="middle" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">JWKS</text>
+<line x1="860.0" y1="934" x2="860.0" y2="960" stroke="#ea580c" stroke-width="2.2" marker-end="url(#aext)" stroke-dasharray="2 5"/>
+<text x="860.0" y="951.0" font-size="10.5" fill="#ea580c" font-weight="600" text-anchor="middle" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">API calls (LLM · GitHub · Jira)</text>
+<rect x="50" y="1084" width="1620" height="66" rx="12" ry="12" fill="#ffffff" stroke="#dbe2ec" stroke-width="1.3" opacity="1"/>
+<text x="68" y="1106" font-size="11.5" fill="#0f172a" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">Flujos:</text>
+<line x1="128" y1="1102" x2="162" y2="1102" stroke="#334155" stroke-width="2.4"/>
+<text x="170" y="1106" font-size="10.5" fill="#475569" font-weight="500" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">petición</text>
+<line x1="260" y1="1102" x2="294" y2="1102" stroke="#2563eb" stroke-width="2.4" stroke-dasharray="6 4"/>
+<text x="302" y="1106" font-size="10.5" fill="#475569" font-weight="500" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">auth JWT</text>
+<line x1="400" y1="1102" x2="434" y2="1102" stroke="#ea580c" stroke-width="2.4" stroke-dasharray="2 5"/>
+<text x="442" y="1106" font-size="10.5" fill="#475569" font-weight="500" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">llamada externa / webhook</text>
+<line x1="610" y1="1102" x2="644" y2="1102" stroke="#15803d" stroke-width="2.4" stroke-dasharray="8 4"/>
+<text x="652" y="1106" font-size="10.5" fill="#475569" font-weight="500" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">acceso a datos</text>
+<rect x="68" y="1118" width="972.0" height="22" rx="6" ry="6" fill="#f5f0ff" stroke="none" stroke-width="0" opacity="1"/>
+<text x="80" y="1133" font-size="11" fill="#5b21b6" font-weight="600" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">★ Diferenciador: acta de release firmada Ed25519 y verificable por cualquiera en /verify (sin cuenta) — “SLSA para QA”.</text>
+<text x="1654" y="1110" font-size="10.3" fill="#64748b" font-weight="500" text-anchor="end" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">Despliegue: frontend en Vercel · backend en HF Space (clona main en build →</text>
+<text x="1654" y="1126" font-size="10.3" fill="#64748b" font-weight="500" text-anchor="end" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">cada deploy = factory rebuild) · BD+Auth en Supabase · embeddings locales, LLM por API.</text>
+</svg>
