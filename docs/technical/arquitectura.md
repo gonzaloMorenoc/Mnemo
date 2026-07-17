@@ -4,6 +4,13 @@
 
 Mnemo es una plataforma de **continuidad operativa de QA**: captura la memoria del equipo (patrones de defecto, conocimiento de dominio, decisiones pasadas) y la usa para acelerar el trabajo de QA del día a día. El lazo Autopilot (triaje → acción → certificado) es la **fuente principal de datos** que alimenta la memoria, no el centro del producto.
 
+## Diagrama de arquitectura
+
+![Diagrama de arquitectura de Mnemo](img/mnemo-arquitectura.png)
+
+> Vista de los tres planos de despliegue (Vercel · Hugging Face Space · Supabase) con los módulos de capacidad, los servicios del motor, el modelo de datos y los flujos.
+> Fuente vectorial editable: [`img/mnemo-arquitectura.svg`](img/mnemo-arquitectura.svg) · regenerable con [`img/arch_diagram.py`](img/arch_diagram.py) (`python3 arch_diagram.py`).
+
 ## Stack
 
 - **Backend:** Python 3.13, FastAPI. **Embeddings locales**: `all-MiniLM-L6-v2` (384 dims, CPU) vía HuggingFace. **LLM intercambiable** (`src/llm/factory.py`): Ollama (`qwen3:8b`, default de código — local, 0 €, data-residency), cualquier API compatible OpenAI vía `OPENAI_BASE_URL` (el deploy de demo usa **Gemini free tier**), o Anthropic. Los proveedores externos exigen opt-in explícito (`ALLOW_EXTERNAL_LLM=true`) porque envían datos de fallos a un tercero.
