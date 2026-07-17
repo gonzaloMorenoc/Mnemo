@@ -4,11 +4,28 @@
 
 Mnemo es una plataforma de **continuidad operativa de QA**: captura la memoria del equipo (patrones de defecto, conocimiento de dominio, decisiones pasadas) y la usa para acelerar el trabajo de QA del día a día. El lazo Autopilot (triaje → acción → certificado) es la **fuente principal de datos** que alimenta la memoria, no el centro del producto.
 
-## Diagrama de arquitectura
+## Diagramas de arquitectura
+
+### Modelo C4 (notación estándar)
+
+Diagramas [C4](https://c4model.com/) — el estándar para comunicar arquitectura de software por niveles.
+
+**Nivel 1 · Contexto** — quién usa Mnemo y con qué sistemas se relaciona:
+
+![C4 Contexto de Mnemo](img/mnemo-c4-context.png)
+
+**Nivel 2 · Contenedores** — las piezas desplegables, su tecnología y cómo se comunican:
+
+![C4 Contenedores de Mnemo](img/mnemo-c4-container.png)
+
+> Fuente vectorial: [`img/mnemo-c4-context.svg`](img/mnemo-c4-context.svg) · [`img/mnemo-c4-container.svg`](img/mnemo-c4-container.svg) · regenerables con [`img/c4.py`](img/c4.py) (`python3 c4.py`).
+
+### Vista de despliegue e infraestructura (infografía)
+
+Complementa el C4 con el detalle de los módulos internos, los servicios del motor, el modelo de datos y los flujos, sobre los tres planos de despliegue (Vercel · Hugging Face Space · Supabase):
 
 ![Diagrama de arquitectura de Mnemo](img/mnemo-arquitectura.png)
 
-> Vista de los tres planos de despliegue (Vercel · Hugging Face Space · Supabase) con los módulos de capacidad, los servicios del motor, el modelo de datos y los flujos.
 > Fuente vectorial editable: [`img/mnemo-arquitectura.svg`](img/mnemo-arquitectura.svg) · regenerable con [`img/arch_diagram.py`](img/arch_diagram.py) (`python3 arch_diagram.py`).
 
 ## Stack
