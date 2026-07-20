@@ -65,7 +65,7 @@ export function SidebarNav({ mobile = false, onClose }: SidebarNavProps) {
       </nav>
 
       <p className="mt-auto px-5 py-4 text-xs text-zinc-500">
-        Mnemo · continuidad de QA · privado · on-premise
+        Mnemo · QA Memory · privado · on-premise
       </p>
     </div>
   );

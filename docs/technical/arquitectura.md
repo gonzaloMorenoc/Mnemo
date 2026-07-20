@@ -1,8 +1,8 @@
 # Mnemo — Arquitectura técnica
 
-## Visión: QA Continuity AI
+## Visión: QA Memory
 
-Mnemo es una plataforma de **continuidad operativa de QA**: captura la memoria del equipo (patrones de defecto, conocimiento de dominio, decisiones pasadas) y la usa para acelerar el trabajo de QA del día a día. El lazo Autopilot (triaje → acción → certificado) es la **fuente principal de datos** que alimenta la memoria, no el centro del producto.
+Mnemo es una plataforma de **memoria operativa de QA**: captura la memoria del equipo (patrones de defecto, conocimiento de dominio, decisiones pasadas) y la usa para acelerar el trabajo de QA del día a día. El lazo Autopilot (triaje → acción → certificado) es la **fuente principal de datos** que alimenta la memoria, no el centro del producto.
 
 ## Diagramas de arquitectura
 

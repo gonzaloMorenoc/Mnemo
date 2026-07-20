@@ -1,12 +1,12 @@
-# QA Continuity AI — Visión y roadmap
+# QA Memory — Visión y roadmap
 
-**Fecha:** 2026-06-27 · **Estado:** marco adoptado (Mnemo evoluciona a QA Continuity AI; se construye sobre el repo actual). · **Origen:** idea del usuario tras la [revisión profunda](../auditoria/2026-06-27-revision-profunda/00-sintesis.md).
+**Fecha:** 2026-06-27 · **Estado:** marco adoptado (Mnemo evoluciona a QA Memory; se construye sobre el repo actual). · **Origen:** idea del usuario tras la [revisión profunda](../auditoria/2026-06-27-revision-profunda/00-sintesis.md).
 
 ## La promesa
 
 > **Si mañana entra una persona nueva al proyecto, puede entender el producto, generar un plan de pruebas fiable y automatizar los escenarios principales con ayuda de IA, usando el conocimiento real acumulado del equipo.**
 
-Mnemo deja de definirse como "el Autopilot que firma el release" y pasa a ser **la plataforma de continuidad operativa de QA**: convierte el conocimiento disperso de un proyecto en **planes, escenarios y automatización accionables**. El Autopilot (ingesta CI → triaje → acción → certificado) **no desaparece**: se convierte en una de las **fuentes** que alimentan la memoria.
+Mnemo deja de definirse como "el Autopilot que firma el release" y pasa a ser **la plataforma de memoria operativa de QA**: convierte el conocimiento disperso de un proyecto en **planes, escenarios y automatización accionables**. El Autopilot (ingesta CI → triaje → acción → certificado) **no desaparece**: se convierte en una de las **fuentes** que alimentan la memoria.
 
 ## El problema que resuelve
 
@@ -48,7 +48,7 @@ La clave diferencial: **RAG + grafo de conocimiento**. El grafo (HU → afecta �
 
 ## Mapeo con Mnemo (qué se reusa — ~60-70% ya existe)
 
-| Capacidad QA Continuity | En Mnemo hoy | Acción |
+| Capacidad QA Memory | En Mnemo hoy | Acción |
 |---|---|---|
 | Backend / RAG / vector / LLM local | FastAPI · pgvector · `LocalEmbedder` · `generate_structured` (Ollama, degrada) · `nl_query` | Reusar (stack ligero propio; sin LangChain/Qdrant) |
 | Memoria semántica (captura+consumo) | — (nueva entidad `qa_knowledge`) | **Fase 1** (K1+K2 ya especificado) |

@@ -1,4 +1,4 @@
-"""Tests for /v2/onboarding endpoints (Task 2 — QA Continuity Onboarding)."""
+"""Tests for /v2/onboarding endpoints (Task 2 — QA Memory Onboarding)."""
 from unittest.mock import MagicMock, patch
 
 import pytest

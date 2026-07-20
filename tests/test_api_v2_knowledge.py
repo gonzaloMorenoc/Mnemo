@@ -1,4 +1,4 @@
-"""Tests for /v2/knowledge endpoints (Task 4 — QA Continuity Fase 1a)."""
+"""Tests for /v2/knowledge endpoints (Task 4 — QA Memory Fase 1a)."""
 import psycopg
 from unittest.mock import MagicMock
 

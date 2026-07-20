@@ -8,7 +8,7 @@
 </defs>
 <rect x="0" y="0" width="1720" height="1720" rx="0" ry="0" fill="#f5f7fb" stroke="none" stroke-width="0" opacity="1"/>
 <text x="50" y="52" font-size="30" fill="#0f172a" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">Mnemo — Arquitectura del sistema</text>
-<text x="50" y="78" font-size="14.5" fill="#5b6b82" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">QA Continuity AI · plataforma de continuidad operativa de QA — triaje automático · acta de release firmada · memoria de QA</text>
+<text x="50" y="78" font-size="14.5" fill="#5b6b82" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">QA Memory · plataforma de memoria operativa de QA — triaje automático · acta de release firmada · memoria de QA</text>
 <text x="1670" y="52" font-size="13" fill="#8a97a8" font-weight="500" text-anchor="end" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">v0.4 · 2026-07</text>
 <text x="1670" y="72" font-size="12" fill="#8a97a8" font-weight="500" text-anchor="end" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">3 planos: Vercel · HF Space · Supabase</text>
 <circle cx="61" cy="104" r="5.5" fill="#6366f1"/>

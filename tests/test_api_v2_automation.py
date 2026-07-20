@@ -1,4 +1,4 @@
-"""Tests for /v2/automation endpoints (Task 3 — QA Continuity Automation)."""
+"""Tests for /v2/automation endpoints (Task 3 — QA Memory Automation)."""
 from unittest.mock import MagicMock, patch
 
 import pytest

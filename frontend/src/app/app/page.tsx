@@ -121,7 +121,7 @@ export default function DashboardPage() {
           Pon Mnemo en marcha
         </h2>
         <p className="text-sm text-zinc-500">
-          Sigue estos pasos para activar la continuidad de QA.
+          Sigue estos pasos para poner en marcha tu memoria de QA.
         </p>
       </div>
       <SetupChecklist steps={steps} loading={loading} />
