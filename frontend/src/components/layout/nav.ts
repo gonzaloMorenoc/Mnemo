@@ -20,7 +20,7 @@ export type NavSection = { title: string | null; items: NavItem[] };
 export const NAV_SECTIONS: NavSection[] = [
   { title: null, items: [{ href: "/app", label: "Dashboard", icon: LayoutDashboard }] },
   {
-    title: "Continuidad",
+    title: "Memoria",
     items: [
       { href: "/app/knowledge", label: "Conocimiento", icon: BrainCircuit },
       { href: "/app/onboarding", label: "Onboarding", icon: GraduationCap },

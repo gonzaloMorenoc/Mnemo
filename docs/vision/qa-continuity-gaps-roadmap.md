@@ -1,10 +1,10 @@
-# QA Continuity AI — Roadmap de cierre de gaps
+# QA Memory — Roadmap de cierre de gaps
 
-**Fecha:** 2026-06-28 · **Actualizado:** 2026-07-16 (G1 y G2 entregados) · **Parte de:** [QA Continuity AI](qa-continuity-ai.md)
+**Fecha:** 2026-06-28 · **Actualizado:** 2026-07-16 (G1 y G2 entregados) · **Parte de:** [QA Memory](qa-continuity-ai.md)
 
 ## Propósito
 
-Mnemo ya entrega el **núcleo** de la visión QA Continuity AI: las 4 capacidades + el foso (Knowledge Graph + Coverage Gap), end-to-end, con "IA propone / humano aprueba", citación de fuentes y on-prem. Un análisis frente a la propuesta completa de la idea sitúa la cobertura en **~70%**: está todo el concepto, no toda la *amplitud*. Este documento prioriza el **30% restante** para alcanzar la visión completa.
+Mnemo ya entrega el **núcleo** de la visión QA Memory: las 4 capacidades + el foso (Knowledge Graph + Coverage Gap), end-to-end, con "IA propone / humano aprueba", citación de fuentes y on-prem. Un análisis frente a la propuesta completa de la idea sitúa la cobertura en **~70%**: está todo el concepto, no toda la *amplitud*. Este documento prioriza el **30% restante** para alcanzar la visión completa.
 
 Cada fase de cierre (G1…G6), cuando se aborde, pasa por el flujo del proyecto: **brainstorming → spec → plan → subagentes → review → PR**. Este doc es el mapa, no el spec de ninguna.
 

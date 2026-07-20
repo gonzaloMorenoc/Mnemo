@@ -62,7 +62,7 @@ def arrow(x1, y1, x2, y2, kind="req", label=None, lx=None, ly=None, curve=0):
 
 # ---------------- Title ----------------
 text(50, 52, "Mnemo — Arquitectura del sistema", 30, "#0f172a", "700")
-text(50, 78, "QA Continuity AI · plataforma de continuidad operativa de QA — triaje automático · acta de release firmada · memoria de QA",
+text(50, 78, "QA Memory · plataforma de memoria operativa de QA — triaje automático · acta de release firmada · memoria de QA",
      14.5, "#5b6b82", "400")
 text(W - 50, 52, "v0.4 · 2026-07", 13, "#8a97a8", "500", "end", family="mono")
 text(W - 50, 72, "3 planos: Vercel · HF Space · Supabase", 12, "#8a97a8", "500", "end", family="mono")

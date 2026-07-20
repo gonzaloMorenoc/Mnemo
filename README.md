@@ -1,9 +1,9 @@
-# Mnemo — QA Continuity AI
+# Mnemo — QA Memory
 
 [![Backend CI](https://github.com/gonzaloMorenoc/Mnemo/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/gonzaloMorenoc/Mnemo/actions/workflows/backend-ci.yml)
 [![Frontend CI](https://github.com/gonzaloMorenoc/Mnemo/actions/workflows/frontend-ci.yml/badge.svg)](https://github.com/gonzaloMorenoc/Mnemo/actions/workflows/frontend-ci.yml)
 
-**Mnemo** es una plataforma de continuidad operativa de QA: convierte el conocimiento disperso de un proyecto (reglas, flujos, bugs, tests, CI) en **triaje automático, actas de release verificables, planes de prueba y memoria accionable**. Pensada para consultoras de QA multi-cliente donde el conocimiento se evapora con la rotación de personal.
+**Mnemo** es una plataforma de memoria operativa de QA: convierte el conocimiento disperso de un proyecto (reglas, flujos, bugs, tests, CI) en **triaje automático, actas de release verificables, planes de prueba y memoria accionable**. Pensada para consultoras de QA multi-cliente donde el conocimiento se evapora con la rotación de personal.
 
 > **Privado por diseño:** embeddings siempre locales y LLM intercambiable — 100% on-premise con Ollama (el dato del cliente nunca sale, coste de API 0 €) o cualquier proveedor compatible OpenAI con opt-in explícito (`ALLOW_EXTERNAL_LLM`).
 

@@ -1,4 +1,4 @@
-"""Tests for /v2/test-plan endpoints (Task 5 — QA Continuity Fase 1b)."""
+"""Tests for /v2/test-plan endpoints (Task 5 — QA Memory Fase 1b)."""
 import io
 from unittest.mock import MagicMock, patch
 

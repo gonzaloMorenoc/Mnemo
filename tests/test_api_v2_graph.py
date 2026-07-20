@@ -1,4 +1,4 @@
-"""Tests for /v2/graph and /v2/graph/gaps endpoints (Task 3 — QA Continuity Fase 2)."""
+"""Tests for /v2/graph and /v2/graph/gaps endpoints (Task 3 — QA Memory Fase 2)."""
 from unittest.mock import MagicMock, patch
 
 from fastapi import FastAPI

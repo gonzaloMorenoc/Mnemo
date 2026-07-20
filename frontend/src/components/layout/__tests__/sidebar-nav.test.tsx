@@ -25,10 +25,10 @@ afterEach(() => {
 });
 
 describe("SidebarNav — secciones y navegación", () => {
-  it("muestra los 3 encabezados de sección (Continuidad, Aseguramiento, Configuración)", () => {
+  it("muestra los 3 encabezados de sección (Memoria, Aseguramiento, Configuración)", () => {
     (usePathname as ReturnType<typeof vi.fn>).mockReturnValue("/app");
     render(<SidebarNav />);
-    expect(screen.getByText("Continuidad")).toBeInTheDocument();
+    expect(screen.getByText("Memoria")).toBeInTheDocument();
     expect(screen.getByText("Aseguramiento")).toBeInTheDocument();
     expect(screen.getByText("Configuración")).toBeInTheDocument();
   });

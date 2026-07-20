@@ -121,7 +121,7 @@ def context():
     box(sv, *jx, "Jira / Xray", "[Sistema externo]", "Bugs, historias de usuario y casos de prueba", "ext")
     box(sv, *llm, "Proveedor LLM", "[Sistema externo]", "Gemini · Groq · Ollama · Anthropic (compatible OpenAI)", "ext")
     box(sv, *sup, "Supabase", "[Sistema externo]", "Auth (identidad) + Postgres gestionado", "ext")
-    box(sv, *mn, "Mnemo — QA Continuity AI", "[Software System]",
+    box(sv, *mn, "Mnemo — QA Memory", "[Software System]",
         "Triaje automático de CI, acta de release firmada y memoria de QA", "system")
 
     rel(sv, pe, "b", mn, "l", "Usa la aplicación web", "HTTPS", lx=430, ly=430)
@@ -144,7 +144,7 @@ def container():
     bx, by, bw, bh = 430, 120, 720, 940
     sv.add(f'<rect x="{bx}" y="{by}" width="{bw}" height="{bh}" rx="16" fill="none" '
            f'stroke="{SYSTEM[1]}" stroke-width="2" stroke-dasharray="8 6"/>')
-    txt(sv, bx+20, by+28, "Mnemo — QA Continuity AI  [Software System]", 13, SYSTEM[1], "700", "start")
+    txt(sv, bx+20, by+28, "Mnemo — QA Memory  [Software System]", 13, SYSTEM[1], "700", "start")
 
     # contenedores internos: spine vertical Web → API → BD, y Reporter a la izquierda
     web = (bx+250, by+70, 360, 140)

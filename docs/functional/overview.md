@@ -1,8 +1,8 @@
-# Mnemo — QA Continuity AI: visión funcional
+# Mnemo — QA Memory: visión funcional
 
 ## Qué es
 
-**Mnemo** es la **plataforma de continuidad operativa de QA** de una consultora: un sistema **privado y on-premise** que convierte el conocimiento disperso de un proyecto (reglas de negocio, flujos, bugs, tests, runs de CI) en **planes de prueba, automatización y memoria accionable**.
+**Mnemo** es la **plataforma de memoria operativa de QA** de una consultora: un sistema **privado y on-premise** que convierte el conocimiento disperso de un proyecto (reglas de negocio, flujos, bugs, tests, runs de CI) en **planes de prueba, automatización y memoria accionable**.
 
 El nombre viene de *Mnemosyne*, la personificación de la memoria. La idea central: una organización de QA **olvida lo que ya aprendió** — el conocimiento de por qué falló algo, qué reglas de negocio son críticas o cómo se probó un flujo vive en la cabeza de un sénior y se evapora cuando rota de proyecto. Mnemo lo retiene, lo organiza y lo pone donde el equipo trabaja.
 

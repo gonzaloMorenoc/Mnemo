@@ -1,4 +1,4 @@
-"""Tests for /v2/repo/* endpoints (Task 4 — QA Continuity G1 repo ingest)."""
+"""Tests for /v2/repo/* endpoints (Task 4 — QA Memory G1 repo ingest)."""
 from unittest.mock import MagicMock, patch
 
 import pytest
