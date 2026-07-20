@@ -47,3 +47,6 @@ TECHNICAL_GUIDE.md
 .env
 docs/demo/*.local.md
 docs/concurso/
+
+# Artefactos de sesiones de Playwright (capturas/snapshots del MCP)
+.playwright-mcp/
