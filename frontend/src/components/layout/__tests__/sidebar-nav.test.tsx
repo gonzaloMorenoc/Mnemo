@@ -39,7 +39,7 @@ describe("SidebarNav — secciones y navegación", () => {
     expect(screen.getByRole("link", { name: /Dashboard/i })).toBeInTheDocument();
   });
 
-  it("muestra los 12 enlaces con labels ES (incluye Integraciones, Organización, Ajustes)", () => {
+  it("muestra los 13 enlaces con labels ES (incluye Verificar acta, Integraciones, Organización, Ajustes)", () => {
     (usePathname as ReturnType<typeof vi.fn>).mockReturnValue("/app");
     render(<SidebarNav />);
     const links = screen.getAllByRole("link");
@@ -47,7 +47,8 @@ describe("SidebarNav — secciones y navegación", () => {
     const navLinks = links.filter((l) => {
       return l.className.includes("rounded-xl");
     });
-    expect(navLinks).toHaveLength(12);
+    expect(navLinks).toHaveLength(13);
+    expect(screen.getByRole("link", { name: /Verificar acta/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Integraciones/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Organización/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Ajustes/i })).toBeInTheDocument();
