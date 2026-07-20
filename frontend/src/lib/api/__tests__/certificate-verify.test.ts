@@ -13,12 +13,16 @@ function mockFetch(json: unknown, ok = true, status = 200) {
 }
 
 describe("endpoints públicos de verificación de certificados", () => {
-  it("verifyCertificate hace POST a /api/v2/certificates/verify SIN Authorization", async () => {
+  it("verifyCertificate hace POST a /api/v2/certificates/verify SIN Authorization y envía el texto crudo (preserva 0.0)", async () => {
     const spy = mockFetch({ valido: true });
-    const out = await verifyCertificate({ canonical_json: { schema: "mnemo.cert.v2" }, signature: "sig" });
+    const raw = '{"canonical_json":{"schema":"mnemo.cert.v2","x":0.0},"signature":"sig"}';
+    const out = await verifyCertificate(raw);
     const [url, init] = spy.mock.calls[0];
     expect(String(url)).toBe("/api/v2/certificates/verify");
     expect((init as RequestInit).method).toBe("POST");
+    // El cuerpo se envía verbatim: el float 0.0 NO se convierte en 0.
+    expect((init as RequestInit).body).toBe(raw);
+    expect(String((init as RequestInit).body)).toContain('"x":0.0');
     expect(new Headers((init as RequestInit).headers).has("Authorization")).toBe(false);
     expect(out.valido).toBe(true);
   });

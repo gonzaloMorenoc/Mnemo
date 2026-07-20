@@ -68,7 +68,7 @@ export default function VerifyPage() {
   });
 
   const verify = useMutation({
-    mutationFn: (p: Payload) => verifyCertificate(p),
+    mutationFn: (rawActa: string) => verifyCertificate(rawActa),
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -83,7 +83,9 @@ export default function VerifyPage() {
       return;
     }
     setPayload(p);
-    verify.mutate(p);
+    // Parseamos (extractPayload) solo para VALIDAR y pintar el veredicto; para
+    // verificar enviamos el texto CRUDO, sin re-serializar (ver verifyCertificate).
+    verify.mutate(raw);
   }
 
   const identity = (payload?.canonical_json.identity ?? {}) as Record<string, unknown>;

@@ -1,4 +1,5 @@
 import {
+  BadgeCheck,
   Bot,
   BrainCircuit,
   Building2,
@@ -35,6 +36,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/app/autopilot", label: "Autopilot", icon: Bot },
       { href: "/app/defects", label: "Defect DNA", icon: Dna },
       { href: "/app/calibration", label: "Calibración", icon: Gauge },
+      { href: "/verify", label: "Verificar acta", icon: BadgeCheck },
     ],
   },
   {

@@ -152,11 +152,18 @@ export function getCertificate(token: string, runId: string) {
 
 // Verificación PÚBLICA — sin token: cualquiera (auditor, cliente, regulador)
 // valida la firma de un acta sin cuenta en Mnemo.
-export function verifyCertificate(body: {
-  canonical_json: Record<string, unknown>;
-  signature: string;
-}) {
-  return apiRequest<CertificateVerifyResponse>("/api/v2/certificates/verify", "POST", { body });
+//
+// Recibe el TEXTO CRUDO del acta (tal como se pegó) y lo reenvía verbatim: NO
+// se hace JSON.parse + JSON.stringify, porque JS reformatea los números al
+// re-serializar (p. ej. el float `0.0` de Python se colapsa a `0`) y eso
+// cambiaría un byte del payload → la firma daría inválida. El proxy de Next y
+// el backend leen el texto tal cual, así que la canonicalización coincide.
+export function verifyCertificate(rawActa: string) {
+  return apiRequest<CertificateVerifyResponse>(
+    "/api/v2/certificates/verify",
+    "POST",
+    { body: rawActa, headers: { "Content-Type": "application/json" } },
+  );
 }
 
 export function getCertificatePubkey() {
