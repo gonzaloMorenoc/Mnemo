@@ -282,6 +282,26 @@ class KnowledgeAskRequest(BaseModel):
     question: str = Field(max_length=2000)
 
 
+class KnowledgeProposalGenerateRequest(BaseModel):
+    org_id: str
+    family_ids: Optional[List[str]] = None
+    cap: int = Field(default=5, ge=1, le=20)
+
+
+class KnowledgeProposalApproveRequest(BaseModel):
+    kind: str = "leccion"
+    title: str = Field(max_length=300)
+    challenge: Optional[str] = Field(default=None, max_length=4000)
+    approach: Optional[str] = Field(default=None, max_length=4000)
+    domain: Optional[str] = Field(default=None, max_length=300)
+    outcome: Optional[str] = Field(default=None, max_length=4000)
+    tags: List[str] = Field(default_factory=list)
+
+
+class KnowledgeProposalRejectRequest(BaseModel):
+    reason: str = Field(default="", max_length=500)
+
+
 class OnboardingRequest(BaseModel):
     org_id: str
     topic: str = Field(max_length=2000)
