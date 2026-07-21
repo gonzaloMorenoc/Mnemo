@@ -128,6 +128,28 @@ export interface ProposeActionsResult {
   skipped: number;
 }
 
+export interface KnowledgeProposal {
+  id: string;
+  org_id: string;
+  defect_family_id: string;
+  run_id?: string | null;
+  kind: string;
+  title: string;
+  challenge?: string | null;
+  approach?: string | null;
+  domain?: string | null;
+  outcome?: string | null;
+  tags: string[];
+  status: string;
+  created_at?: string | null;
+}
+
+export interface GenerateProposalsResult {
+  created: number;
+  failed: number;
+  remaining: number;
+}
+
 export interface ActionApproveResult {
   approved: boolean;
   materialized: boolean;

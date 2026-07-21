@@ -23,8 +23,10 @@ import type {
   IngestReportResponse,
   JiraConfigResponse,
   JiraIngestResponse,
+  GenerateProposalsResult,
   KnowledgeAnswer,
   KnowledgeItem,
+  KnowledgeProposal,
   KnowledgeSource,
   LearningPath,
   OrganizationResponse,
@@ -212,6 +214,32 @@ export function searchKnowledge(
 
 export function askKnowledge(token: string, body: { org_id: string; question: string }) {
   return apiRequest<KnowledgeAnswer>("/api/v2/knowledge/ask", "POST", { token, body });
+}
+
+// --- Propuestas de conocimiento (IA propone / humano aprueba) ---
+
+export function listKnowledgeProposals(token: string, orgId: string, status = "pending") {
+  const qs = new URLSearchParams({ org_id: orgId, status });
+  return apiRequest<KnowledgeProposal[]>(
+    `/api/v2/knowledge/proposals?${qs.toString()}`, "GET", { token });
+}
+
+export function generateKnowledgeProposals(token: string, orgId: string, cap = 5) {
+  return apiRequest<GenerateProposalsResult>(
+    "/api/v2/knowledge/proposals/generate", "POST", { token, body: { org_id: orgId, cap } });
+}
+
+export function approveKnowledgeProposal(
+  token: string, proposalId: string, body: Record<string, unknown>,
+) {
+  return apiRequest<KnowledgeItem>(
+    `/api/v2/knowledge/proposals/${encodeURIComponent(proposalId)}/approve`, "POST", { token, body });
+}
+
+export function rejectKnowledgeProposal(token: string, proposalId: string, reason = "") {
+  return apiRequest<{ rejected: boolean }>(
+    `/api/v2/knowledge/proposals/${encodeURIComponent(proposalId)}/reject`, "POST",
+    { token, body: { reason } });
 }
 
 export function generateTestPlan(token: string, form: FormData) {
