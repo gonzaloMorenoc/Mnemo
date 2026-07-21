@@ -28,8 +28,15 @@ create table if not exists public.knowledge_proposals (
 
 create index if not exists idx_knowledge_proposals_org_status
     on public.knowledge_proposals (org_id, status);
+create index if not exists idx_knowledge_proposals_run
+    on public.knowledge_proposals (run_id) where run_id is not null;
 
 alter table public.knowledge_proposals enable row level security;
 alter table public.knowledge_proposals force row level security;
+-- drop antes del create → la migración es idempotente (docker_init re-aplica todas
+-- las migraciones en cada arranque; CREATE POLICY sin drop lanzaría al re-ejecutar).
+drop policy if exists knowledge_proposals_member on public.knowledge_proposals;
 create policy knowledge_proposals_member on public.knowledge_proposals for all
     using (public.is_org_member(org_id)) with check (public.is_org_member(org_id));
+
+grant select, insert, update, delete on public.knowledge_proposals to authenticated;

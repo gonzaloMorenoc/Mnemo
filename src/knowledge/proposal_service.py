@@ -39,6 +39,12 @@ class KnowledgeProposalService:
                 family = ctx.get("family") or {"id": fam["id"], "title": fam.get("title")}
                 failures = ctx.get("failures") or []
                 rca = self.analyzer.analyze_structured(family, failures)
+                # El LLM cayó → RCA de fallback (confidence 0, sin citas): NO crear una
+                # propuesta basura. Al no dejar fila, la familia sigue candidata y se
+                # reintenta cuando el LLM vuelva (evita "vacunarla" para siempre).
+                if rca.get("confidence", 0.0) == 0.0 and not rca.get("citations"):
+                    failed += 1
+                    continue
                 projects = sorted({f.get("project") for f in failures if f.get("project")})
                 fields = rca_to_proposal(family, rca, projects=projects)
                 row = self.repo.upsert_proposal(
@@ -51,7 +57,12 @@ class KnowledgeProposalService:
             except Exception:  # noqa: BLE001 — un fallo por familia no aborta el lote
                 logger.exception("generate: falló la propuesta de la familia %s", fam.get("id"))
                 failed += 1
-        remaining = self.repo.count_candidate_families(user_id=user_id, org_id=org_id)
+        try:
+            remaining = self.repo.count_candidate_families(user_id=user_id, org_id=org_id)
+        except Exception:  # noqa: BLE001 — las propuestas ya se crearon (commit por familia);
+            # un fallo del conteo NO debe ocultar created/failed con un 502.
+            logger.exception("generate: no se pudo contar las familias restantes")
+            remaining = 0
         return {"created": created, "failed": failed, "remaining": remaining}
 
     def list(self, *, user_id: str, org_id: str,

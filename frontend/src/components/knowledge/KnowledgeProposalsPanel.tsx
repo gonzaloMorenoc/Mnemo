@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 export function KnowledgeProposalsPanel({ orgId }: { orgId: string }) {
   const { accessToken } = useAuth();
@@ -34,10 +35,10 @@ export function KnowledgeProposalsPanel({ orgId }: { orgId: string }) {
   const generate = useMutation({
     mutationFn: () => generateKnowledgeProposals(accessToken!, orgId),
     onSuccess: (r) => {
-      toast.success(
-        `${r.created} propuesta(s) generada(s)` +
-          (r.remaining ? ` · ${r.remaining} defecto(s) sin cubrir` : ""),
-      );
+      const parts = [`${r.created} propuesta(s) generada(s)`];
+      if (r.failed) parts.push(`${r.failed} fallo(s) — reintenta`);
+      if (r.remaining) parts.push(`${r.remaining} defecto(s) sin cubrir`);
+      toast.success(parts.join(" · "));
       invalidate();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -133,38 +134,41 @@ function ProposalCard({
 
       <div className="space-y-1.5">
         <Label htmlFor={`t-${proposal.id}`}>Título</Label>
-        <Input id={`t-${proposal.id}`} value={form.title} onChange={(e) => set("title", e.target.value)} />
+        <Input id={`t-${proposal.id}`} maxLength={300} value={form.title} onChange={(e) => set("title", e.target.value)} />
+      </div>
+
+      {/* Reto y enfoque son multilínea (causa raíz + pasos numerados) → Textarea */}
+      <div className="space-y-1.5">
+        <Label htmlFor={`c-${proposal.id}`}>Reto / problema</Label>
+        <Textarea id={`c-${proposal.id}`} rows={3} maxLength={4000} value={form.challenge} onChange={(e) => set("challenge", e.target.value)} />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor={`a-${proposal.id}`}>Enfoque / solución</Label>
+        <Textarea id={`a-${proposal.id}`} rows={4} maxLength={4000} value={form.approach} onChange={(e) => set("approach", e.target.value)} />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor={`c-${proposal.id}`}>Reto / problema</Label>
-          <Input id={`c-${proposal.id}`} value={form.challenge} onChange={(e) => set("challenge", e.target.value)} />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor={`a-${proposal.id}`}>Enfoque / solución</Label>
-          <Input id={`a-${proposal.id}`} value={form.approach} onChange={(e) => set("approach", e.target.value)} />
-        </div>
-        <div className="space-y-1.5">
           <Label htmlFor={`d-${proposal.id}`}>Dominio</Label>
-          <Input id={`d-${proposal.id}`} placeholder="p.ej. pagos" value={form.domain} onChange={(e) => set("domain", e.target.value)} />
+          <Input id={`d-${proposal.id}`} maxLength={300} placeholder="p.ej. pagos" value={form.domain} onChange={(e) => set("domain", e.target.value)} />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor={`o-${proposal.id}`}>Resultado</Label>
-          <Input id={`o-${proposal.id}`} placeholder="a completar" value={form.outcome} onChange={(e) => set("outcome", e.target.value)} />
+          <Label htmlFor={`g-${proposal.id}`}>Etiquetas (separadas por coma)</Label>
+          <Input id={`g-${proposal.id}`} value={form.tags} onChange={(e) => set("tags", e.target.value)} />
         </div>
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor={`g-${proposal.id}`}>Etiquetas (separadas por coma)</Label>
-        <Input id={`g-${proposal.id}`} value={form.tags} onChange={(e) => set("tags", e.target.value)} />
+        <Label htmlFor={`o-${proposal.id}`}>Resultado (a completar)</Label>
+        <Textarea id={`o-${proposal.id}`} rows={2} maxLength={4000} placeholder="¿Qué resultado se obtuvo?" value={form.outcome} onChange={(e) => set("outcome", e.target.value)} />
       </div>
 
       <div className="flex justify-end gap-2">
-        <Button size="sm" variant="ghost" disabled={reject.isPending} onClick={() => reject.mutate()}>
+        <Button size="sm" variant="ghost" disabled={approve.isPending || reject.isPending} onClick={() => reject.mutate()}>
           Descartar
         </Button>
-        <Button size="sm" disabled={approve.isPending || !form.title.trim()} onClick={() => approve.mutate()}>
+        <Button size="sm" disabled={approve.isPending || reject.isPending || !form.title.trim()} onClick={() => approve.mutate()}>
           {approve.isPending ? "Aprobando…" : "Aprobar"}
         </Button>
       </div>

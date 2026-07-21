@@ -114,7 +114,11 @@ class KnowledgeProposalRepository:
                 "insert into public.knowledge_proposals"
                 " (org_id, defect_family_id, run_id, kind, title, challenge, approach,"
                 "  domain, outcome, tags, created_by)"
-                " values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
+                " select %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s"
+                # Defensa en profundidad: la familia debe pertenecer a la org (aunque el
+                # único caller ya la saca de candidate_families, filtrada por org).
+                " where exists (select 1 from public.defect_families f"
+                "   where f.id=%s and f.org_id=%s)"
                 " on conflict (defect_family_id) do update set"
                 "  run_id=excluded.run_id, kind=excluded.kind, title=excluded.title,"
                 "  challenge=excluded.challenge, approach=excluded.approach,"
@@ -122,7 +126,7 @@ class KnowledgeProposalRepository:
                 " where knowledge_proposals.status='pending'"
                 f" returning {_PROPOSAL_COLS}",
                 (org_id, defect_family_id, run_id, kind, title, challenge, approach,
-                 domain, outcome, list(tags or []), created_by),
+                 domain, outcome, list(tags or []), created_by, defect_family_id, org_id),
             )
             rows = self._rows(cur)
             conn.commit()

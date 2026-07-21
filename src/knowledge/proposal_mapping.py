@@ -23,14 +23,18 @@ def rca_to_proposal(family: Dict[str, Any], rca: Dict[str, Any],
 
     - challenge = causa raíz + por qué ocurrió
     - approach  = cómo arreglar + pasos sugeridos (numerados)
-    - tags      = etiqueta de la familia + proyectos afectados (dedup, en orden)
+    - tags      = proyectos afectados (dedup, en orden). NOTA: defect_families no tiene
+      columna 'label', así que la etiqueta de triaje no está disponible aquí.
     - domain/outcome = None (editables al aprobar)
     """
     challenge = _join([rca.get("root_cause", ""), rca.get("why_it_happened", "")])
-    approach = _join([rca.get("how_to_fix", ""), _numbered(list(rca.get("suggested_fix_steps") or []))])
+    steps = rca.get("suggested_fix_steps") or []
+    if isinstance(steps, str):  # el LLM a veces devuelve un string en vez de lista
+        steps = [steps]
+    approach = _join([rca.get("how_to_fix", ""), _numbered(list(steps))])
 
     tags: List[str] = []
-    for t in [family.get("label"), *(projects or [])]:
+    for t in (projects or []):
         if t and t not in tags:
             tags.append(t)
 

@@ -1,5 +1,5 @@
 import re
-from typing import Any, Dict, List, Optional
+from typing import Annotated, Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -295,7 +295,7 @@ class KnowledgeProposalApproveRequest(BaseModel):
     approach: Optional[str] = Field(default=None, max_length=4000)
     domain: Optional[str] = Field(default=None, max_length=300)
     outcome: Optional[str] = Field(default=None, max_length=4000)
-    tags: List[str] = Field(default_factory=list)
+    tags: List[Annotated[str, Field(max_length=100)]] = Field(default_factory=list, max_length=30)
 
 
 class KnowledgeProposalRejectRequest(BaseModel):

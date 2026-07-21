@@ -61,6 +61,24 @@ def test_generate_upsert_noop_counts_as_failed():
     assert out == {"created": 0, "failed": 1, "remaining": 0}
 
 
+def test_generate_skips_fallback_rca_no_garbage_proposal():
+    # LLM caído → RCA de fallback (confidence 0, sin citas): NO se crea propuesta,
+    # la familia sigue candidata (no se "vacuna").
+    fallback = {"root_cause": "no determinable", "why_it_happened": "", "how_to_fix": "revisar",
+                "suggested_fix_steps": [], "citations": [], "confidence": 0.0}
+    svc, repo, _, _ = _svc(candidates=[{"id": "f1", "title": "T", "run_id": None}], rca=fallback)
+    out = svc.generate(user_id="u", org_id="o")
+    assert out["created"] == 0 and out["failed"] == 1
+    repo.upsert_proposal.assert_not_called()
+
+
+def test_generate_count_failure_does_not_hide_created():
+    svc, repo, _, _ = _svc(candidates=[{"id": "f1", "title": "T", "run_id": None}])
+    repo.count_candidate_families.side_effect = RuntimeError("db down")
+    out = svc.generate(user_id="u", org_id="o")
+    assert out["created"] == 1 and out["failed"] == 0 and out["remaining"] == 0
+
+
 def test_approve_delegates_to_repo():
     svc, repo, _, _ = _svc(candidates=[])
     repo.approve.return_value = {"id": "k1", "kind": "leccion"}
