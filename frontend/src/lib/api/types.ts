@@ -128,6 +128,17 @@ export interface ProposeActionsResult {
   skipped: number;
 }
 
+export interface RunListItem {
+  id: string;
+  project: string;
+  source: string;
+  commit_sha?: string | null;
+  created_at?: string | null;
+  verdict?: string | null;
+  risk_score?: number | null;
+  failures: number;
+}
+
 export interface KnowledgeProposal {
   id: string;
   org_id: string;

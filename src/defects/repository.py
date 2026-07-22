@@ -922,6 +922,44 @@ class AssuranceRepository:
             conn.commit()
         return True
 
+    def list_runs(self, *, user_id: str, org_id: str, project: Optional[str] = None,
+                  limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
+        """Histórico de runs navegable (por proyecto y fecha), con el veredicto del
+        acta más reciente y el nº de fallos. [] si el usuario no es miembro."""
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute("select exists(select 1 from public.memberships"
+                            " where org_id = %s and user_id = %s) as ok", (org_id, user_id))
+                if not cur.fetchone()["ok"]:
+                    return []
+                q = (
+                    "select r.id, r.project, r.source, r.commit_sha, r.created_at,"
+                    " c.verdict, c.risk_score,"
+                    " (select count(*) from public.failures f where f.run_id = r.id) as failures"
+                    " from public.test_runs r"
+                    " left join lateral ("
+                    "   select verdict, risk_score from public.certificates c"
+                    "   where c.run_id = r.id order by c.created_at desc limit 1"
+                    " ) c on true"
+                    " where r.org_id = %s"
+                )
+                params: List[Any] = [org_id]
+                if project:
+                    q += " and r.project = %s"
+                    params.append(project)
+                q += " order by r.created_at desc limit %s offset %s"
+                params.extend([min(max(limit, 1), 100), max(offset, 0)])
+                cur.execute(q, tuple(params))
+                return [
+                    {"id": str(r["id"]), "project": r["project"], "source": r["source"],
+                     "commit_sha": r["commit_sha"],
+                     "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                     "verdict": r["verdict"], "risk_score": r["risk_score"],
+                     "failures": r["failures"]}
+                    for r in cur.fetchall()
+                ]
+
     def get_calibration_metrics(self, *, user_id: str, org_id: str) -> Optional[Dict[str, Any]]:
         """Métrica del foso por org. None si el usuario no es miembro."""
         with self._connect() as conn:
