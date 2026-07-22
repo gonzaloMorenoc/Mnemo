@@ -98,4 +98,22 @@ describe("getGaps", () => {
     const [url] = spy.mock.calls[0];
     expect(String(url)).toBe("/api/v2/graph/gaps?org_id=org%2Fwith%20spaces");
   });
+
+  it("appends recommendations=false to skip the LLM (dashboard count-only)", async () => {
+    const spy = mockFetch(GAPS);
+
+    await getGaps("tok", { org_id: "org-1", recommendations: false });
+
+    const [url] = spy.mock.calls[0];
+    expect(String(url)).toBe("/api/v2/graph/gaps?org_id=org-1&recommendations=false");
+  });
+
+  it("does NOT append recommendations by default (graph page needs them)", async () => {
+    const spy = mockFetch(GAPS);
+
+    await getGaps("tok", { org_id: "org-1" });
+
+    const [url] = spy.mock.calls[0];
+    expect(String(url)).toBe("/api/v2/graph/gaps?org_id=org-1");
+  });
 });

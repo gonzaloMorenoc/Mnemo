@@ -1083,9 +1083,12 @@ def get_graph(
 @router.get("/graph/gaps", response_model=List[Dict[str, Any]])
 def get_graph_gaps(
     org_id: str,
+    recommendations: bool = True,
     user: AuthenticatedUser = Depends(get_current_user),
 ) -> List[Dict[str, Any]]:
-    return detect_gaps(user_id=user.user_id, org_id=org_id)
+    # recommendations=false → sin LLM (solo conteo/lista): el Dashboard lo usa para
+    # no bloquear ~20 s en generar recomendaciones que no muestra.
+    return detect_gaps(user_id=user.user_id, org_id=org_id, with_recommendations=recommendations)
 
 
 # ---------------------------------------------------------------------------

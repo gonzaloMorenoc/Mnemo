@@ -178,4 +178,15 @@ def test_get_graph_gaps_passes_user_id_and_org_id():
     with patch.object(api_v2, "detect_gaps", mock_detect):
         make_client().get("/v2/graph/gaps?org_id=org-77")
 
-    mock_detect.assert_called_once_with(user_id="user-1", org_id="org-77")
+    # por defecto con recomendaciones (la página de Graph las muestra)
+    mock_detect.assert_called_once_with(user_id="user-1", org_id="org-77", with_recommendations=True)
+
+
+def test_get_graph_gaps_recommendations_false_skips_llm():
+    mock_detect = MagicMock(return_value=[])
+
+    with patch.object(api_v2, "detect_gaps", mock_detect):
+        make_client().get("/v2/graph/gaps?org_id=org-77&recommendations=false")
+
+    # el Dashboard pide sin recomendaciones → detect_gaps con with_recommendations=False (sin LLM)
+    mock_detect.assert_called_once_with(user_id="user-1", org_id="org-77", with_recommendations=False)
