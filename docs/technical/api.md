@@ -215,7 +215,7 @@ curl -sS -H "Authorization: Bearer $MNEMO_INGEST_TOKEN" \
 # → {"run_id": "…", "triage": {...}, "verdict": "apto|apto-con-reservas|no-apto", "gate": …}
 ```
 
-El token actúa con la identidad de quien lo creó (owner/admin): los membership-checks del pipeline aplican tal cual, y si esa persona deja la organización sus tokens dejan de funcionar. Tabla `ingest_tokens` (migración `024`, RLS `is_org_member`).
+El token actúa con la identidad de quien lo creó (owner/admin): los membership-checks del pipeline aplican tal cual, y si esa persona deja la organización sus tokens dejan de funcionar. **Nota operativa:** degradar a alguien de owner/admin a member NO revoca sus tokens existentes (siguen ingiriendo, igual que un member puede subir reports con su JWT) — si se le retira la confianza, revoca sus tokens explícitamente. Tabla `ingest_tokens` (migración `024`): RLS con lectura para miembros y **escritura solo admin** (`is_org_admin`, patrón de `memberships`) y sin grants de escritura a `authenticated` — la gestión va siempre por la API.
 
 ---
 

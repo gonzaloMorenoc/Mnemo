@@ -180,6 +180,36 @@ def test_ci_ingest_invalid_token_401():
     ingestion.ingest_report.assert_not_called()
 
 
+def test_ci_ingest_missing_fields_422():
+    repo = MagicMock()
+    repo.resolve.return_value = {"token_id": "t1", "org_id": "o1", "created_by": "u9"}
+    ingestion = MagicMock()
+    r = make_client(repo, ingestion).post(
+        "/v2/ci/ingest",
+        headers={"Authorization": "Bearer mnemo_it_tok"},
+        files={"file": ("junit.xml", _JUNIT, "application/xml")},
+        # sin project
+    )
+    assert r.status_code == 422
+    ingestion.ingest_report.assert_not_called()
+
+
+def test_ci_ingest_creator_expelled_403():
+    """La promesa de la doc: si el creador del token deja la org, sus tokens dejan
+    de funcionar (el pipeline lanza PermissionError por el membership check)."""
+    repo = MagicMock()
+    repo.resolve.return_value = {"token_id": "t1", "org_id": "o1", "created_by": "u-fuera"}
+    ingestion = MagicMock()
+    ingestion.ingest_report.side_effect = PermissionError("user is not a member")
+    r = make_client(repo, ingestion).post(
+        "/v2/ci/ingest",
+        headers={"Authorization": "Bearer mnemo_it_tok"},
+        files={"file": ("junit.xml", _JUNIT, "application/xml")},
+        data={"project": "web"},
+    )
+    assert r.status_code == 403
+
+
 def test_ci_ingest_bad_report_400():
     repo = MagicMock()
     repo.resolve.return_value = {"token_id": "t1", "org_id": "o1", "created_by": "u9"}

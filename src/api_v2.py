@@ -645,9 +645,6 @@ def revoke_ingest_token(
 @router.post("/ci/ingest", response_model=Dict[str, Any])
 async def ci_ingest(
     request: Request,
-    file: UploadFile = File(...),
-    project: str = Form(...),
-    source: str = Form("auto"),
     repo: IngestTokenRepository = Depends(get_ingest_token_repo),
     service: IngestionService = Depends(get_ingestion_service),
 ) -> Dict[str, Any]:
@@ -658,16 +655,37 @@ async def ci_ingest(
         curl -H "Authorization: Bearer mnemo_it_…" \\
              -F file=@junit.xml -F project=mi-proyecto \\
              https://…/v2/ci/ingest
+
+    El multipart se parsea A MANO y DESPUÉS de autenticar + acotar el tamaño:
+    con `file: UploadFile = File(...)` en la firma, FastAPI bufferiza el cuerpo
+    completo ANTES de ejecutar la función — un anónimo podría hacernos volcar
+    archivos enormes sin token (DoS). Orden: auth → cota → parseo.
     """
+    # 1) Autenticación antes de tocar el cuerpo. Un token sin el prefijo
+    #    mnemo_it_ se rechaza sin consultar la BD (resolve corta por formato).
     auth = request.headers.get("Authorization", "")
-    token = auth[7:].strip() if auth.startswith("Bearer ") else request.headers.get("X-Mnemo-Token", "")
+    token = (auth[7:] if auth.startswith("Bearer ") else
+             request.headers.get("X-Mnemo-Token", "")).strip()
     try:
         info = repo.resolve(token=token)
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail="Database error") from exc
     if info is None:
         raise HTTPException(status_code=401, detail="token de ingesta inválido o revocado")
-    data = _read_upload_capped(file)
+    # 2) Cota de tamaño antes de parsear (patrón de /ci/webhook; margen multipart)
+    declared = request.headers.get("content-length")
+    if declared is not None and declared.isdigit() and int(declared) > INGEST_MAX_BYTES + 65536:
+        raise HTTPException(status_code=413, detail="payload too large")
+    # 3) Parseo del multipart (async; no bloquea el event loop)
+    form = await request.form()
+    upload = form.get("file")
+    project = form.get("project")
+    source = str(form.get("source") or "auto")
+    if upload is None or isinstance(upload, str) or not project or not isinstance(project, str):
+        raise HTTPException(status_code=422, detail="faltan los campos multipart: file y project")
+    if len(project) > 200:
+        raise HTTPException(status_code=400, detail="project demasiado largo (máx. 200)")
+    data = await _read_upload_capped_async(upload)
 
     def _work() -> Dict[str, Any]:
         result = service.ingest_report(user_id=info["created_by"], org_id=info["org_id"],
