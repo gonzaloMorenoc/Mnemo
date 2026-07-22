@@ -65,6 +65,30 @@ class KnowledgeProposalService:
             remaining = 0
         return {"created": created, "failed": failed, "remaining": remaining}
 
+    def propose_from_rca(self, *, user_id: str, family: Dict[str, Any],
+                         failures: List[Dict[str, Any]], rca: Dict[str, Any]) -> bool:
+        """Hook tras el análisis de causa raíz: reusa el RCA YA calculado (cero
+        llamadas LLM extra) para dejar una propuesta en la bandeja — solo si la
+        familia sigue siendo candidata (sin lección activa y sin propuesta previa;
+        no resucita rechazadas). Cierra el lazo: analizar una causa raíz alimenta
+        la memoria sin pasos manuales."""
+        org_id = family.get("org_id")
+        fid = family.get("id")
+        if not org_id or not fid:
+            return False  # familias globales (org_id None) quedan fuera del MVP
+        if rca.get("confidence", 0.0) == 0.0 and not rca.get("citations"):
+            return False  # fallback del LLM → no proponer basura
+        cands = self.repo.candidate_families(user_id=user_id, org_id=org_id,
+                                             limit=1, family_ids=[fid])
+        if not cands:
+            return False
+        projects = sorted({f.get("project") for f in failures if f.get("project")})
+        fields = rca_to_proposal(family, rca, projects=projects)
+        row = self.repo.upsert_proposal(
+            user_id=user_id, org_id=org_id, defect_family_id=fid,
+            run_id=cands[0].get("run_id"), created_by=user_id, **fields)
+        return bool(row)
+
     def list(self, *, user_id: str, org_id: str,
              status: str = "pending") -> List[Dict[str, Any]]:
         return self.repo.list_proposals(user_id=user_id, org_id=org_id, status=status)

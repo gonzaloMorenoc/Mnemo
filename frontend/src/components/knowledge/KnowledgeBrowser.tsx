@@ -45,6 +45,7 @@ export function KnowledgeBrowser({ orgId }: { orgId: string }) {
   const qc = useQueryClient();
   const [kind, setKind] = useState("todos");
   const [status, setStatus] = useState("todos");
+  const [project, setProject] = useState("todos");
 
   const query = useQuery({
     queryKey: ["knowledge-browse", orgId, kind, status],
@@ -59,15 +60,20 @@ export function KnowledgeBrowser({ orgId }: { orgId: string }) {
     qc.invalidateQueries({ queryKey: ["knowledge-browse", orgId] });
 
   const items = query.data ?? [];
+  // Proyectos presentes en los datos cargados → opciones del filtro (client-side)
+  const projects = Array.from(
+    new Set(items.map((i) => i.project).filter((p): p is string => Boolean(p))),
+  ).sort();
+  const visible = project === "todos" ? items : items.filter((i) => i.project === project);
 
   return (
     <Card className="max-w-2xl">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle className="flex items-center gap-2 text-base">
           Explorar la memoria
-          {items.length > 0 && <Badge>{items.length}</Badge>}
+          {visible.length > 0 && <Badge>{visible.length}</Badge>}
         </CardTitle>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap justify-end gap-2">
           <Select value={kind} onValueChange={setKind}>
             <SelectTrigger className="w-[160px]" aria-label="Filtrar por tipo">
               <SelectValue />
@@ -89,15 +95,28 @@ export function KnowledgeBrowser({ orgId }: { orgId: string }) {
               <SelectItem value="obsoleto">Obsoleto</SelectItem>
             </SelectContent>
           </Select>
+          {projects.length > 0 && (
+            <Select value={project} onValueChange={setProject}>
+              <SelectTrigger className="w-[170px]" aria-label="Filtrar por proyecto">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos los proyectos</SelectItem>
+                {projects.map((p) => (
+                  <SelectItem key={p} value={p}>{p}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
         {query.isLoading ? (
           <p className="text-sm text-zinc-500">Cargando…</p>
-        ) : items.length === 0 ? (
+        ) : visible.length === 0 ? (
           <p className="text-sm text-zinc-500">Sin resultados con estos filtros.</p>
         ) : (
-          items.map((it) => (
+          visible.map((it) => (
             <ItemCard key={it.id} item={it} orgId={orgId} token={accessToken!} onDone={invalidate} />
           ))
         )}
@@ -154,6 +173,9 @@ function ItemCard({
     <div className={`space-y-2 rounded-xl border border-zinc-200 p-3 ${obsoleto ? "bg-zinc-50 opacity-70" : "bg-white"}`}>
       <div className="flex flex-wrap items-center gap-2">
         <Badge>{KIND_LABEL[item.kind] ?? item.kind}</Badge>
+        {item.project && (
+          <Badge className="border-blue-200 bg-blue-50 text-blue-700">{item.project}</Badge>
+        )}
         {item.domain && <Badge variant="user">{item.domain}</Badge>}
         {obsoleto && <Badge className="bg-amber-100 text-amber-800">Obsoleto</Badge>}
         {item.source === "auto_triage" && (

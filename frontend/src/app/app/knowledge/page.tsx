@@ -47,6 +47,7 @@ const EMPTY_FORM = {
   approach: "",
   outcome: "",
   domain: "",
+  project: "",
   tags: "",
 };
 
@@ -77,6 +78,7 @@ export default function KnowledgePage() {
         ...(form.approach ? { approach: form.approach } : {}),
         ...(form.outcome ? { outcome: form.outcome } : {}),
         ...(form.domain ? { domain: form.domain } : {}),
+        ...(form.project ? { project: form.project } : {}),
         tags,
       });
     },
@@ -184,6 +186,16 @@ export default function KnowledgePage() {
                   placeholder="p.ej. pagos, auth…"
                   value={form.domain}
                   onChange={(e) => handleFormChange("domain", e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="project">Proyecto / cliente</Label>
+                <Input
+                  id="project"
+                  placeholder="p.ej. checkout-suite"
+                  value={form.project}
+                  onChange={(e) => handleFormChange("project", e.target.value)}
                 />
               </div>
             </div>

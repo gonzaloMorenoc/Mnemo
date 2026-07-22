@@ -21,7 +21,7 @@ const ITEM: KnowledgeItem = {
   id: "k1", kind: "leccion", title: "Timeout del PSP", challenge: "El widget tarda",
   approach: "Etiquetar como infra", outcome: undefined, domain: "checkout",
   tags: ["web"], confidence: "confirmado", created_at: "2026-07-22T00:00:00",
-  status: "activo", source: "manual",
+  status: "activo", source: "manual", project: "checkout-suite",
 };
 
 function renderBrowser() {
@@ -86,6 +86,26 @@ describe("KnowledgeBrowser (hojeo + curación)", () => {
     fireEvent.click(await screen.findByRole("button", { name: /^Borrar$/i, hidden: false }));
     await waitFor(() =>
       expect(endpoints.deleteKnowledge).toHaveBeenCalledWith("tok", "k1", "o1"));
+  });
+
+  it("muestra el proyecto del item y ofrece el filtro por proyecto", async () => {
+    vi.mocked(endpoints.listKnowledge).mockResolvedValue([
+      ITEM,
+      { ...ITEM, id: "k2", title: "Otra lección", project: "banca-api" },
+    ]);
+    renderBrowser();
+    await screen.findByText("Timeout del PSP");
+    expect(screen.getByText("checkout-suite")).toBeInTheDocument();  // badge de proyecto
+    expect(screen.getByText("banca-api")).toBeInTheDocument();
+    // el filtro por proyecto aparece (hay proyectos en los datos)
+    expect(screen.getByLabelText(/Filtrar por proyecto/i)).toBeInTheDocument();
+  });
+
+  it("sin proyectos en los datos, el filtro de proyecto no aparece", async () => {
+    vi.mocked(endpoints.listKnowledge).mockResolvedValue([{ ...ITEM, project: undefined }]);
+    renderBrowser();
+    await screen.findByText("Timeout del PSP");
+    expect(screen.queryByLabelText(/Filtrar por proyecto/i)).not.toBeInTheDocument();
   });
 
   it("un item obsoleto muestra la insignia y ofrece Reactivar", async () => {

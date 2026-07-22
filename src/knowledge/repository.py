@@ -81,7 +81,8 @@ class QaKnowledgeRepository:
 
     def list_items(self, *, user_id: str, org_id: str, kind: Optional[str] = None,
                    domain: Optional[str] = None, project: Optional[str] = None,
-                   status: Optional[str] = None) -> List[Dict[str, Any]]:
+                   status: Optional[str] = None,
+                   defect_family_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Hojeo: muestra TODOS los status por defecto (los obsoletos, marcados);
         el filtro de 'solo activos' es cosa de los read-paths de RAG/búsqueda."""
         with self._connect() as conn, conn.cursor() as cur:
@@ -99,6 +100,8 @@ class QaKnowledgeRepository:
                 q += " and project=%s"; params.append(project)
             if status:
                 q += " and status=%s"; params.append(status)
+            if defect_family_id:
+                q += " and defect_family_id=%s"; params.append(defect_family_id)
             q += " order by created_at desc limit 200"
             cur.execute(q, tuple(params))
             return [dict(r) for r in cur.fetchall()]

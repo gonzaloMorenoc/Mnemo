@@ -494,7 +494,7 @@ class AssuranceRepository:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    select f.id, f.title, f.status, f.occurrence_count, f.root_cause
+                    select f.id, f.org_id, f.title, f.status, f.occurrence_count, f.root_cause
                     from public.defect_families f
                     where f.id = %s
                       and (f.scope = 'global' or exists (
@@ -526,6 +526,8 @@ class AssuranceRepository:
                 "family": {
                     "id": str(fam["id"]), "title": fam["title"], "status": fam["status"],
                     "occurrence_count": fam["occurrence_count"], "root_cause": fam["root_cause"],
+                    # org_id para el hook causa-raíz→propuesta (None en familias globales)
+                    "org_id": str(fam["org_id"]) if fam["org_id"] else None,
                 },
                 "failures": failures,
             }

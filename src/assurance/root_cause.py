@@ -105,15 +105,23 @@ class RootCauseAnalyzer:
 
     def analyze(self, family: Dict[str, Any], failures: List[Dict[str, Any]],
                 *, lineage: Optional[List[str]] = None) -> str:
-        r = self.analyze_structured(family, failures, lineage=lineage)
-        steps = "\n".join(f"{i}. {s}" for i, s in enumerate(r.get("suggested_fix_steps") or [], 1))
-        lineage_line = (f"\n**Linaje:** {', '.join(lineage)}." if lineage else "")
-        cites = ", ".join(r.get("citations") or []) or "—"
-        return (
-            f"## Causa raíz\n{r.get('root_cause', '')}\n\n"
-            f"## Por qué\n{r.get('why_it_happened', '')}\n\n"
-            f"## Cómo arreglar\n{r.get('how_to_fix', '')}\n\n"
-            f"## Pasos sugeridos\n{steps or '—'}"
-            f"{lineage_line}\n\n"
-            f"_Evidencia citada: {cites} · confianza {r.get('confidence', 0.0)}_"
-        )
+        return render_root_cause_markdown(
+            self.analyze_structured(family, failures, lineage=lineage), lineage=lineage)
+
+
+def render_root_cause_markdown(r: Dict[str, Any], *,
+                               lineage: Optional[List[str]] = None) -> str:
+    """Aplana un RCA estructurado a markdown. Extraído de analyze() para poder
+    renderizar un RCA YA calculado sin repetir la llamada al LLM (el endpoint
+    de causa raíz llamaba a analyze_structured Y a analyze → dos llamadas)."""
+    steps = "\n".join(f"{i}. {s}" for i, s in enumerate(r.get("suggested_fix_steps") or [], 1))
+    lineage_line = (f"\n**Linaje:** {', '.join(lineage)}." if lineage else "")
+    cites = ", ".join(r.get("citations") or []) or "—"
+    return (
+        f"## Causa raíz\n{r.get('root_cause', '')}\n\n"
+        f"## Por qué\n{r.get('why_it_happened', '')}\n\n"
+        f"## Cómo arreglar\n{r.get('how_to_fix', '')}\n\n"
+        f"## Pasos sugeridos\n{steps or '—'}"
+        f"{lineage_line}\n\n"
+        f"_Evidencia citada: {cites} · confianza {r.get('confidence', 0.0)}_"
+    )

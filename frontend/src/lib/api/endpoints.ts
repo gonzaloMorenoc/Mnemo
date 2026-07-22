@@ -202,12 +202,13 @@ export function createKnowledge(token: string, body: Record<string, unknown>) {
 export function listKnowledge(
   token: string,
   orgId: string,
-  filters?: { kind?: string; domain?: string; status?: string },
+  filters?: { kind?: string; domain?: string; status?: string; defect_family_id?: string },
 ) {
   const qs = new URLSearchParams({ org_id: orgId });
   if (filters?.kind) qs.set("kind", filters.kind);
   if (filters?.domain) qs.set("domain", filters.domain);
   if (filters?.status) qs.set("status", filters.status);
+  if (filters?.defect_family_id) qs.set("defect_family_id", filters.defect_family_id);
   return apiRequest<KnowledgeItem[]>(`/api/v2/knowledge?${qs.toString()}`, "GET", { token });
 }
 
@@ -241,9 +242,20 @@ export function listKnowledgeProposals(token: string, orgId: string, status = "p
     `/api/v2/knowledge/proposals?${qs.toString()}`, "GET", { token });
 }
 
-export function generateKnowledgeProposals(token: string, orgId: string, cap = 5) {
+export function generateKnowledgeProposals(
+  token: string,
+  orgId: string,
+  opts?: { cap?: number; familyIds?: string[] },
+) {
   return apiRequest<GenerateProposalsResult>(
-    "/api/v2/knowledge/proposals/generate", "POST", { token, body: { org_id: orgId, cap } });
+    "/api/v2/knowledge/proposals/generate", "POST", {
+      token,
+      body: {
+        org_id: orgId,
+        cap: opts?.cap ?? 5,
+        ...(opts?.familyIds ? { family_ids: opts.familyIds } : {}),
+      },
+    });
 }
 
 export function approveKnowledgeProposal(
