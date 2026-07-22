@@ -390,6 +390,13 @@ class AssuranceRepository:
                         f.occurrence_count,
                         f.first_seen,
                         f.last_seen,
+                        f.label,
+                        exists(
+                            select 1 from public.qa_knowledge k
+                            where k.org_id = f.org_id
+                              and k.defect_family_id = f.id
+                              and k.status = 'activo'
+                        ) as has_lesson,
                         coalesce(
                             array_agg(distinct r.project)
                             filter (where r.project is not null),
@@ -417,6 +424,8 @@ class AssuranceRepository:
                         "occurrence_count": r["occurrence_count"],
                         "first_seen": str(r["first_seen"]) if r["first_seen"] is not None else None,
                         "last_seen": str(r["last_seen"]) if r["last_seen"] is not None else None,
+                        "label": r["label"],
+                        "has_lesson": bool(r["has_lesson"]),
                         "projects": list(r["projects"]),
                     }
                     for r in cur.fetchall()

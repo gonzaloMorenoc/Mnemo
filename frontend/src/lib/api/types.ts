@@ -33,6 +33,8 @@ export interface DefectFamilyResponse {
   occurrence_count: number;
   first_seen: string | null;
   last_seen: string | null;
+  label?: string | null;
+  has_lesson?: boolean;
   projects: string[];
 }
 

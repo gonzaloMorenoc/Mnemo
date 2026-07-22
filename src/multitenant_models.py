@@ -40,6 +40,8 @@ class DefectFamilyResponse(BaseModel):
     occurrence_count: int
     first_seen: Optional[str] = None
     last_seen: Optional[str] = None
+    label: Optional[str] = None
+    has_lesson: bool = False
     projects: List[str] = Field(default_factory=list)
 
 

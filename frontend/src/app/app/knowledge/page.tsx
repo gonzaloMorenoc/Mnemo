@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -53,9 +53,20 @@ const EMPTY_FORM = {
   tags: "",
 };
 
+const TAB_VALUES = new Set(["preguntar", "explorar", "propuestas", "capturar"]);
+
 export default function KnowledgePage() {
   const { accessToken } = useAuth();
   const { activeOrgId, isLoading } = useActiveOrg();
+
+  // Deep-link a un tab (?tab=explorar) — enlaces cruzados desde otras vistas.
+  // window.location en un efecto (una sola vez) para no forzar useSearchParams+Suspense.
+  const [tab, setTab] = useState("preguntar");
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get("tab");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (t && TAB_VALUES.has(t)) setTab(t);
+  }, []);
 
   // Capture form state
   const [form, setForm] = useState(EMPTY_FORM);
@@ -160,7 +171,7 @@ export default function KnowledgePage() {
         <p className="text-sm text-zinc-500">Base de conocimiento institucional del equipo de QA.</p>
       </div>
 
-      <Tabs defaultValue="preguntar" className="max-w-2xl">
+      <Tabs value={tab} onValueChange={setTab} className="max-w-2xl">
         <TabsList>
           <TabsTrigger value="preguntar">Preguntar</TabsTrigger>
           <TabsTrigger value="explorar">Explorar</TabsTrigger>
