@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { FileDropzone } from "@/components/ui/file-dropzone";
 
 type InputMode = "texto" | "jira_url" | "archivo";
 type CaseFormat = "steps" | "gherkin";
@@ -328,19 +329,21 @@ export default function TestPlanPage() {
           {/* Input mode selector */}
           <div className="space-y-1.5">
             <Label>Modo de entrada</Label>
-            <div className="flex gap-4">
+            <div className="inline-flex rounded-lg border border-zinc-200 bg-zinc-50 p-0.5">
               {(["texto", "jira_url", "archivo"] as InputMode[]).map((mode) => (
-                <label key={mode} className="flex items-center gap-1.5 cursor-pointer text-sm">
-                  <input
-                    type="radio"
-                    name="inputMode"
-                    value={mode}
-                    checked={inputMode === mode}
-                    onChange={() => setInputMode(mode)}
-                    className="accent-zinc-900"
-                  />
+                <button
+                  key={mode}
+                  type="button"
+                  aria-pressed={inputMode === mode}
+                  onClick={() => setInputMode(mode)}
+                  className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
+                    inputMode === mode
+                      ? "bg-white text-zinc-900 shadow-sm"
+                      : "text-zinc-500 hover:text-zinc-800"
+                  }`}
+                >
                   {mode === "texto" ? "Texto" : mode === "jira_url" ? "Jira URL" : "Subir archivo"}
-                </label>
+                </button>
               ))}
             </div>
           </div>
@@ -374,11 +377,12 @@ export default function TestPlanPage() {
           {inputMode === "archivo" && (
             <div className="space-y-1.5">
               <Label htmlFor="hu-file">Archivo (PDF o Word)</Label>
-              <Input
+              <FileDropzone
                 id="hu-file"
-                type="file"
+                file={file}
+                onFile={setFile}
                 accept=".pdf,.doc,.docx"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                hint="PDF o Word con la historia de usuario"
               />
             </div>
           )}
@@ -386,19 +390,21 @@ export default function TestPlanPage() {
           {/* Format selector */}
           <div className="space-y-1.5">
             <Label>Formato de casos</Label>
-            <div className="flex gap-4">
+            <div className="inline-flex rounded-lg border border-zinc-200 bg-zinc-50 p-0.5">
               {(["steps", "gherkin"] as CaseFormat[]).map((fmt) => (
-                <label key={fmt} className="flex items-center gap-1.5 cursor-pointer text-sm">
-                  <input
-                    type="radio"
-                    name="caseFormat"
-                    value={fmt}
-                    checked={caseFormat === fmt}
-                    onChange={() => setCaseFormat(fmt)}
-                    className="accent-zinc-900"
-                  />
+                <button
+                  key={fmt}
+                  type="button"
+                  aria-pressed={caseFormat === fmt}
+                  onClick={() => setCaseFormat(fmt)}
+                  className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
+                    caseFormat === fmt
+                      ? "bg-white text-zinc-900 shadow-sm"
+                      : "text-zinc-500 hover:text-zinc-800"
+                  }`}
+                >
                   {fmt === "steps" ? "Manual (pasos)" : "Gherkin"}
-                </label>
+                </button>
               ))}
             </div>
           </div>

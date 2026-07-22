@@ -57,8 +57,14 @@ describe("KnowledgePage", () => {
 
     renderWithClient(<KnowledgePage />);
 
+    // La captura vive ahora en su tab (el por defecto es "Preguntar").
+    // Radix Tabs activa con mousedown, no con click.
+    const capturarTab = screen.getByRole("tab", { name: /Capturar/i });
+    fireEvent.mouseDown(capturarTab);
+    fireEvent.click(capturarTab);
+
     // Fill in the required title field
-    const titleInput = screen.getByLabelText(/título/i);
+    const titleInput = await screen.findByLabelText(/título/i);
     fireEvent.change(titleInput, { target: { value: "Evitar N+1" } });
 
     // Submit the form

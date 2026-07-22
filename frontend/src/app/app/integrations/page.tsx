@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { FileDropzone } from "@/components/ui/file-dropzone";
 import type { JiraIngestResponse } from "@/lib/api/types";
 
 export default function IntegrationsPage() {
@@ -409,10 +410,12 @@ export default function IntegrationsPage() {
 
         <div className="space-y-2 border-t pt-4">
           <Label htmlFor="export-file">Subir export de Jira (CSV / JSON)</Label>
-          <Input
+          <FileDropzone
             id="export-file"
-            type="file"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            file={file}
+            onFile={setFile}
+            accept=".csv,.json"
+            hint="Export de issues de Jira en CSV o JSON"
           />
           <Button onClick={handleUpload} disabled={busy || !file}>
             {busy ? "Subiendo…" : "Subir export"}

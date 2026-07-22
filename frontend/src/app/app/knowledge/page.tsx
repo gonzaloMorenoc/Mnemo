@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { useAuth } from "@/components/providers/auth-provider";
@@ -10,7 +10,9 @@ import {
   createKnowledge,
   askKnowledge,
   searchKnowledge,
+  listKnowledgeProposals,
 } from "@/lib/api/endpoints";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { KnowledgeAnswer, KnowledgeSource } from "@/lib/api/types";
 import { KnowledgeBrowser } from "@/components/knowledge/KnowledgeBrowser";
 import { KnowledgeProposalsPanel } from "@/components/knowledge/KnowledgeProposalsPanel";
@@ -89,6 +91,15 @@ export default function KnowledgePage() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  // Contador de propuestas pendientes para el tab (misma queryKey que el panel →
+  // caché compartida, sin petición extra al abrir el tab).
+  const proposalsCount = useQuery({
+    queryKey: ["knowledge-proposals", activeOrgId],
+    queryFn: () => listKnowledgeProposals(accessToken!, activeOrgId),
+    enabled: Boolean(accessToken && activeOrgId),
+  });
+  const nPending = proposalsCount.data?.length ?? 0;
+
   const askMutation = useMutation({
     mutationFn: () => {
       if (!accessToken) throw new Error("Sin sesión");
@@ -149,6 +160,17 @@ export default function KnowledgePage() {
         <p className="text-sm text-zinc-500">Base de conocimiento institucional del equipo de QA.</p>
       </div>
 
+      <Tabs defaultValue="preguntar" className="max-w-2xl">
+        <TabsList>
+          <TabsTrigger value="preguntar">Preguntar</TabsTrigger>
+          <TabsTrigger value="explorar">Explorar</TabsTrigger>
+          <TabsTrigger value="propuestas">
+            Propuestas{nPending > 0 ? ` (${nPending})` : ""}
+          </TabsTrigger>
+          <TabsTrigger value="capturar">Capturar</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="capturar" className="mt-4">
       {/* Capture zone */}
       <Card className="max-w-2xl">
         <CardHeader>
@@ -258,12 +280,19 @@ export default function KnowledgePage() {
         </CardContent>
       </Card>
 
-      {/* Hojeo + curación: explorar, editar, obsoletar, borrar */}
-      <KnowledgeBrowser orgId={activeOrgId} />
+        </TabsContent>
 
-      {/* Proposals tray — IA propone / humano aprueba */}
-      <KnowledgeProposalsPanel orgId={activeOrgId} />
+        <TabsContent value="explorar" className="mt-4">
+          {/* Hojeo + curación: explorar, editar, obsoletar, borrar */}
+          <KnowledgeBrowser orgId={activeOrgId} />
+        </TabsContent>
 
+        <TabsContent value="propuestas" className="mt-4">
+          {/* Proposals tray — IA propone / humano aprueba */}
+          <KnowledgeProposalsPanel orgId={activeOrgId} />
+        </TabsContent>
+
+        <TabsContent value="preguntar" className="mt-4">
       {/* Ask / Search zone */}
       <Card className="max-w-2xl">
         <CardHeader>
@@ -336,6 +365,8 @@ export default function KnowledgePage() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
