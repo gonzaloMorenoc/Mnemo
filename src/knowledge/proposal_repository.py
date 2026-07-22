@@ -154,9 +154,17 @@ class KnowledgeProposalRepository:
             row = cur.fetchone()
             if row is None:
                 return None
+            # El proyecto se hereda del run que destapó la familia (si lo hay), para que
+            # la lección quede segmentada por proyecto/cliente en el hojeo y los filtros.
+            project = None
+            if row["run_id"]:
+                cur.execute("select project from public.test_runs where id=%s",
+                            (row["run_id"],))
+                prow = cur.fetchone()
+                project = prow["project"] if prow else None
             item = insert_qa_knowledge(
                 cur, org_id=str(row["org_id"]), kind=kind, title=title, challenge=challenge,
-                approach=approach, outcome=outcome, domain=domain, tags=tags, project=None,
+                approach=approach, outcome=outcome, domain=domain, tags=tags, project=project,
                 source="auto_triage", confidence="inferido",
                 defect_family_id=str(row["defect_family_id"]),
                 run_id=str(row["run_id"]) if row["run_id"] else None,
