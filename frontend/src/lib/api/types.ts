@@ -130,6 +130,18 @@ export interface ProposeActionsResult {
   skipped: number;
 }
 
+export interface IngestToken {
+  id: string;
+  name: string;
+  created_at?: string | null;
+  last_used_at?: string | null;
+  revoked_at?: string | null;
+}
+
+export interface IngestTokenCreated extends IngestToken {
+  token: string; // el claro SOLO viaja en la creación
+}
+
 export interface RunListItem {
   id: string;
   project: string;

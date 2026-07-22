@@ -24,6 +24,8 @@ import type {
   JiraConfigResponse,
   JiraIngestResponse,
   GenerateProposalsResult,
+  IngestToken,
+  IngestTokenCreated,
   KnowledgeAnswer,
   KnowledgeItem,
   KnowledgeProposal,
@@ -321,6 +323,23 @@ export function getGraph(
   if (params.focus) q.set("focus", params.focus);
   if (params.limit) q.set("limit", String(params.limit));
   return apiRequest<Graph>(`/api/v2/graph?${q.toString()}`, "GET", { token });
+}
+
+// --- Tokens de ingesta CI (cualquier CI se enchufa con un token) ---
+
+export function listIngestTokens(token: string, orgId: string) {
+  return apiRequest<IngestToken[]>(
+    `/api/v2/ingest/tokens?org_id=${encodeURIComponent(orgId)}`, "GET", { token });
+}
+
+export function createIngestToken(token: string, orgId: string, name: string) {
+  return apiRequest<IngestTokenCreated>(
+    "/api/v2/ingest/tokens", "POST", { token, body: { org_id: orgId, name } });
+}
+
+export function revokeIngestToken(token: string, tokenId: string) {
+  return apiRequest<{ revoked: boolean }>(
+    `/api/v2/ingest/tokens/${encodeURIComponent(tokenId)}/revoke`, "POST", { token });
 }
 
 export function listRuns(
