@@ -12,6 +12,14 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
 
+const CAT_LABEL: Record<string, string> = {
+  real: "Real",
+  flaky: "Flaky",
+  maintenance: "Mantenimiento",
+  infra: "Infraestructura",
+  unknown: "Sin etiquetar",
+};
+
 export default function CalibrationPage() {
   const { accessToken } = useAuth();
   const { activeOrgId } = useActiveOrg();
@@ -31,12 +39,8 @@ export default function CalibrationPage() {
           <InfoTooltip term="calibracion" />
         </h1>
         <p className="flex items-center gap-1 text-sm text-zinc-500">
-          Precisión del motor de triaje con tus correcciones (el{" "}
-          <span className="inline-flex items-center gap-0.5">
-            foso
-            <InfoTooltip term="foso" />
-          </span>
-          ).
+          Cada corrección tuya afina la precisión del motor de triaje.
+          <InfoTooltip term="foso" />
         </p>
       </div>
 
@@ -63,7 +67,7 @@ export default function CalibrationPage() {
           <p className="text-sm text-zinc-600">{m.familias_calibradas} familias calibradas</p>
           <div className="flex flex-wrap gap-2">
             {Object.entries(m.por_categoria ?? {}).map(([cat, n]) => (
-              <Badge key={cat}>{cat}: {n}</Badge>
+              <Badge key={cat}>{CAT_LABEL[cat] ?? cat}: {n}</Badge>
             ))}
           </div>
         </Card>

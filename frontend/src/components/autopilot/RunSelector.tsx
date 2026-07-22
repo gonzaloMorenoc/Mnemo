@@ -56,8 +56,8 @@ export function RunSelector({ orgId, onRunId }: { orgId: string; onRunId: (id: s
       </form>
       <div className="flex items-end gap-2 border-t border-zinc-100 pt-4">
         <div className="flex-1 space-y-1">
-          <Label htmlFor="manual">…o pega un run_id</Label>
-          <Input id="manual" value={manualId} onChange={(e) => setManualId(e.target.value)} placeholder="uuid del run" />
+          <Label htmlFor="manual">…o abre un run existente</Label>
+          <Input id="manual" value={manualId} onChange={(e) => setManualId(e.target.value)} placeholder="identificador (UUID) del run" />
         </div>
         <Button variant="ghost" type="button" disabled={!manualId} onClick={() => onRunId(manualId.trim())}>Cargar</Button>
       </div>

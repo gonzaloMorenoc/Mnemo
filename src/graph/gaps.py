@@ -85,8 +85,9 @@ def _severity_by_count(count: int) -> str:
 
 def _recommendation(kind: str, title: str, provider=None) -> str:
     prompt = (
-        f"Generate a concise, actionable QA recommendation (1-2 sentences) "
-        f"for a coverage gap of type '{kind}' affecting: {title}."
+        f"Redacta una recomendación de QA concisa y accionable (1-2 frases) para un "
+        f"hueco de cobertura de tipo '{kind}' que afecta a: {title}. "
+        f"Responde SIEMPRE en español."
     )
     try:
         result = generate_structured(
