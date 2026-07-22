@@ -8,6 +8,9 @@ import {
   listRepoTests,
   listKnowledge,
   getGaps,
+  listRuns,
+  getCalibrationMetrics,
+  listKnowledgeProposals,
 } from "@/lib/api/endpoints";
 import {
   SetupChecklist,
@@ -15,12 +18,39 @@ import {
 } from "@/components/dashboard/SetupChecklist";
 import { NAV_ITEMS } from "@/components/layout/nav";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { VerdictBadge } from "@/components/ui/verdict-badge";
 
 const QUICK_ACCESS_HREFS = ["/app/knowledge", "/app/graph", "/app/test-plan"] as const;
 const quickAccessItems = NAV_ITEMS.filter((item) =>
   (QUICK_ACCESS_HREFS as readonly string[]).includes(item.href),
 );
+
+function KpiCard({
+  title,
+  href,
+  cta,
+  loading,
+  children,
+}: {
+  title: string;
+  href: string;
+  cta: string;
+  loading?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card className="flex flex-col gap-2 p-4">
+      <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">{title}</p>
+      {loading ? <Skeleton className="h-10 w-24" /> : <div className="flex-1">{children}</div>}
+      <Link href={href} className="text-xs font-medium text-zinc-500 hover:text-zinc-900">
+        {cta} →
+      </Link>
+    </Card>
+  );
+}
 
 export default function DashboardPage() {
   const { accessToken } = useAuth();
@@ -45,10 +75,24 @@ export default function DashboardPage() {
     ...opts,
   });
   const gaps = useQuery({
-    // El Dashboard solo usa el conteo de gaps → pide sin recomendaciones (sin LLM):
-    // evita que esta query bloquee el Dashboard ~20 s.
+    // Solo el conteo → sin recomendaciones LLM (instantáneo)
     queryKey: ["gaps", orgId, "count"],
     queryFn: () => getGaps(accessToken!, { org_id: orgId, recommendations: false }),
+    ...opts,
+  });
+  const runs = useQuery({
+    queryKey: ["runs", orgId, "dashboard"],
+    queryFn: () => listRuns(accessToken!, orgId, { limit: 5 }),
+    ...opts,
+  });
+  const calibration = useQuery({
+    queryKey: ["calibration", orgId],
+    queryFn: () => getCalibrationMetrics(accessToken!, orgId),
+    ...opts,
+  });
+  const proposals = useQuery({
+    queryKey: ["knowledge-proposals", orgId],
+    queryFn: () => listKnowledgeProposals(accessToken!, orgId),
     ...opts,
   });
 
@@ -108,25 +152,129 @@ export default function DashboardPage() {
       highlight: true,
     },
   ];
+  const setupComplete = steps.slice(0, 4).every((s) => s.done);
 
-  const loading =
-    orgLoading ||
-    github.isLoading ||
-    repo.isLoading ||
-    knowledge.isLoading ||
-    gaps.isLoading;
+  const latest = runs.data?.[0];
+  const m = calibration.data;
+  const nGapsAlta = (gaps.data ?? []).filter((g) => g.severity === "alta").length;
+  const nPending = proposals.data?.length ?? 0;
+
+  const checklistLoading =
+    orgLoading || github.isLoading || repo.isLoading || knowledge.isLoading || gaps.isLoading;
 
   return (
     <div className="space-y-8">
       <div>
         <h2 className="text-xl font-semibold tracking-tight text-zinc-900">
-          Pon Mnemo en marcha
+          Panel de control
         </h2>
         <p className="text-sm text-zinc-500">
-          Sigue estos pasos para poner en marcha tu memoria de QA.
+          El estado de tu memoria y aseguramiento de QA, de un vistazo.
         </p>
       </div>
-      <SetupChecklist steps={steps} loading={loading} />
+
+      {/* ── KPIs ── */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiCard title="Último run" href="/app/autopilot" cta="Ver runs" loading={runs.isLoading}>
+          {latest ? (
+            <div className="space-y-1">
+              <VerdictBadge verdict={latest.verdict} />
+              <p className="truncate text-sm font-medium text-zinc-900">{latest.project}</p>
+              <p className="text-xs text-zinc-400">
+                {latest.created_at ? new Date(latest.created_at).toLocaleString() : ""}
+                {latest.failures > 0 ? ` · ${latest.failures} fallos` : ""}
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-zinc-500">Aún sin runs.</p>
+          )}
+        </KpiCard>
+
+        <KpiCard title="Precisión del motor" href="/app/calibration" cta="Calibración" loading={calibration.isLoading}>
+          {m && m.total > 0 ? (
+            <div className="space-y-1">
+              <p className="text-3xl font-semibold tracking-tight text-zinc-900">
+                {(m.accuracy * 100).toFixed(0)}%
+              </p>
+              <p className="text-xs text-zinc-400">{m.familias_calibradas} familias calibradas</p>
+            </div>
+          ) : (
+            <p className="text-sm text-zinc-500">Sin calibrar aún — etiqueta familias.</p>
+          )}
+        </KpiCard>
+
+        <KpiCard title="Memoria de QA" href="/app/knowledge" cta="Conocimiento" loading={knowledge.isLoading}>
+          <div className="space-y-1">
+            <p className="text-3xl font-semibold tracking-tight text-zinc-900">
+              {knowledge.data?.length ?? 0}
+            </p>
+            <p className="text-xs text-zinc-400">
+              items en memoria
+              {nPending > 0 && (
+                <span className="ml-1 font-medium text-amber-600">
+                  · {nPending} propuesta{nPending === 1 ? "" : "s"} pendiente{nPending === 1 ? "" : "s"}
+                </span>
+              )}
+            </p>
+          </div>
+        </KpiCard>
+
+        <KpiCard title="Gaps de cobertura" href="/app/graph" cta="Ver gaps" loading={gaps.isLoading}>
+          <div className="space-y-1">
+            <p className="text-3xl font-semibold tracking-tight text-zinc-900">
+              {gaps.data?.length ?? 0}
+            </p>
+            <p className="text-xs text-zinc-400">
+              {nGapsAlta > 0 ? (
+                <span className="font-medium text-red-600">{nGapsAlta} de severidad alta</span>
+              ) : (
+                "sin severidad alta"
+              )}
+            </p>
+          </div>
+        </KpiCard>
+      </div>
+
+      {/* ── Runs recientes ── */}
+      {(runs.data?.length ?? 0) > 0 && (
+        <Card className="p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="text-sm font-medium text-zinc-700">Runs recientes</h3>
+            <Link href="/app/autopilot" className="text-xs text-zinc-500 hover:text-zinc-900">
+              Autopilot →
+            </Link>
+          </div>
+          <ul className="divide-y divide-zinc-100">
+            {runs.data!.map((r) => (
+              <li key={r.id} className="flex items-center justify-between gap-2 py-2 text-sm">
+                <span className="min-w-0">
+                  <span className="font-medium text-zinc-900">{r.project}</span>
+                  <span className="ml-2 text-xs text-zinc-400">
+                    {r.created_at ? new Date(r.created_at).toLocaleString() : ""}
+                  </span>
+                </span>
+                <span className="flex shrink-0 items-center gap-2">
+                  {r.failures > 0 && <Badge>{r.failures} fallos</Badge>}
+                  <VerdictBadge verdict={r.verdict} />
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      {/* ── Setup: checklist solo mientras esté incompleto ── */}
+      {setupComplete ? (
+        <p className="text-xs text-zinc-400">
+          ✓ Configuración completa — GitHub conectado, tests indexados, memoria y gaps activos.
+        </p>
+      ) : (
+        <div className="space-y-3">
+          <h3 className="text-sm font-medium text-zinc-700">Pon Mnemo en marcha</h3>
+          <SetupChecklist steps={steps} loading={checklistLoading} />
+        </div>
+      )}
+
       <div className="grid gap-3 sm:grid-cols-3">
         {quickAccessItems.map(({ href, label }) => (
           <Button key={href} asChild variant="outline">
