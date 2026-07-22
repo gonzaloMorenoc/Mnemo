@@ -5,8 +5,6 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Network } from "lucide-react";
 
-import Link from "next/link";
-
 import { useAuth } from "@/components/providers/auth-provider";
 import { useActiveOrg } from "@/components/providers/org-provider";
 import { getGraph, getGaps, getKnowledgeItem, generatePlaywrightTest, openAutomationPr } from "@/lib/api/endpoints";
@@ -16,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
 
 // ─── gap kind labels ──────────────────────────────────────────────────────────
@@ -200,13 +199,14 @@ export default function GraphPage() {
         {/* ── left: react-flow graph ── */}
         <div className="relative min-h-0 flex-1 rounded-2xl border border-zinc-200 bg-white shadow-sm">
           {noKnowledge ? (
-            <div className="flex h-full flex-col items-center justify-center gap-3">
-              <p className="text-sm text-zinc-400">
-                Aún no hay conocimiento suficiente
-              </p>
-              <Button asChild variant="outline" size="sm">
-                <Link href="/app/knowledge">Captura conocimiento</Link>
-              </Button>
+            <div className="flex h-full items-center justify-center p-6">
+              <EmptyState
+                icon={Network}
+                title="Aún no hay conocimiento suficiente"
+                description="El grafo conecta lecciones, proyectos y familias de fallos. Captura o aprueba conocimiento y aparecerá aquí."
+                actionHref="/app/knowledge?tab=capturar"
+                actionLabel="Capturar conocimiento"
+              />
             </div>
           ) : (
             <div className="h-full w-full" data-testid="graph-view-container">

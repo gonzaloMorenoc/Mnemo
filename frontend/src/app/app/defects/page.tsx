@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useActiveOrg } from "@/components/providers/org-provider";
 import { getDefects, getDefectLineage, analyzeRootCause } from "@/lib/api/endpoints";
-import { BookOpen } from "lucide-react";
+import { BookOpen, Dna } from "lucide-react";
 
 import { FamilyLabelControl } from "@/components/autopilot/FamilyLabelControl";
 import { FamilyMemoryPanel } from "@/components/defects/FamilyMemoryPanel";
@@ -15,6 +15,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
 
 function RootCausePanel({ token, defectId }: { token: string; defectId: string }) {
@@ -90,7 +91,13 @@ export default function DefectsPage() {
             <p className="text-sm text-red-600">No se pudieron cargar las familias de defecto.</p>
           )}
           {defectsQuery.data && defectsQuery.data.length === 0 && (
-            <p className="text-sm text-zinc-500">No hay familias todavía. Sube un reporte en Assurance.</p>
+            <EmptyState
+              icon={Dna}
+              title="Aún no hay familias de fallos"
+              description="Cuando analices un run, Mnemo agrupará los fallos parecidos en familias y las verás aquí con su etiqueta y su lección."
+              actionHref="/app/autopilot"
+              actionLabel="Analizar un run"
+            />
           )}
           <ul className="space-y-2">
             {defectsQuery.data?.map((f) => (

@@ -26,6 +26,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { FileDropzone } from "@/components/ui/file-dropzone";
 import type { JiraIngestResponse } from "@/lib/api/types";
 
+// Página de instalación de la GitHub App (opcional; sin ella se muestran instrucciones).
+const GITHUB_APP_URL = process.env.NEXT_PUBLIC_GITHUB_APP_URL;
+
 export default function IntegrationsPage() {
   const { accessToken } = useAuth();
   const { activeOrgId, isLoading: orgLoading } = useActiveOrg();
@@ -242,6 +245,33 @@ export default function IntegrationsPage() {
             </span>
           )}
         </div>
+        <ol className="list-decimal space-y-1 pl-4 text-xs text-zinc-500">
+          <li>
+            Instala la GitHub App de Mnemo en tu organización
+            {GITHUB_APP_URL ? (
+              <>
+                {" — "}
+                <a
+                  href={GITHUB_APP_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-medium text-zinc-700 underline underline-offset-2 hover:text-zinc-900"
+                >
+                  instalar ahora ↗
+                </a>
+              </>
+            ) : (
+              <> (GitHub → Settings → GitHub Apps)</>
+            )}
+            .
+          </li>
+          <li>
+            Al terminar, GitHub te deja en una URL{" "}
+            <code className="rounded bg-zinc-100 px-1">…/installations/12345678</code>: ese
+            número es el <strong>Installation ID</strong>.
+          </li>
+          <li>Pégalo aquí junto al repositorio y guarda.</li>
+        </ol>
         <div className="space-y-4">
           <div className="space-y-1">
             <Label htmlFor="gh-install-id">Installation ID</Label>
@@ -257,7 +287,7 @@ export default function IntegrationsPage() {
               data-testid="gh-install-id-hint"
               className="text-xs text-zinc-400"
             >
-              Número entero (ej. 12345678). Encuéntralo en GitHub App → Install.
+              El número final de la URL de instalación (ej. 12345678).
             </p>
           </div>
           <div className="space-y-1">
