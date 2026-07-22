@@ -129,6 +129,7 @@ _SQL_DEFECTO_SIN_CONOCIMIENTO = """
       and not exists (
           select 1 from public.qa_knowledge k
           where k.org_id = %s and k.defect_family_id = f.id
+            and k.status = 'activo'
       )
 """
 
@@ -137,6 +138,7 @@ _SQL_DOMINIO_SIN_LECCION = """
     from public.qa_knowledge k
     where k.org_id = %s
       and k.defect_family_id is not null
+      and k.status = 'activo'
     group by k.domain
     having not bool_or(k.kind = 'leccion')
 """
@@ -146,11 +148,13 @@ _SQL_RIESGO_SIN_MITIGACION = """
     from public.qa_knowledge k
     where k.org_id = %s
       and k.kind in ('riesgo', 'regla_negocio')
+      and k.status = 'activo'
       and not exists (
           select 1 from public.qa_knowledge m
           where m.org_id = %s
             and m.domain = k.domain
             and m.kind in ('leccion', 'patron')
+            and m.status = 'activo'
       )
 """
 
@@ -160,6 +164,7 @@ _SQL_REGLA_SIN_TEST = (
     "  where t.org_id = %s and t.embedding is not null) as best_dist"
     " from public.qa_knowledge k"
     " where k.org_id = %s and k.kind in ('regla_negocio','flujo','riesgo')"
+    " and k.status = 'activo'"
     " and k.embedding is not null"
 )
 

@@ -24,7 +24,8 @@ class GraphService:
                 return {"nodes": [], "edges": []}
             cur.execute(
                 "select id::text, kind, title, domain, tags, defect_family_id::text"
-                " from public.qa_knowledge where org_id=%s order by created_at desc limit %s",
+                " from public.qa_knowledge where org_id=%s and status = 'activo'"
+                " order by created_at desc limit %s",
                 (org_id, limit))
             krows = cur.fetchall()
             fam_ids = [r["defect_family_id"] for r in krows if r["defect_family_id"]]

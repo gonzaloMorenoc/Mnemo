@@ -199,10 +199,27 @@ export function createKnowledge(token: string, body: Record<string, unknown>) {
   return apiRequest<KnowledgeItem>("/api/v2/knowledge", "POST", { token, body });
 }
 
-export function listKnowledge(token: string, orgId: string, kind?: string) {
+export function listKnowledge(
+  token: string,
+  orgId: string,
+  filters?: { kind?: string; domain?: string; status?: string },
+) {
   const qs = new URLSearchParams({ org_id: orgId });
-  if (kind) qs.set("kind", kind);
+  if (filters?.kind) qs.set("kind", filters.kind);
+  if (filters?.domain) qs.set("domain", filters.domain);
+  if (filters?.status) qs.set("status", filters.status);
   return apiRequest<KnowledgeItem[]>(`/api/v2/knowledge?${qs.toString()}`, "GET", { token });
+}
+
+export function updateKnowledge(token: string, itemId: string, body: Record<string, unknown>) {
+  return apiRequest<KnowledgeItem>(
+    `/api/v2/knowledge/${encodeURIComponent(itemId)}`, "PATCH", { token, body });
+}
+
+export function deleteKnowledge(token: string, itemId: string, orgId: string) {
+  return apiRequest<{ deleted: boolean }>(
+    `/api/v2/knowledge/${encodeURIComponent(itemId)}?org_id=${encodeURIComponent(orgId)}`,
+    "DELETE", { token });
 }
 
 export function searchKnowledge(

@@ -302,6 +302,19 @@ class KnowledgeProposalRejectRequest(BaseModel):
     reason: str = Field(default="", max_length=500)
 
 
+class KnowledgeUpdateRequest(BaseModel):
+    org_id: str
+    kind: Optional[str] = None
+    title: Optional[str] = Field(default=None, max_length=300)
+    challenge: Optional[str] = Field(default=None, max_length=4000)
+    approach: Optional[str] = Field(default=None, max_length=4000)
+    outcome: Optional[str] = Field(default=None, max_length=4000)
+    domain: Optional[str] = Field(default=None, max_length=300)
+    tags: Optional[List[Annotated[str, Field(max_length=100)]]] = Field(default=None, max_length=30)
+    project: Optional[str] = Field(default=None, max_length=300)
+    status: Optional[str] = None  # 'activo' | 'obsoleto' (validado en el repo)
+
+
 class OnboardingRequest(BaseModel):
     org_id: str
     topic: str = Field(max_length=2000)
