@@ -9,6 +9,10 @@ from src.db.pool import get_pool
 from src.defects.embedder import LocalEmbedder
 
 _KINDS = {"regla_negocio", "flujo", "riesgo", "glosario", "leccion", "reto", "patron"}
+_STATUSES = {"activo", "obsoleto"}
+# Whitelist de columnas editables (los nombres van al SQL → nunca del cliente sin pasar por aquí)
+_EDITABLE = ("kind", "title", "challenge", "approach", "outcome", "domain",
+             "tags", "project", "status")
 
 _INSERT_COLS = ("org_id, kind, title, challenge, approach, outcome, domain, tags, project,"
                 " source, confidence, defect_family_id, run_id, created_by, embedding")
@@ -76,20 +80,86 @@ class QaKnowledgeRepository:
             return dict(row)
 
     def list_items(self, *, user_id: str, org_id: str, kind: Optional[str] = None,
-                   domain: Optional[str] = None) -> List[Dict[str, Any]]:
+                   domain: Optional[str] = None, project: Optional[str] = None,
+                   status: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Hojeo: muestra TODOS los status por defecto (los obsoletos, marcados);
+        el filtro de 'solo activos' es cosa de los read-paths de RAG/búsqueda."""
         with self._connect() as conn, conn.cursor() as cur:
             if not self._is_member(cur, org_id, user_id):
                 return []
             q = ("select id, kind, title, challenge, approach, outcome, domain, tags, project,"
-                 " source, confidence, created_at from public.qa_knowledge where org_id=%s")
+                 " source, confidence, status, created_by, created_at, updated_at"
+                 " from public.qa_knowledge where org_id=%s")
             params: list = [org_id]
             if kind:
                 q += " and kind=%s"; params.append(kind)
             if domain:
                 q += " and domain=%s"; params.append(domain)
+            if project:
+                q += " and project=%s"; params.append(project)
+            if status:
+                q += " and status=%s"; params.append(status)
             q += " order by created_at desc limit 200"
             cur.execute(q, tuple(params))
             return [dict(r) for r in cur.fetchall()]
+
+    def update_item(self, *, user_id: str, org_id: str, item_id: str,
+                    fields: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Edita un item. Autoridad en el WHERE (estilo CAS, como actions): el AUTOR
+        puede editar lo suyo; owner/admin cualquier item de la org. Recalcula el
+        embedding si cambia el contenido semántico (title/challenge/approach) — si no,
+        la búsqueda semántica serviría vectores obsoletos. El embedding se calcula
+        FUERA de la transacción. None = no existe / sin permiso."""
+        updates = {k: v for k, v in fields.items() if k in _EDITABLE and v is not None}
+        if not updates:
+            raise ValueError("nada que actualizar")
+        if "kind" in updates and updates["kind"] not in _KINDS:
+            raise ValueError(f"kind inválido: {updates['kind']}")
+        if "status" in updates and updates["status"] not in _STATUSES:
+            raise ValueError(f"status inválido: {updates['status']}")
+
+        current = self.get_item(user_id=user_id, org_id=org_id, item_id=item_id)
+        if current is None:
+            return None
+        emb = None
+        if {"title", "challenge", "approach"} & updates.keys():
+            merged = {**current, **updates}
+            emb = Vector(list(self.embedder.embed(embedding_text(
+                merged.get("title") or "", merged.get("challenge"), merged.get("approach")))))
+
+        cols = list(updates.keys())  # nombres de la whitelist _EDITABLE → sin inyección
+        set_sql = ", ".join(f"{c}=%s" for c in cols)
+        params: List[Any] = [list(updates[c]) if c == "tags" else updates[c] for c in cols]
+        if emb is not None:
+            set_sql += ", embedding=%s"
+            params.append(emb)
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                f"update public.qa_knowledge k set {set_sql}, updated_at=now()"
+                " where k.id=%s and k.org_id=%s"
+                "   and (k.created_by=%s or exists(select 1 from public.memberships m"
+                "     where m.org_id=k.org_id and m.user_id=%s and m.role in ('owner','admin')))"
+                " returning id, kind, title, challenge, approach, outcome, domain, tags,"
+                " project, source, confidence, status, created_at, updated_at",
+                (*params, item_id, org_id, user_id, user_id),
+            )
+            row = cur.fetchone()
+            conn.commit()
+            return dict(row) if row else None
+
+    def delete_item(self, *, user_id: str, org_id: str, item_id: str) -> bool:
+        """Borrado duro (para errores). Misma autoridad que update (autor u owner/admin)."""
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                "delete from public.qa_knowledge k"
+                " where k.id=%s and k.org_id=%s"
+                "   and (k.created_by=%s or exists(select 1 from public.memberships m"
+                "     where m.org_id=k.org_id and m.user_id=%s and m.role in ('owner','admin')))",
+                (item_id, org_id, user_id, user_id),
+            )
+            ok = cur.rowcount > 0
+            conn.commit()
+        return ok
 
     def get_item(self, *, user_id: str, org_id: str, item_id: str) -> Optional[Dict[str, Any]]:
         with self._connect() as conn, conn.cursor() as cur:
@@ -114,7 +184,7 @@ class QaKnowledgeRepository:
             cur.execute(
                 "select id, kind, title, challenge, approach, outcome, domain, confidence"
                 " from public.qa_knowledge"
-                " where org_id=%s and embedding is not null"
+                " where org_id=%s and status = 'activo' and embedding is not null"
                 " order by embedding <=> %s limit %s",
                 (org_id, Vector(list(query_embedding)), k),
             )

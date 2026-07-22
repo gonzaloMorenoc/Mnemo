@@ -86,6 +86,7 @@ from src.multitenant_models import (
     KnowledgeProposalApproveRequest,
     KnowledgeProposalGenerateRequest,
     KnowledgeProposalRejectRequest,
+    KnowledgeUpdateRequest,
     KnowledgeSearchRequest,
     OnboardingRequest,
     OrganizationResponse,
@@ -1122,11 +1123,14 @@ def list_knowledge(
     org_id: str,
     kind: Optional[str] = None,
     domain: Optional[str] = None,
+    project: Optional[str] = None,
+    status: Optional[str] = None,
     user: AuthenticatedUser = Depends(get_current_user),
     repo: QaKnowledgeRepository = Depends(get_knowledge_repo),
 ) -> List[Dict[str, Any]]:
     try:
-        return repo.list_items(user_id=user.user_id, org_id=org_id, kind=kind, domain=domain)
+        return repo.list_items(user_id=user.user_id, org_id=org_id, kind=kind, domain=domain,
+                               project=project, status=status)
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail="Database error") from exc
 
@@ -1213,6 +1217,46 @@ def get_knowledge(
     if item is None:
         raise HTTPException(status_code=404, detail="knowledge item not found")
     return item
+
+
+@router.patch("/knowledge/{item_id}", response_model=Dict[str, Any])
+def update_knowledge(
+    item_id: str,
+    req: KnowledgeUpdateRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+    repo: QaKnowledgeRepository = Depends(get_knowledge_repo),
+) -> Dict[str, Any]:
+    """Edita un item (incluye marcar 'obsoleto'/reactivar). Autoridad: el autor
+    sobre lo suyo, owner/admin sobre cualquier item de la org."""
+    try:
+        item = repo.update_item(user_id=user.user_id, org_id=req.org_id, item_id=item_id,
+                                fields=req.model_dump(exclude={"org_id"}, exclude_none=True))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    if item is None:
+        raise HTTPException(status_code=404,
+                            detail="item no encontrado o sin permiso (autor u owner/admin)")
+    return item
+
+
+@router.delete("/knowledge/{item_id}", response_model=Dict[str, bool])
+def delete_knowledge(
+    item_id: str,
+    org_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+    repo: QaKnowledgeRepository = Depends(get_knowledge_repo),
+) -> Dict[str, bool]:
+    """Borrado duro (para errores). Misma autoridad que la edición."""
+    try:
+        ok = repo.delete_item(user_id=user.user_id, org_id=org_id, item_id=item_id)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    if not ok:
+        raise HTTPException(status_code=404,
+                            detail="item no encontrado o sin permiso (autor u owner/admin)")
+    return {"deleted": True}
 
 
 @router.post("/knowledge/search", response_model=List[Dict[str, Any]])

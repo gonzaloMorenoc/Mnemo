@@ -3,8 +3,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   askKnowledge,
   createKnowledge,
+  deleteKnowledge,
   listKnowledge,
   searchKnowledge,
+  updateKnowledge,
 } from "@/lib/api/endpoints";
 
 afterEach(() => vi.restoreAllMocks());
@@ -57,10 +59,45 @@ describe("listKnowledge", () => {
   it("appends kind when provided", async () => {
     const spy = mockFetch([ITEM]);
 
-    await listKnowledge("tok", "org-42", "lesson");
+    await listKnowledge("tok", "org-42", { kind: "lesson" });
 
     const [url] = spy.mock.calls[0];
     expect(String(url)).toBe("/api/v2/knowledge?org_id=org-42&kind=lesson");
+  });
+
+  it("appends status/domain filters when provided (hojeo)", async () => {
+    const spy = mockFetch([ITEM]);
+
+    await listKnowledge("tok", "org-42", { domain: "pagos", status: "obsoleto" });
+
+    const [url] = spy.mock.calls[0];
+    expect(String(url)).toBe("/api/v2/knowledge?org_id=org-42&domain=pagos&status=obsoleto");
+  });
+});
+
+describe("updateKnowledge / deleteKnowledge (curación)", () => {
+  it("PATCHes the item with the edited fields", async () => {
+    const spy = mockFetch(ITEM);
+
+    await updateKnowledge("tok", "k1", { org_id: "org-42", title: "Editado" });
+
+    const [url, init] = spy.mock.calls[0];
+    expect(String(url)).toBe("/api/v2/knowledge/k1");
+    expect((init as RequestInit).method).toBe("PATCH");
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({
+      org_id: "org-42",
+      title: "Editado",
+    });
+  });
+
+  it("DELETEs the item with org_id in the query", async () => {
+    const spy = mockFetch({ deleted: true });
+
+    await deleteKnowledge("tok", "k1", "org-42");
+
+    const [url, init] = spy.mock.calls[0];
+    expect(String(url)).toBe("/api/v2/knowledge/k1?org_id=org-42");
+    expect((init as RequestInit).method).toBe("DELETE");
   });
 });
 

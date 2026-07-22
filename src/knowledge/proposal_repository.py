@@ -21,7 +21,8 @@ _CANDIDATE_WHERE = """
     from public.defect_families f
     where f.org_id = %(org)s
       and not exists (select 1 from public.qa_knowledge k
-                      where k.org_id = %(org)s and k.defect_family_id = f.id)
+                      where k.org_id = %(org)s and k.defect_family_id = f.id
+                        and k.status = 'activo')
       and not exists (select 1 from public.knowledge_proposals p
                       where p.defect_family_id = f.id)
 """

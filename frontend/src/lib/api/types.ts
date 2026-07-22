@@ -216,6 +216,11 @@ export interface KnowledgeItem {
   tags: string[];
   confidence: string;
   created_at: string;
+  project?: string | null;
+  source?: string;
+  status?: string;
+  created_by?: string;
+  updated_at?: string | null;
 }
 
 export interface KnowledgeSource {
