@@ -194,6 +194,31 @@ La integración Xray (migración `019`) reutiliza la tabla `org_integrations` co
 
 ---
 
+## Ingesta CI genérica por token
+
+Cualquier CI se enchufa **con un token, sin instalar nada propietario**: se sube el report tal cual lo genera el runner (JUnit, TestNG, Robot, Allure, Playwright, Cypress o Cucumber — autodetección) y Mnemo corre el pipeline completo (ingesta → triaje → acta firmada → gate, cada paso posterior best-effort).
+
+| Método | Ruta | Descripción | Auth |
+|---|---|---|---|
+| `POST` | `/v2/ingest/tokens` | Crea un token de ingesta (`{org_id, name}`). El token en claro **solo se devuelve aquí**; en BD vive su sha256 | JWT + owner/admin |
+| `GET` | `/v2/ingest/tokens?org_id=` | Lista los tokens de la org (sin el claro) | JWT + miembro |
+| `POST` | `/v2/ingest/tokens/{id}/revoke` | Revoca un token | JWT + owner/admin |
+| `POST` | `/v2/ci/ingest` | Ingesta genérica: multipart `file` + `project` (+ `source`, por defecto `auto`) | **Token de ingesta** (`Authorization: Bearer mnemo_it_…` o header `X-Mnemo-Token`) |
+
+Desde cualquier CI (un paso de shell, sin SDK):
+
+```bash
+curl -sS -H "Authorization: Bearer $MNEMO_INGEST_TOKEN" \
+     -F file=@test-results/junit.xml \
+     -F project=mi-proyecto \
+     https://<backend>/v2/ci/ingest
+# → {"run_id": "…", "triage": {...}, "verdict": "apto|apto-con-reservas|no-apto", "gate": …}
+```
+
+El token actúa con la identidad de quien lo creó (owner/admin): los membership-checks del pipeline aplican tal cual, y si esa persona deja la organización sus tokens dejan de funcionar. **Nota operativa:** degradar a alguien de owner/admin a member NO revoca sus tokens existentes (siguen ingiriendo, igual que un member puede subir reports con su JWT) — si se le retira la confianza, revoca sus tokens explícitamente. Tabla `ingest_tokens` (migración `024`): RLS con lectura para miembros y **escritura solo admin** (`is_org_admin`, patrón de `memberships`) y sin grants de escritura a `authenticated` — la gestión va siempre por la API.
+
+---
+
 ## Frontend ↔ Backend
 
 El frontend Next.js llama a `/api/v2/*` (rutas proxy en `app/api/v2/**`) que reenvían a `<NEXT_PUBLIC_API_BASE_URL>/v2/*` propagando el `Authorization`. Funciones de cliente en `frontend/src/lib/api/endpoints.ts`; tipos en `frontend/src/lib/api/types.ts`.
