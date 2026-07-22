@@ -169,7 +169,7 @@ describe("OrgSwitcher", () => {
     await waitFor(() => expect(screen.getByTestId("active-org").textContent).toBe(ORG_B.id));
   });
 
-  it("renders single org name as plain text (no select)", async () => {
+  it("renders single org name as a link to /app/org (no select)", async () => {
     (getOrganizations as ReturnType<typeof vi.fn>).mockResolvedValue([ORG_A]);
     renderWithClient(
       <OrgProvider>

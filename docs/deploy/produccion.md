@@ -40,6 +40,7 @@ Render despliega directamente desde el `Dockerfile` con HTTPS y URL estable.
 En **Vercel → tu proyecto → Settings → Environment Variables**:
 - `NEXT_PUBLIC_API_BASE_URL` = la URL del backend del paso 1 (p.ej. `https://mnemo-backend-XXXX.onrender.com`) — **sin barra final**.
 - Confirma también `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` (para el login).
+- Opcional: `NEXT_PUBLIC_GITHUB_APP_URL` = página de instalación de la GitHub App (`https://github.com/apps/<tu-app>/installations/new`) — activa el enlace "instalar ahora" en Integraciones.
 - **Redeploy** el frontend (las `NEXT_PUBLIC_*` se hornean en build → hay que reconstruir).
 
 Tras el redeploy: recarga, crea una organización → debe funcionar.

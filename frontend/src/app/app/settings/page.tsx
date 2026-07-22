@@ -2,7 +2,6 @@
 
 import { useQuery } from "@tanstack/react-query";
 
-import { ApiGapCard } from "@/components/layout/api-gap-card";
 import { useAuth } from "@/components/providers/auth-provider";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -18,44 +17,46 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Ajustes</h1>
+        <p className="text-sm text-zinc-500">Tu cuenta y el estado de la conexión con el backend.</p>
+      </div>
+
       <Card>
         <CardHeader>
-          <CardTitle>Account</CardTitle>
-          <CardDescription>Basic profile and backend connection status.</CardDescription>
+          <CardTitle>Cuenta</CardTitle>
+          <CardDescription>Perfil básico y estado del servicio.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-zinc-700">
           <p>
-            <strong>Email:</strong> {user?.email ?? "N/A"}
+            <strong>Email:</strong> {user?.email ?? "N/D"}
           </p>
           <p>
-            <strong>User ID:</strong> {user?.id ?? "N/A"}
+            <strong>ID de usuario:</strong> {user?.id ?? "N/D"}
           </p>
 
           <Separator />
 
-          {healthQuery.isLoading && <p>Checking backend health...</p>}
-          {healthQuery.isError && <p className="text-red-600">Could not reach backend health endpoint.</p>}
+          {healthQuery.isLoading && <p>Comprobando el estado del backend…</p>}
+          {healthQuery.isError && (
+            <p className="text-red-600">No se pudo contactar con el backend.</p>
+          )}
           {healthQuery.data && (
             <div className="space-y-1">
               <p>
-                <strong>Status:</strong> {healthQuery.data.status}
+                <strong>Estado:</strong> {healthQuery.data.status}
               </p>
               <p>
-                <strong>Model:</strong> {healthQuery.data.model}
+                <strong>Modelo:</strong> {healthQuery.data.model}
               </p>
               <p>
-                <strong>Multi-tenant:</strong> {healthQuery.data.multi_tenant_enabled ? "Enabled" : "Disabled"}
+                <strong>Multi-tenant:</strong>{" "}
+                {healthQuery.data.multi_tenant_enabled ? "Activado" : "Desactivado"}
               </p>
             </div>
           )}
         </CardContent>
       </Card>
-
-      <ApiGapCard
-        title="Analysis history is not exposed in v2 yet"
-        description="Settings can include audit trails once a history endpoint is available for v2 UI."
-        endpoint="Needs API (history listing for v2 UI)"
-      />
     </div>
   );
 }

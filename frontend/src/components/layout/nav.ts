@@ -51,10 +51,6 @@ export const NAV_SECTIONS: NavSection[] = [
 
 export const NAV_ITEMS: NavItem[] = NAV_SECTIONS.flatMap((s) => s.items);
 
-export function labelForPath(pathname: string): string | null {
-  return NAV_ITEMS.find((i) => i.href === pathname)?.label ?? null;
-}
-
 export type Crumb = { section: string | null; label: string };
 
 /**
