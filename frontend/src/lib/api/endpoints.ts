@@ -293,9 +293,16 @@ export function getGraph(
   return apiRequest<Graph>(`/api/v2/graph?${q.toString()}`, "GET", { token });
 }
 
-export function getGaps(token: string, params: { org_id: string }) {
+export function getGaps(
+  token: string,
+  params: { org_id: string; recommendations?: boolean },
+) {
+  let path = `/api/v2/graph/gaps?org_id=${encodeURIComponent(params.org_id)}`;
+  // recommendations=false → el backend no llama al LLM (solo conteo/lista): el Dashboard
+  // lo usa para no esperar ~20 s a recomendaciones que no muestra.
+  if (params.recommendations === false) path += "&recommendations=false";
   return apiRequest<CoverageGap[]>(
-    `/api/v2/graph/gaps?org_id=${encodeURIComponent(params.org_id)}`,
+    path,
     "GET",
     { token },
   );

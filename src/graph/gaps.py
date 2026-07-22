@@ -103,6 +103,15 @@ def _recommendation(kind: str, title: str, provider=None) -> str:
     return _FALLBACK_REC[kind]
 
 
+def gap_recommendation(kind: str, title: str, provider=None, *, with_llm: bool = True) -> str:
+    """Recomendación de un gap. with_llm=False → texto fijo instantáneo (sin LLM): el
+    Dashboard solo necesita el CONTEO de gaps, así que evita ~20 s de llamadas
+    secuenciales al LLM que ni siquiera muestra."""
+    if not with_llm:
+        return _FALLBACK_REC.get(kind, "")
+    return _recommendation(kind, title, provider)
+
+
 # ---------------------------------------------------------------------------
 # Coverage threshold — calibrable cosine distance
 # ---------------------------------------------------------------------------
@@ -166,9 +175,13 @@ def detect_gaps(
     org_id: str,
     provider=None,
     db_url: str = DATABASE_URL,
+    with_recommendations: bool = True,
 ) -> List[Dict[str, Any]]:
     """
     Detect knowledge coverage gaps for org_id, gated by user membership.
+
+    with_recommendations=False → no llama al LLM (recomendación = texto fijo). Útil
+    cuando solo se necesita el conteo/lista (p. ej. el Dashboard), evitando ~20 s.
 
     Returns [] for non-members or on any error.
     Never raises.
@@ -179,6 +192,7 @@ def detect_gaps(
             org_id=org_id,
             provider=provider,
             db_url=db_url,
+            with_recommendations=with_recommendations,
         )
     except Exception:  # noqa: BLE001 — catch-all guarantees no raise
         return []
@@ -190,6 +204,7 @@ def _detect_gaps_inner(
     org_id: str,
     provider: Optional[Any],
     db_url: str,
+    with_recommendations: bool = True,
 ) -> List[Dict[str, Any]]:
     with _connect(db_url) as conn, conn.cursor() as cur:
         if not _is_member(cur, org_id, user_id):
@@ -225,7 +240,8 @@ def _detect_gaps_inner(
             "title": title,
             "severity": _severity_by_count(count),
             "affected": [row["id"]],
-            "recommendation": _recommendation("defecto_sin_conocimiento", title, provider),
+            "recommendation": gap_recommendation("defecto_sin_conocimiento", title, provider,
+                                                  with_llm=with_recommendations),
         })
 
     for row in domain_rows:
@@ -235,7 +251,8 @@ def _detect_gaps_inner(
             "title": domain,
             "severity": "media",
             "affected": [domain],
-            "recommendation": _recommendation("dominio_sin_leccion", domain, provider),
+            "recommendation": gap_recommendation("dominio_sin_leccion", domain, provider,
+                                                  with_llm=with_recommendations),
         })
 
     for row in riesgo_rows:
@@ -245,7 +262,8 @@ def _detect_gaps_inner(
             "title": title,
             "severity": "alta",
             "affected": [row["domain"]],
-            "recommendation": _recommendation("riesgo_sin_mitigacion", title, provider),
+            "recommendation": gap_recommendation("riesgo_sin_mitigacion", title, provider,
+                                                  with_llm=with_recommendations),
         })
 
     if n_tests == 0:
@@ -266,7 +284,8 @@ def _detect_gaps_inner(
                     "title": row["title"],
                     "severity": sev,
                     "affected": [row["id"]],
-                    "recommendation": _recommendation("regla_sin_test", row["title"], provider),
+                    "recommendation": gap_recommendation("regla_sin_test", row["title"], provider,
+                                                          with_llm=with_recommendations),
                 })
 
     return gaps

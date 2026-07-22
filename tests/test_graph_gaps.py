@@ -479,3 +479,37 @@ class TestCoverageGapNonMember:
         with patch("src.graph.gaps.get_pool", return_value=_fake_pool(conn_ctx)):
             result = detect_gaps(user_id=USER_ID, org_id=ORG_ID)
         assert result == []
+
+
+# ---------------------------------------------------------------------------
+# with_recommendations=False → NO LLM (el Dashboard solo necesita el conteo).
+# Evita ~20 s de llamadas secuenciales al LLM que el Dashboard ni usa.
+# ---------------------------------------------------------------------------
+
+class TestWithoutRecommendations:
+    def test_skips_llm_and_uses_fixed_text_when_off(self):
+        from src.graph.gaps import _FALLBACK_REC, detect_gaps
+        conn_ctx, conn, cur = _make_conn_ctx(
+            member=True,
+            fetchall_results=[[DEFECT_ROW_HIGH], [DOMAIN_ROW_NO_LESSON], [RIESGO_ROW]],
+        )
+        gen = MagicMock()
+        with patch("src.graph.gaps.get_pool", return_value=_fake_pool(conn_ctx)):
+            with patch("src.graph.gaps.generate_structured", gen):
+                gaps = detect_gaps(user_id=USER_ID, org_id=ORG_ID, with_recommendations=False)
+        gen.assert_not_called()                       # el LLM NO se dispara
+        assert {g["kind"] for g in gaps} >= {
+            "defecto_sin_conocimiento", "dominio_sin_leccion", "riesgo_sin_mitigacion"}
+        dsk = [g for g in gaps if g["kind"] == "defecto_sin_conocimiento"][0]
+        assert dsk["recommendation"] == _FALLBACK_REC["defecto_sin_conocimiento"]
+
+    def test_default_still_calls_llm(self):
+        from src.graph.gaps import detect_gaps
+        conn_ctx, conn, cur = _make_conn_ctx(member=True, fetchall_results=[[DEFECT_ROW_HIGH], [], []])
+        gen = MagicMock(return_value={"recommendation": "LLM rec"})
+        with patch("src.graph.gaps.get_pool", return_value=_fake_pool(conn_ctx)):
+            with patch("src.graph.gaps.generate_structured", gen):
+                gaps = detect_gaps(user_id=USER_ID, org_id=ORG_ID)   # default: with_recommendations=True
+        gen.assert_called()
+        dsk = [g for g in gaps if g["kind"] == "defecto_sin_conocimiento"][0]
+        assert dsk["recommendation"] == "LLM rec"

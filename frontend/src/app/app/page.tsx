@@ -45,8 +45,10 @@ export default function DashboardPage() {
     ...opts,
   });
   const gaps = useQuery({
-    queryKey: ["gaps", orgId],
-    queryFn: () => getGaps(accessToken!, { org_id: orgId }),
+    // El Dashboard solo usa el conteo de gaps → pide sin recomendaciones (sin LLM):
+    // evita que esta query bloquee el Dashboard ~20 s.
+    queryKey: ["gaps", orgId, "count"],
+    queryFn: () => getGaps(accessToken!, { org_id: orgId, recommendations: false }),
     ...opts,
   });
 
