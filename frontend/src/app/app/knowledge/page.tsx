@@ -12,6 +12,7 @@ import {
   searchKnowledge,
 } from "@/lib/api/endpoints";
 import type { KnowledgeAnswer, KnowledgeSource } from "@/lib/api/types";
+import { KnowledgeProposalsPanel } from "@/components/knowledge/KnowledgeProposalsPanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -243,6 +244,9 @@ export default function KnowledgePage() {
           </form>
         </CardContent>
       </Card>
+
+      {/* Proposals tray — IA propone / humano aprueba */}
+      <KnowledgeProposalsPanel orgId={activeOrgId} />
 
       {/* Ask / Search zone */}
       <Card className="max-w-2xl">

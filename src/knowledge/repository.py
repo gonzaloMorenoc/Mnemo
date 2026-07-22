@@ -10,6 +10,36 @@ from src.defects.embedder import LocalEmbedder
 
 _KINDS = {"regla_negocio", "flujo", "riesgo", "glosario", "leccion", "reto", "patron"}
 
+_INSERT_COLS = ("org_id, kind, title, challenge, approach, outcome, domain, tags, project,"
+                " source, confidence, defect_family_id, run_id, created_by, embedding")
+
+
+def embedding_text(title: str, challenge: Optional[str] = None,
+                   approach: Optional[str] = None) -> str:
+    """Texto que se embebe para la búsqueda semántica (título + reto + enfoque)."""
+    return "\n".join(p for p in (title, challenge, approach) if p)
+
+
+def insert_qa_knowledge(cur, *, org_id: str, kind: str, title: str,
+                        challenge: Optional[str], approach: Optional[str],
+                        outcome: Optional[str], domain: Optional[str],
+                        tags: Optional[Sequence[str]], project: Optional[str],
+                        source: str, confidence: str, defect_family_id: Optional[str],
+                        run_id: Optional[str], created_by: str, embedding) -> Dict[str, Any]:
+    """INSERT en qa_knowledge sobre un cursor dado. NO hace commit ni comprueba membership:
+    lo hace el llamador. Se extrae de create_item para poder insertar dentro de la MISMA
+    transacción que la aprobación de una propuesta (atomicidad). Valida el kind."""
+    if kind not in _KINDS:
+        raise ValueError(f"kind inválido: {kind}")
+    cur.execute(
+        f"insert into public.qa_knowledge ({_INSERT_COLS})"
+        " values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
+        " returning id, kind, title, domain, tags, confidence, created_at",
+        (org_id, kind, title, challenge, approach, outcome, domain, list(tags or []),
+         project, source, confidence, defect_family_id, run_id, created_by, embedding),
+    )
+    return cur.fetchone()
+
 
 class QaKnowledgeRepository:
     def __init__(self, db_url: str = DATABASE_URL, embedder=None):
@@ -32,21 +62,16 @@ class QaKnowledgeRepository:
                     defect_family_id: Optional[str] = None, run_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         if kind not in _KINDS:
             raise ValueError(f"kind inválido: {kind}")
-        text = "\n".join(p for p in (title, challenge, approach) if p)
-        emb = Vector(list(self.embedder.embed(text)))
+        emb = Vector(list(self.embedder.embed(embedding_text(title, challenge, approach))))
         with self._connect() as conn, conn.cursor() as cur:
             if not self._is_member(cur, org_id, user_id):
                 return None
-            cur.execute(
-                "insert into public.qa_knowledge"
-                " (org_id, kind, title, challenge, approach, outcome, domain, tags, project,"
-                "  source, confidence, defect_family_id, run_id, created_by, embedding)"
-                " values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
-                " returning id, kind, title, domain, tags, confidence, created_at",
-                (org_id, kind, title, challenge, approach, outcome, domain, list(tags or []),
-                 project, source, confidence, defect_family_id, run_id, user_id, emb),
+            row = insert_qa_knowledge(
+                cur, org_id=org_id, kind=kind, title=title, challenge=challenge,
+                approach=approach, outcome=outcome, domain=domain, tags=tags, project=project,
+                source=source, confidence=confidence, defect_family_id=defect_family_id,
+                run_id=run_id, created_by=user_id, embedding=emb,
             )
-            row = cur.fetchone()
             conn.commit()
             return dict(row)
 

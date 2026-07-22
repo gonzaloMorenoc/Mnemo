@@ -47,6 +47,8 @@ from src.graph.service import GraphService
 from src.graph.gaps import detect_gaps
 from src.knowledge.repository import QaKnowledgeRepository
 from src.knowledge.service import KnowledgeService
+from src.knowledge.proposal_repository import KnowledgeProposalRepository
+from src.knowledge.proposal_service import KnowledgeProposalService
 from src.multitenant_models import (
     ActionApproveResponse,
     ActionRejectRequest,
@@ -81,6 +83,9 @@ from src.multitenant_models import (
     JoinOrgRequest,
     KnowledgeAskRequest,
     KnowledgeCreateRequest,
+    KnowledgeProposalApproveRequest,
+    KnowledgeProposalGenerateRequest,
+    KnowledgeProposalRejectRequest,
     KnowledgeSearchRequest,
     OnboardingRequest,
     OrganizationResponse,
@@ -127,6 +132,8 @@ _certificate_service = None
 _gate_service = None
 _embedder = None
 _knowledge_repo = None
+_knowledge_proposal_repo = None
+_knowledge_proposal_service = None
 
 
 def get_repo() -> OrganizationRepository:
@@ -369,6 +376,28 @@ def get_knowledge_repo() -> QaKnowledgeRepository:
     if _knowledge_repo is None:
         _knowledge_repo = QaKnowledgeRepository()
     return _knowledge_repo
+
+
+def get_knowledge_proposal_repo() -> KnowledgeProposalRepository:
+    if not multi_tenant_enabled():
+        raise HTTPException(status_code=503, detail="Multi-tenant KB not configured")
+    global _knowledge_proposal_repo
+    if _knowledge_proposal_repo is None:
+        _knowledge_proposal_repo = KnowledgeProposalRepository(embedder=get_embedder())
+    return _knowledge_proposal_repo
+
+
+def get_knowledge_proposal_service() -> KnowledgeProposalService:
+    if not multi_tenant_enabled():
+        raise HTTPException(status_code=503, detail="Multi-tenant KB not configured")
+    global _knowledge_proposal_service
+    if _knowledge_proposal_service is None:
+        _knowledge_proposal_service = KnowledgeProposalService(
+            repo=get_knowledge_proposal_repo(),
+            assurance_repo=get_assurance_repo(),
+            analyzer=get_root_cause_analyzer(),
+        )
+    return _knowledge_proposal_service
 
 
 def _org_to_response(org: Dict[str, Any]) -> OrganizationResponse:
@@ -1097,6 +1126,74 @@ def list_knowledge(
         return repo.list_items(user_id=user.user_id, org_id=org_id, kind=kind, domain=domain)
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail="Database error") from exc
+
+
+# --- Propuestas de conocimiento (IA propone / humano aprueba) ---
+# Rutas estáticas declaradas ANTES de /knowledge/{item_id} para que ganen el match.
+
+@router.get("/knowledge/proposals", response_model=List[Dict[str, Any]])
+def list_knowledge_proposals(
+    org_id: str,
+    status: str = "pending",
+    user: AuthenticatedUser = Depends(get_current_user),
+    svc: KnowledgeProposalService = Depends(get_knowledge_proposal_service),
+) -> List[Dict[str, Any]]:
+    try:
+        return svc.list(user_id=user.user_id, org_id=org_id, status=status)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+
+
+@router.post("/knowledge/proposals/generate", response_model=Dict[str, int])
+def generate_knowledge_proposals(
+    req: KnowledgeProposalGenerateRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+    svc: KnowledgeProposalService = Depends(get_knowledge_proposal_service),
+) -> Dict[str, int]:
+    try:
+        return svc.generate(user_id=user.user_id, org_id=req.org_id,
+                            family_ids=req.family_ids, cap=req.cap)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+
+
+@router.post("/knowledge/proposals/{proposal_id}/approve", response_model=Dict[str, Any])
+def approve_knowledge_proposal(
+    proposal_id: str,
+    req: KnowledgeProposalApproveRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+    svc: KnowledgeProposalService = Depends(get_knowledge_proposal_service),
+) -> Dict[str, Any]:
+    try:
+        item = svc.approve(
+            user_id=user.user_id, proposal_id=proposal_id, kind=req.kind, title=req.title,
+            challenge=req.challenge, approach=req.approach, domain=req.domain,
+            outcome=req.outcome, tags=req.tags)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    if item is None:
+        raise HTTPException(status_code=403,
+                            detail="No autorizado (owner/admin) o la propuesta ya no está pendiente")
+    return item
+
+
+@router.post("/knowledge/proposals/{proposal_id}/reject", response_model=Dict[str, bool])
+def reject_knowledge_proposal(
+    proposal_id: str,
+    req: KnowledgeProposalRejectRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+    svc: KnowledgeProposalService = Depends(get_knowledge_proposal_service),
+) -> Dict[str, bool]:
+    try:
+        ok = svc.reject(user_id=user.user_id, proposal_id=proposal_id, reason=req.reason)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    if not ok:
+        raise HTTPException(status_code=403,
+                            detail="No autorizado (owner/admin) o la propuesta ya no está pendiente")
+    return {"rejected": True}
 
 
 @router.get("/knowledge/{item_id}", response_model=Dict[str, Any])

@@ -1,5 +1,5 @@
 import re
-from typing import Any, Dict, List, Optional
+from typing import Annotated, Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -280,6 +280,26 @@ class KnowledgeSearchRequest(BaseModel):
 class KnowledgeAskRequest(BaseModel):
     org_id: str
     question: str = Field(max_length=2000)
+
+
+class KnowledgeProposalGenerateRequest(BaseModel):
+    org_id: str
+    family_ids: Optional[List[str]] = None
+    cap: int = Field(default=5, ge=1, le=20)
+
+
+class KnowledgeProposalApproveRequest(BaseModel):
+    kind: str = "leccion"
+    title: str = Field(max_length=300)
+    challenge: Optional[str] = Field(default=None, max_length=4000)
+    approach: Optional[str] = Field(default=None, max_length=4000)
+    domain: Optional[str] = Field(default=None, max_length=300)
+    outcome: Optional[str] = Field(default=None, max_length=4000)
+    tags: List[Annotated[str, Field(max_length=100)]] = Field(default_factory=list, max_length=30)
+
+
+class KnowledgeProposalRejectRequest(BaseModel):
+    reason: str = Field(default="", max_length=500)
 
 
 class OnboardingRequest(BaseModel):
