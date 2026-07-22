@@ -7,6 +7,7 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { useActiveOrg } from "@/components/providers/org-provider";
 import { getDefects, getDefectLineage, analyzeRootCause } from "@/lib/api/endpoints";
 import { FamilyLabelControl } from "@/components/autopilot/FamilyLabelControl";
+import { FamilyMemoryPanel } from "@/components/defects/FamilyMemoryPanel";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -127,6 +128,14 @@ export default function DefectsPage() {
                   </li>
                 ))}
               </ul>
+              {lineageQuery.data?.family && (
+                <FamilyMemoryPanel
+                  key={`mem-${lineageQuery.data.family.id}`}
+                  token={accessToken!}
+                  orgId={activeOrgId}
+                  familyId={lineageQuery.data.family.id}
+                />
+              )}
               {lineageQuery.data?.family && (
                 <RootCausePanel
                   key={lineageQuery.data.family.id}

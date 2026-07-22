@@ -79,6 +79,43 @@ def test_generate_count_failure_does_not_hide_created():
     assert out["created"] == 1 and out["failed"] == 0 and out["remaining"] == 0
 
 
+def test_propose_from_rca_upserts_for_candidate_family():
+    svc, repo, _, _ = _svc(candidates=[{"id": "f1", "title": "T1", "run_id": "r9"}])
+    ok = svc.propose_from_rca(user_id="u", family={"id": "f1", "org_id": "o1", "title": "T1"},
+                              failures=[{"project": "web"}], rca=_RCA)
+    assert ok is True
+    kw = repo.upsert_proposal.call_args.kwargs
+    assert kw["defect_family_id"] == "f1" and kw["run_id"] == "r9" and kw["org_id"] == "o1"
+    # comprueba candidatura acotada a ESA familia
+    assert repo.candidate_families.call_args.kwargs["family_ids"] == ["f1"]
+
+
+def test_propose_from_rca_skips_when_not_candidate():
+    # ya tiene lección activa o propuesta previa → candidate_families vacío
+    svc, repo, _, _ = _svc(candidates=[])
+    ok = svc.propose_from_rca(user_id="u", family={"id": "f1", "org_id": "o1"},
+                              failures=[], rca=_RCA)
+    assert ok is False
+    repo.upsert_proposal.assert_not_called()
+
+
+def test_propose_from_rca_skips_fallback_rca():
+    fallback = {"root_cause": "no determinable", "confidence": 0.0, "citations": []}
+    svc, repo, _, _ = _svc(candidates=[{"id": "f1", "title": "T", "run_id": None}])
+    ok = svc.propose_from_rca(user_id="u", family={"id": "f1", "org_id": "o1"},
+                              failures=[], rca=fallback)
+    assert ok is False
+    repo.candidate_families.assert_not_called()
+
+
+def test_propose_from_rca_skips_global_family_without_org():
+    svc, repo, _, _ = _svc(candidates=[{"id": "f1", "title": "T", "run_id": None}])
+    ok = svc.propose_from_rca(user_id="u", family={"id": "f1", "org_id": None},
+                              failures=[], rca=_RCA)
+    assert ok is False
+    repo.upsert_proposal.assert_not_called()
+
+
 def test_approve_delegates_to_repo():
     svc, repo, _, _ = _svc(candidates=[])
     repo.approve.return_value = {"id": "k1", "kind": "leccion"}

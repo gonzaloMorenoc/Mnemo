@@ -155,7 +155,7 @@ def test_list_knowledge_isolation_foreign_org_returns_empty():
     assert r.json() == []
     krepo.list_items.assert_called_once_with(
         user_id="user-1", org_id="org-foreign", kind=None, domain=None,
-        project=None, status=None,
+        project=None, status=None, defect_family_id=None,
     )
 
 
@@ -168,7 +168,7 @@ def test_list_knowledge_with_filters():
     assert r.status_code == 200
     krepo.list_items.assert_called_once_with(
         user_id="user-1", org_id="org-1", kind="flujo", domain="checkout",
-        project=None, status=None,
+        project=None, status=None, defect_family_id=None,
     )
 
 

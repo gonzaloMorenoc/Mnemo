@@ -401,6 +401,15 @@ def get_knowledge_proposal_service() -> KnowledgeProposalService:
     return _knowledge_proposal_service
 
 
+def get_knowledge_proposal_service_optional() -> Optional[KnowledgeProposalService]:
+    """Variante para hooks best-effort (p. ej. causa-raíz→propuesta): None en vez de
+    503 cuando el multi-tenant no está configurado, para no romper el endpoint anfitrión."""
+    try:
+        return get_knowledge_proposal_service()
+    except HTTPException:
+        return None
+
+
 def _org_to_response(org: Dict[str, Any]) -> OrganizationResponse:
     return OrganizationResponse(
         id=str(org["id"]),
@@ -776,6 +785,7 @@ def root_cause_v2(
     user: AuthenticatedUser = Depends(get_current_user),
     repo: AssuranceRepository = Depends(get_assurance_repo),
     analyzer=Depends(get_root_cause_analyzer),
+    proposals: Optional[KnowledgeProposalService] = Depends(get_knowledge_proposal_service_optional),
 ) -> RootCauseResponse:
     try:
         data = repo.get_family_with_failures(user_id=user.user_id, defect_id=defect_id)
@@ -787,8 +797,19 @@ def root_cause_v2(
         r = analyzer.analyze_structured(data["family"], data["failures"])
         if r.get("confidence", 0.0) == 0.0 and not r.get("citations"):
             raise HTTPException(status_code=503, detail="el análisis IA no produjo resultado")
-        text = analyzer.analyze(data["family"], data["failures"])[:8000]
+        # Render desde el RCA ya calculado (antes se llamaba a analyze() → 2ª llamada LLM)
+        from src.assurance.root_cause import render_root_cause_markdown
+        text = render_root_cause_markdown(r)[:8000]
         repo.save_root_cause(user_id=user.user_id, defect_id=defect_id, text=text)
+        # Hook memoria-en-el-flujo: el RCA recién calculado deja una propuesta de
+        # lección en la bandeja (si la familia la necesita). Nunca rompe la respuesta.
+        if proposals is not None:
+            try:
+                proposals.propose_from_rca(
+                    user_id=user.user_id, family=data["family"],
+                    failures=data["failures"], rca=r)
+            except Exception:  # noqa: BLE001 — el hook es best-effort
+                logger.exception("hook causa-raíz→propuesta falló para %s", defect_id)
         return RootCauseResponse(defect_id=defect_id, root_cause=text, cached=False)
     except HTTPException:
         raise
@@ -1125,12 +1146,14 @@ def list_knowledge(
     domain: Optional[str] = None,
     project: Optional[str] = None,
     status: Optional[str] = None,
+    defect_family_id: Optional[str] = None,
     user: AuthenticatedUser = Depends(get_current_user),
     repo: QaKnowledgeRepository = Depends(get_knowledge_repo),
 ) -> List[Dict[str, Any]]:
     try:
         return repo.list_items(user_id=user.user_id, org_id=org_id, kind=kind, domain=domain,
-                               project=project, status=status)
+                               project=project, status=status,
+                               defect_family_id=defect_family_id)
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail="Database error") from exc
 
