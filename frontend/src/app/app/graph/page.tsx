@@ -185,7 +185,10 @@ export default function GraphPage() {
   const graph = graphQuery.data ?? EMPTY_GRAPH;
   const gaps = gapsQuery.data ?? gapsFastQuery.data ?? [];
   const gapsLoading = gapsQuery.isLoading && gapsFastQuery.isLoading;
-  const refiningRecs = !gapsQuery.data && Boolean(gapsFastQuery.data);
+  // isFetching (no isLoading): si la query LLM FALLA, el mensaje desaparece en
+  // vez de quedarse "Afinando…" para siempre.
+  const refiningRecs =
+    gapsQuery.isFetching && !gapsQuery.data && Boolean(gapsFastQuery.data);
   const sortedGaps = sortGaps(gaps);
   const noKnowledge = !graphQuery.isLoading && graph.nodes.length === 0;
 

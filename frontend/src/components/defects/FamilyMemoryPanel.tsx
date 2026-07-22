@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -70,6 +71,12 @@ export function FamilyMemoryPanel({
             {l.approach && (
               <p className="mt-1 text-sm text-zinc-600 line-clamp-3">{l.approach}</p>
             )}
+            <Link
+              href="/app/knowledge?tab=explorar"
+              className="mt-1 inline-block text-xs font-medium text-emerald-700 hover:text-emerald-900"
+            >
+              Ver en Conocimiento →
+            </Link>
           </div>
         ))
       )}

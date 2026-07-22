@@ -8,17 +8,9 @@ import { useActiveOrg } from "@/components/providers/org-provider";
 import { getCalibrationMetrics } from "@/lib/api/endpoints";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { CategoryBadge } from "@/components/ui/category-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
-
-const CAT_LABEL: Record<string, string> = {
-  real: "Real",
-  flaky: "Flaky",
-  maintenance: "Mantenimiento",
-  infra: "Infraestructura",
-  unknown: "Sin etiquetar",
-};
 
 export default function CalibrationPage() {
   const { accessToken } = useAuth();
@@ -67,7 +59,7 @@ export default function CalibrationPage() {
           <p className="text-sm text-zinc-600">{m.familias_calibradas} familias calibradas</p>
           <div className="flex flex-wrap gap-2">
             {Object.entries(m.por_categoria ?? {}).map(([cat, n]) => (
-              <Badge key={cat}>{CAT_LABEL[cat] ?? cat}: {n}</Badge>
+              <CategoryBadge key={cat} category={cat} count={n} />
             ))}
           </div>
         </Card>

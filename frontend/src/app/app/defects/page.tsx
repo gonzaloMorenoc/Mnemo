@@ -6,8 +6,11 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useActiveOrg } from "@/components/providers/org-provider";
 import { getDefects, getDefectLineage, analyzeRootCause } from "@/lib/api/endpoints";
+import { BookOpen } from "lucide-react";
+
 import { FamilyLabelControl } from "@/components/autopilot/FamilyLabelControl";
 import { FamilyMemoryPanel } from "@/components/defects/FamilyMemoryPanel";
+import { CategoryBadge } from "@/components/ui/category-badge";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -94,12 +97,29 @@ export default function DefectsPage() {
               <li key={f.id}>
                 <button
                   onClick={() => setSelected(f.id)}
-                  className="flex w-full items-center justify-between rounded-lg border border-zinc-200 px-3 py-2 text-left text-sm hover:bg-zinc-50"
+                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-left text-sm hover:bg-zinc-50"
                 >
-                  <span className="font-medium text-zinc-900">{f.title}</span>
-                  <span className="flex items-center gap-2">
-                    <Badge>{f.occurrence_count}x</Badge>
-                    {f.projects.length > 1 && <Badge>{f.projects.length} proyectos</Badge>}
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className="truncate font-medium text-zinc-900">{f.title}</span>
+                      {f.has_lesson && (
+                        <BookOpen
+                          size={13}
+                          className="shrink-0 text-emerald-600"
+                          aria-label="Tiene lección en la memoria"
+                        />
+                      )}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1.5">
+                      {f.label && f.label !== "unknown" && <CategoryBadge category={f.label} />}
+                      <Badge>{f.occurrence_count}x</Badge>
+                    </span>
+                  </span>
+                  <span className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-zinc-400">
+                    {f.projects.slice(0, 3).map((p) => (
+                      <Badge key={p} className="border-blue-200 bg-blue-50 text-blue-700">{p}</Badge>
+                    ))}
+                    {f.last_seen && <span>visto {f.last_seen.slice(0, 10)}</span>}
                   </span>
                 </button>
               </li>
