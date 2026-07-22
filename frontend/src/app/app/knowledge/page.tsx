@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -60,9 +60,10 @@ export default function KnowledgePage() {
   const { activeOrgId, isLoading } = useActiveOrg();
 
   // Deep-link a un tab (?tab=explorar) — enlaces cruzados desde otras vistas.
-  // window.location en un efecto (una sola vez) para no forzar useSearchParams+Suspense.
+  // useLayoutEffect: corre ANTES del pintado → sin flash del tab por defecto.
+  // (window.location en vez de useSearchParams para no forzar Suspense.)
   const [tab, setTab] = useState("preguntar");
-  useEffect(() => {
+  useLayoutEffect(() => {
     const t = new URLSearchParams(window.location.search).get("tab");
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (t && TAB_VALUES.has(t)) setTab(t);

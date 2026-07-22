@@ -86,6 +86,7 @@ def test_list_defects_maps_response():
     repo.list_defects.return_value = [{
         "id": "f1", "title": "Timeout", "status": "open", "occurrence_count": 2,
         "first_seen": "2026-06-19T10:00:00", "last_seen": "2026-06-20T10:00:00",
+        "label": "flaky", "has_lesson": True,
         "projects": ["proj-a", "proj-b"],
     }]
     client = make_client(repo=repo)
@@ -93,7 +94,23 @@ def test_list_defects_maps_response():
     assert resp.status_code == 200
     body = resp.json()
     assert body[0]["id"] == "f1" and body[0]["projects"] == ["proj-a", "proj-b"]
+    # campos de la lista rica (etiqueta de triaje + indicador de lección)
+    assert body[0]["label"] == "flaky" and body[0]["has_lesson"] is True
     assert repo.list_defects.call_args.kwargs["org_id"] == "org-1"
+
+
+def test_list_defects_backcompat_without_new_fields():
+    """Un repo que aún no devuelva label/has_lesson (p. ej. mocks antiguos) no rompe."""
+    repo = MagicMock()
+    repo.list_defects.return_value = [{
+        "id": "f2", "title": "Otro", "status": "open", "occurrence_count": 1,
+        "first_seen": None, "last_seen": None, "projects": [],
+    }]
+    client = make_client(repo=repo)
+    resp = client.get("/v2/defects", params={"org_id": "org-1"})
+    assert resp.status_code == 200
+    assert resp.json()[0]["label"] is None
+    assert resp.json()[0]["has_lesson"] is False
 
 
 def test_defect_lineage_maps_response():

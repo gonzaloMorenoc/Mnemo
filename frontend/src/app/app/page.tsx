@@ -28,6 +28,10 @@ const quickAccessItems = NAV_ITEMS.filter((item) =>
   (QUICK_ACCESS_HREFS as readonly string[]).includes(item.href),
 );
 
+function KpiError() {
+  return <p className="text-sm text-red-500">No se pudo cargar.</p>;
+}
+
 function KpiCard({
   title,
   href,
@@ -176,7 +180,9 @@ export default function DashboardPage() {
       {/* ── KPIs ── */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard title="Último run" href="/app/autopilot" cta="Ver runs" loading={runs.isLoading}>
-          {latest ? (
+          {runs.isError ? (
+            <KpiError />
+          ) : latest ? (
             <div className="space-y-1">
               <VerdictBadge verdict={latest.verdict} />
               <p className="truncate text-sm font-medium text-zinc-900">{latest.project}</p>
@@ -191,7 +197,9 @@ export default function DashboardPage() {
         </KpiCard>
 
         <KpiCard title="Precisión del motor" href="/app/calibration" cta="Calibración" loading={calibration.isLoading}>
-          {m && m.total > 0 ? (
+          {calibration.isError ? (
+            <KpiError />
+          ) : m && m.total > 0 ? (
             <div className="space-y-1">
               <p className="text-3xl font-semibold tracking-tight text-zinc-900">
                 {(m.accuracy * 100).toFixed(0)}%
@@ -263,15 +271,17 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      {/* ── Setup: checklist solo mientras esté incompleto ── */}
-      {setupComplete ? (
+      {/* ── Setup: checklist solo mientras esté incompleto. NO decidir hasta que
+          las queries carguen: si no, en cada carga fría el bloque aparecía con
+          skeletons y desaparecía de golpe (parpadeo + salto de layout). ── */}
+      {checklistLoading ? null : setupComplete ? (
         <p className="text-xs text-zinc-400">
           ✓ Configuración completa — GitHub conectado, tests indexados, memoria y gaps activos.
         </p>
       ) : (
         <div className="space-y-3">
           <h3 className="text-sm font-medium text-zinc-700">Pon Mnemo en marcha</h3>
-          <SetupChecklist steps={steps} loading={checklistLoading} />
+          <SetupChecklist steps={steps} />
         </div>
       )}
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useAuth } from "@/components/providers/auth-provider";
 import { ingestReport, listRuns } from "@/lib/api/endpoints";
@@ -14,6 +14,7 @@ import { FileDropzone } from "@/components/ui/file-dropzone";
 
 export function RunSelector({ orgId, onRunId }: { orgId: string; onRunId: (id: string) => void }) {
   const { accessToken } = useAuth();
+  const qc = useQueryClient();
   const [project, setProject] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [manualId, setManualId] = useState("");
@@ -42,6 +43,9 @@ export function RunSelector({ orgId, onRunId }: { orgId: string; onRunId: (id: s
     setSubmitting(true);
     try {
       const res = await ingestReport(accessToken!, form);
+      // El selector queda montado: refrescar "Runs recientes" (y el Dashboard,
+      // que comparte el prefijo ["runs", orgId]) para que el run nuevo aparezca.
+      void qc.invalidateQueries({ queryKey: ["runs", orgId] });
       onRunId(res.run_id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al ingerir el reporte.");
