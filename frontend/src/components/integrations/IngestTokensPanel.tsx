@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Copy, KeyRound } from "lucide-react";
 
 import { useAuth } from "@/components/providers/auth-provider";
+import { getPublicEnv } from "@/lib/env";
 import {
   createIngestToken,
   listIngestTokens,
@@ -27,23 +28,27 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-const BACKEND = process.env.NEXT_PUBLIC_API_BASE_URL || "https://<backend>";
+const BACKEND = getPublicEnv().apiBaseUrl;
 
-function curlFor(token: string): string {
-  return [
-    `curl -H "Authorization: Bearer ${token}" \\`,
-    `     -F file=@test-results/junit.xml \\`,
-    `     -F project=mi-proyecto \\`,
-    `     ${BACKEND}/v2/ci/ingest`,
-  ].join("\n");
-}
+// El comando NUNCA incrusta el secreto: referencia la variable de entorno
+// para que pegarlo tal cual en el YAML del CI no commitee el token.
+const CI_CURL = [
+  `curl -H "Authorization: Bearer $MNEMO_INGEST_TOKEN" \\`,
+  `     -F file=@test-results/junit.xml \\`,
+  `     -F project=mi-proyecto \\`,
+  `     ${BACKEND}/v2/ci/ingest`,
+].join("\n");
 
 export function IngestTokensPanel({ orgId }: { orgId: string }) {
   const { accessToken } = useAuth();
   const qc = useQueryClient();
   const [name, setName] = useState("");
-  // El claro solo existe en la respuesta de creación → se enseña UNA vez aquí.
-  const [created, setCreated] = useState<IngestTokenCreated | null>(null);
+  // El claro solo existe en la respuesta de creación → se enseña UNA vez aquí,
+  // y solo para la org en la que se creó (si cambias de org, desaparece).
+  const [created, setCreated] = useState<{ data: IngestTokenCreated; orgId: string } | null>(
+    null,
+  );
+  const createdForThisOrg = created && created.orgId === orgId ? created.data : null;
 
   const tokensQuery = useQuery({
     queryKey: ["ingest-tokens", orgId],
@@ -55,7 +60,7 @@ export function IngestTokensPanel({ orgId }: { orgId: string }) {
   const create = useMutation({
     mutationFn: () => createIngestToken(accessToken!, orgId, name.trim()),
     onSuccess: (t) => {
-      setCreated(t);
+      setCreated({ data: t, orgId });
       setName("");
       invalidate();
     },
@@ -112,32 +117,42 @@ export function IngestTokensPanel({ orgId }: { orgId: string }) {
             onChange={(e) => setName(e.target.value)}
           />
         </div>
-        <Button type="submit" disabled={create.isPending || !name.trim()}>
+        <Button
+          type="submit"
+          disabled={create.isPending || !name.trim() || !orgId || !accessToken}
+        >
           {create.isPending ? "Creando…" : "Crear token"}
         </Button>
       </form>
 
       {/* Token recién creado: única vez que se muestra el claro */}
-      {created && (
+      {createdForThisOrg && (
         <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
           <p className="text-sm font-medium text-amber-900">
             Copia el token ahora — no volverá a mostrarse.
           </p>
           <div className="flex items-center gap-2">
             <code className="min-w-0 flex-1 truncate rounded bg-white px-2 py-1 font-mono text-xs text-zinc-800">
-              {created.token}
+              {createdForThisOrg.token}
             </code>
-            <Button size="sm" variant="outline" onClick={() => copy(created.token, "Token")}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => copy(createdForThisOrg.token, "Token")}
+            >
               <Copy size={13} />
             </Button>
           </div>
           <div className="space-y-1">
-            <p className="text-xs font-medium text-amber-900">Desde tu CI (un paso de shell):</p>
+            <p className="text-xs font-medium text-amber-900">
+              Guárdalo como secreto <code>MNEMO_INGEST_TOKEN</code> en tu CI y añade este paso
+              de shell:
+            </p>
             <div className="flex items-start gap-2">
               <pre className="min-w-0 flex-1 overflow-x-auto rounded bg-zinc-900 p-2 text-[11px] leading-relaxed text-zinc-100">
-                {curlFor(created.token)}
+                {CI_CURL}
               </pre>
-              <Button size="sm" variant="outline" onClick={() => copy(curlFor(created.token), "Comando")}>
+              <Button size="sm" variant="outline" onClick={() => copy(CI_CURL, "Comando")}>
                 <Copy size={13} />
               </Button>
             </div>
@@ -149,6 +164,14 @@ export function IngestTokensPanel({ orgId }: { orgId: string }) {
       )}
 
       {/* Lista */}
+      {tokensQuery.isError && (
+        <div className="flex items-center justify-between gap-2 rounded-xl border border-red-200 bg-red-50 p-3">
+          <p className="text-sm text-red-700">No se pudieron cargar los tokens.</p>
+          <Button size="sm" variant="outline" onClick={() => tokensQuery.refetch()}>
+            Reintentar
+          </Button>
+        </div>
+      )}
       {tokens.length > 0 && (
         <ul className="divide-y divide-zinc-100">
           {tokens.map((t) => (

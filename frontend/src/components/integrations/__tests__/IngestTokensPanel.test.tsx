@@ -54,8 +54,55 @@ describe("IngestTokensPanel", () => {
     await waitFor(() =>
       expect(screen.getByText("mnemo_it_secreto123")).toBeInTheDocument());
     expect(screen.getByText(/no volverá a mostrarse/i)).toBeInTheDocument();
-    expect(screen.getByText(/\/v2\/ci\/ingest/)).toBeInTheDocument();  // el curl
     expect(endpoints.createIngestToken).toHaveBeenCalledWith("tok", "o1", "CI web");
+    // El curl referencia la variable de entorno, NUNCA el secreto literal
+    const curl = screen.getByText(/\/v2\/ci\/ingest/);
+    expect(curl.textContent).toContain("$MNEMO_INGEST_TOKEN");
+    expect(curl.textContent).not.toContain("mnemo_it_secreto123");
+    expect(screen.getByText(/Guárdalo como secreto/i)).toBeInTheDocument();
+  });
+
+  it("el claro NO se muestra si cambia la organización activa", async () => {
+    vi.mocked(endpoints.listIngestTokens).mockResolvedValue([]);
+    vi.mocked(endpoints.createIngestToken).mockResolvedValue({
+      id: "t9", name: "CI web", created_at: "2026-07-22", last_used_at: null,
+      revoked_at: null, token: "mnemo_it_secreto123",
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { rerender } = render(
+      <QueryClientProvider client={client}>
+        <IngestTokensPanel orgId="o1" />
+      </QueryClientProvider>,
+    );
+    fireEvent.change(screen.getByLabelText(/Nombre del token/i), { target: { value: "CI web" } });
+    fireEvent.click(screen.getByRole("button", { name: /Crear token/i }));
+    await waitFor(() =>
+      expect(screen.getByText("mnemo_it_secreto123")).toBeInTheDocument());
+    rerender(
+      <QueryClientProvider client={client}>
+        <IngestTokensPanel orgId="o2" />
+      </QueryClientProvider>,
+    );
+    expect(screen.queryByText("mnemo_it_secreto123")).toBeNull();
+  });
+
+  it("si la lista falla, muestra el error (no parece 'sin tokens')", async () => {
+    vi.mocked(endpoints.listIngestTokens).mockRejectedValue(new Error("Backend caído"));
+    renderPanel();
+    await waitFor(() =>
+      expect(screen.getByText(/No se pudieron cargar los tokens/i)).toBeInTheDocument());
+  });
+
+  it("no se puede crear sin organización activa", () => {
+    vi.mocked(endpoints.listIngestTokens).mockResolvedValue([]);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <IngestTokensPanel orgId="" />
+      </QueryClientProvider>,
+    );
+    fireEvent.change(screen.getByLabelText(/Nombre del token/i), { target: { value: "CI web" } });
+    expect(screen.getByRole("button", { name: /Crear token/i })).toBeDisabled();
   });
 
   it("revocar pide confirmación y llama al endpoint", async () => {
