@@ -126,6 +126,14 @@ export default function GraphPage() {
     enabled: !!accessToken && !!activeOrgId,
   });
 
+  // Dos fases: los gaps deterministas llegan al instante (sin LLM) y se muestran
+  // ya; las recomendaciones redactadas por el LLM los sustituyen cuando llegan.
+  // Antes el panel se quedaba en skeletons ~20 s esperando al LLM.
+  const gapsFastQuery = useQuery({
+    queryKey: ["graph-gaps", activeOrgId, "fast"],
+    queryFn: () => getGaps(accessToken!, { org_id: activeOrgId!, recommendations: false }),
+    enabled: !!accessToken && !!activeOrgId,
+  });
   const gapsQuery = useQuery({
     queryKey: ["graph-gaps", activeOrgId],
     queryFn: () => getGaps(accessToken!, { org_id: activeOrgId! }),
@@ -175,7 +183,12 @@ export default function GraphPage() {
   }
 
   const graph = graphQuery.data ?? EMPTY_GRAPH;
-  const gaps = gapsQuery.data ?? [];
+  const gaps = gapsQuery.data ?? gapsFastQuery.data ?? [];
+  const gapsLoading = gapsQuery.isLoading && gapsFastQuery.isLoading;
+  // isFetching (no isLoading): si la query LLM FALLA, el mensaje desaparece en
+  // vez de quedarse "Afinando…" para siempre.
+  const refiningRecs =
+    gapsQuery.isFetching && !gapsQuery.data && Boolean(gapsFastQuery.data);
   const sortedGaps = sortGaps(gaps);
   const noKnowledge = !graphQuery.isLoading && graph.nodes.length === 0;
 
@@ -198,6 +211,18 @@ export default function GraphPage() {
           ) : (
             <div className="h-full w-full" data-testid="graph-view-container">
               <KnowledgeGraphView graph={graph} />
+              {/* Leyenda de tipos de nodo */}
+              <div className="pointer-events-none absolute right-3 top-3 flex flex-col gap-1 rounded-lg border border-zinc-200 bg-white/90 p-2 text-xs text-zinc-600 shadow-sm">
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-sm border border-blue-300 bg-blue-100" /> Conocimiento
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-sm border border-red-300 bg-red-100" /> Defecto
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-sm border border-zinc-400 bg-zinc-100" /> Dominio
+                </span>
+              </div>
             </div>
           )}
         </div>
@@ -217,7 +242,7 @@ export default function GraphPage() {
             )}
           </div>
 
-          {gapsQuery.isLoading && (
+          {gapsLoading && (
             <div className="flex flex-col gap-2" data-testid="gaps-loading-skeleton">
               <Skeleton className="h-16 w-full rounded-xl" />
               <Skeleton className="h-16 w-full rounded-xl" />
@@ -225,7 +250,11 @@ export default function GraphPage() {
             </div>
           )}
 
-          {!gapsQuery.isLoading && sortedGaps.length === 0 && (
+          {refiningRecs && (
+            <p className="text-xs text-zinc-400">Afinando recomendaciones con IA…</p>
+          )}
+
+          {!gapsLoading && sortedGaps.length === 0 && (
             <Card className="p-4">
               <p className="text-xs text-zinc-500">
                 No se detectaron gaps de cobertura.

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { FileDropzone } from "@/components/ui/file-dropzone";
 import {
   Select,
   SelectContent,
@@ -94,7 +95,12 @@ export default function AssurancePage() {
           </div>
           <div className="space-y-1">
             <Label htmlFor="file">Reporte</Label>
-            <Input id="file" type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+            <FileDropzone
+              id="file"
+              file={file}
+              onFile={setFile}
+              hint="JUnit, TestNG, Robot, Allure, Playwright, Cypress o Cucumber — se autodetecta"
+            />
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <Button type="submit" disabled={submitting}>{submitting ? "Procesando…" : "Analizar run"}</Button>

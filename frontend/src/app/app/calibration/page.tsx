@@ -8,7 +8,7 @@ import { useActiveOrg } from "@/components/providers/org-provider";
 import { getCalibrationMetrics } from "@/lib/api/endpoints";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { CategoryBadge } from "@/components/ui/category-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
 
@@ -31,12 +31,8 @@ export default function CalibrationPage() {
           <InfoTooltip term="calibracion" />
         </h1>
         <p className="flex items-center gap-1 text-sm text-zinc-500">
-          Precisión del motor de triaje con tus correcciones (el{" "}
-          <span className="inline-flex items-center gap-0.5">
-            foso
-            <InfoTooltip term="foso" />
-          </span>
-          ).
+          Cada corrección tuya afina la precisión del motor de triaje.
+          <InfoTooltip term="foso" />
         </p>
       </div>
 
@@ -63,7 +59,7 @@ export default function CalibrationPage() {
           <p className="text-sm text-zinc-600">{m.familias_calibradas} familias calibradas</p>
           <div className="flex flex-wrap gap-2">
             {Object.entries(m.por_categoria ?? {}).map(([cat, n]) => (
-              <Badge key={cat}>{cat}: {n}</Badge>
+              <CategoryBadge key={cat} category={cat} count={n} />
             ))}
           </div>
         </Card>

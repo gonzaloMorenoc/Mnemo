@@ -17,7 +17,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const LABELS = ["unknown", "flaky", "real", "maintenance", "infra"];
+// Valores de la API (no cambian) → etiqueta visible en español
+const LABELS: Array<[string, string]> = [
+  ["unknown", "Sin etiquetar"],
+  ["flaky", "Flaky"],
+  ["real", "Fallo real"],
+  ["maintenance", "Mantenimiento"],
+  ["infra", "Infraestructura"],
+];
 
 export function FamilyLabelControl({ familyId }: { familyId: string }) {
   const { accessToken } = useAuth();
@@ -36,7 +43,7 @@ export function FamilyLabelControl({ familyId }: { familyId: string }) {
 
   return (
     <div className="mt-3 space-y-2 border-t border-zinc-100 pt-3">
-      <p className="text-xs font-medium text-zinc-500">Calibrar (etiqueta esta familia)</p>
+      <p className="text-xs font-medium text-zinc-500">Corregir el triaje (tu etiqueta calibra el motor)</p>
       <div className="space-y-1">
         <Label htmlFor="cat">Categoría</Label>
         <Select value={label} onValueChange={setLabel}>
@@ -44,8 +51,8 @@ export function FamilyLabelControl({ familyId }: { familyId: string }) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {LABELS.map((l) => (
-              <SelectItem key={l} value={l}>{l}</SelectItem>
+            {LABELS.map(([value, text]) => (
+              <SelectItem key={value} value={value}>{text}</SelectItem>
             ))}
           </SelectContent>
         </Select>

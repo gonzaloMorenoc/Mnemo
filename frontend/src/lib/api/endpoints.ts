@@ -31,6 +31,7 @@ import type {
   LearningPath,
   OrganizationResponse,
   ProposeActionsResult,
+  RunListItem,
   RepoIndexResult,
   RootCauseResponse,
   TestAsset,
@@ -320,6 +321,17 @@ export function getGraph(
   if (params.focus) q.set("focus", params.focus);
   if (params.limit) q.set("limit", String(params.limit));
   return apiRequest<Graph>(`/api/v2/graph?${q.toString()}`, "GET", { token });
+}
+
+export function listRuns(
+  token: string,
+  orgId: string,
+  opts?: { project?: string; limit?: number },
+) {
+  const qs = new URLSearchParams({ org_id: orgId });
+  if (opts?.project) qs.set("project", opts.project);
+  if (opts?.limit) qs.set("limit", String(opts.limit));
+  return apiRequest<RunListItem[]>(`/api/v2/runs?${qs.toString()}`, "GET", { token });
 }
 
 export function getGaps(

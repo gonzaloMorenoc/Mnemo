@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import Link from "next/link";
@@ -12,6 +12,7 @@ import {
   domainSummary,
   learningPath,
   askKnowledge,
+  listKnowledge,
 } from "@/lib/api/endpoints";
 import type { DomainSummary, KnowledgeAnswer, LearningPath } from "@/lib/api/types";
 import { Button } from "@/components/ui/button";
@@ -62,6 +63,18 @@ export default function OnboardingPage() {
     onSuccess: setChatAnswer,
     onError: (err: Error) => toast.error(err.message),
   });
+
+  // Cold-start: la memoria YA sabe los dominios del proyecto → chips clicables
+  // en vez de un campo en blanco sin pistas.
+  const domainsQuery = useQuery({
+    queryKey: ["onboarding-domains", activeOrgId],
+    queryFn: () => listKnowledge(accessToken!, activeOrgId ?? ""),
+    enabled: Boolean(accessToken && activeOrgId),
+  });
+  const domains = Array.from(
+    new Set((domainsQuery.data ?? []).map((i) => i.domain).filter(
+      (d): d is string => Boolean(d))),
+  ).sort();
 
   if (isLoading) {
     return (
@@ -121,6 +134,21 @@ export default function OnboardingPage() {
               }}
             />
           </div>
+          {domains.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs text-zinc-400">Dominios del proyecto:</span>
+              {domains.map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setTopic(d)}
+                  className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-0.5 text-xs text-zinc-700 transition-colors hover:border-zinc-400 hover:bg-zinc-100"
+                >
+                  {d}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="flex flex-wrap gap-2">
             <Button
               onClick={() => summaryMutation.mutate()}
@@ -244,7 +272,7 @@ export default function OnboardingPage() {
       {/* Chat section */}
       <Card className="max-w-2xl">
         <CardHeader>
-          <CardTitle className="text-base">Preguntar al equipo</CardTitle>
+          <CardTitle className="text-base">Preguntar a la memoria</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex gap-2">

@@ -44,7 +44,7 @@ describe("FamilyLabelControl", () => {
     await user.click(within(container).getByRole("combobox", { name: /categoría/i }));
 
     // Click the "flaky" option
-    const flakyOption = await screen.findByRole("option", { name: "flaky" });
+    const flakyOption = await screen.findByRole("option", { name: "Flaky" });
     await user.click(flakyOption);
 
     // Submit
@@ -59,7 +59,7 @@ describe("FamilyLabelControl", () => {
 
     // Change to "real"
     await user.click(within(container).getByRole("combobox", { name: /categoría/i }));
-    await user.click(await screen.findByRole("option", { name: "real" }));
+    await user.click(await screen.findByRole("option", { name: "Fallo real" }));
 
     await user.click(screen.getByRole("button", { name: /etiquetar familia/i }));
     await waitFor(() => expect(setFamilyLabel).toHaveBeenCalledWith("tok", "fam-2", "real", ""));

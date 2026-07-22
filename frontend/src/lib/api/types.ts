@@ -33,6 +33,8 @@ export interface DefectFamilyResponse {
   occurrence_count: number;
   first_seen: string | null;
   last_seen: string | null;
+  label?: string | null;
+  has_lesson?: boolean;
   projects: string[];
 }
 
@@ -126,6 +128,17 @@ export interface ProposeActionsResult {
   ticket: number;
   self_heal: number;
   skipped: number;
+}
+
+export interface RunListItem {
+  id: string;
+  project: string;
+  source: string;
+  commit_sha?: string | null;
+  created_at?: string | null;
+  verdict?: string | null;
+  risk_score?: number | null;
+  failures: number;
 }
 
 export interface KnowledgeProposal {

@@ -705,6 +705,23 @@ async def ci_ingest(
         raise HTTPException(status_code=502, detail="Database error") from exc
 
 
+@router.get("/runs", response_model=List[Dict[str, Any]])
+def list_runs_v2(
+    org_id: str,
+    project: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+    user: AuthenticatedUser = Depends(get_current_user),
+    repo: AssuranceRepository = Depends(get_assurance_repo),
+) -> List[Dict[str, Any]]:
+    """Histórico de runs navegable por proyecto/fecha (con veredicto del acta)."""
+    try:
+        return repo.list_runs(user_id=user.user_id, org_id=org_id, project=project,
+                              limit=limit, offset=offset)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+
+
 @router.get("/triage/run/{run_id}", response_model=List[TriageVerdictResponse])
 def triage_run_v2(
     run_id: str,
