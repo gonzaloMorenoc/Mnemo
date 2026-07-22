@@ -45,6 +45,7 @@ from src.jira.ingestion_service import JiraIngestionService
 from src.jira.safe_url import validate_base_url
 from src.graph.service import GraphService
 from src.graph.gaps import detect_gaps
+from src.ci.ingest_tokens import IngestTokenRepository
 from src.knowledge.repository import QaKnowledgeRepository
 from src.knowledge.service import KnowledgeService
 from src.knowledge.proposal_repository import KnowledgeProposalRepository
@@ -81,6 +82,7 @@ from src.multitenant_models import (
     JiraIngestResponse,
     JiraPullRequest,
     JoinOrgRequest,
+    IngestTokenCreateRequest,
     KnowledgeAskRequest,
     KnowledgeCreateRequest,
     KnowledgeProposalApproveRequest,
@@ -135,6 +137,7 @@ _embedder = None
 _knowledge_repo = None
 _knowledge_proposal_repo = None
 _knowledge_proposal_service = None
+_ingest_token_repo = None
 
 
 def get_repo() -> OrganizationRepository:
@@ -401,6 +404,15 @@ def get_knowledge_proposal_service() -> KnowledgeProposalService:
     return _knowledge_proposal_service
 
 
+def get_ingest_token_repo() -> IngestTokenRepository:
+    if not multi_tenant_enabled():
+        raise HTTPException(status_code=503, detail="Multi-tenant KB not configured")
+    global _ingest_token_repo
+    if _ingest_token_repo is None:
+        _ingest_token_repo = IngestTokenRepository()
+    return _ingest_token_repo
+
+
 def get_knowledge_proposal_service_optional() -> Optional[KnowledgeProposalService]:
     """Variante para hooks best-effort (p. ej. causa-raíz→propuesta): None en vez de
     503 cuando el multi-tenant no está configurado, para no romper el endpoint anfitrión."""
@@ -508,6 +520,33 @@ def ingest_report_v2(
     return IngestReportResponse(**result)
 
 
+def _post_ingest_pipeline(user_id: str, run_id: str):
+    """Triaje + certificado + gate tras una ingesta, todo best-effort (cada paso
+    degrada sin romper lo ya commiteado). Compartido por el webhook de CI y por
+    la ingesta genérica por token (/ci/ingest). Devuelve (triage, verdict, gate)."""
+    triage_summary = None
+    try:
+        triage_summary = get_triage_service().triage_run(user_id=user_id, run_id=run_id)
+    except Exception:  # noqa: BLE001 — el triaje degrada; la ingesta ya está commiteada
+        logger.exception("triage failed for run %s", run_id)
+    verdict = None
+    gate = None
+    if triage_summary is not None:
+        try:
+            created_at = datetime.now(timezone.utc).isoformat()
+            cert = get_certificate_service().generate(
+                user_id=user_id, run_id=run_id, created_at=created_at)
+            verdict = cert.get("verdict")
+        except Exception:  # noqa: BLE001 — el cert degrada; la ingesta/triaje ya están commiteados
+            logger.exception("certificate failed for run %s", run_id)
+        try:
+            gate_res = get_gate_service().publish(user_id=user_id, run_id=run_id)
+            gate = gate_res.get("conclusion")
+        except Exception:  # noqa: BLE001 — el gate degrada (p.ej. sin GitHub App)
+            logger.exception("gate failed for run %s", run_id)
+    return triage_summary, verdict, gate
+
+
 def _process_ci_artifact(artifact: CiRunArtifact) -> CiWebhookResponse:
     """Pipeline post-validación del webhook: ingesta + triaje + certificado + gate.
 
@@ -525,29 +564,11 @@ def _process_ci_artifact(artifact: CiRunArtifact) -> CiWebhookResponse:
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail="Database error") from exc
     triage_summary = None
-    if not result.get("deduplicated"):
-        try:
-            triage_summary = get_triage_service().triage_run(
-                user_id=CI_SERVICE_USER_ID, run_id=result["run_id"]
-            )
-        except Exception:  # noqa: BLE001 — el triaje degrada; la ingesta ya está commiteada
-            logger.exception("triage failed for run %s", result["run_id"])
     verdict = None
     gate = None
-    if not result.get("deduplicated") and triage_summary is not None:
-        try:
-            created_at = datetime.now(timezone.utc).isoformat()
-            cert = get_certificate_service().generate(
-                user_id=CI_SERVICE_USER_ID, run_id=result["run_id"], created_at=created_at)
-            verdict = cert.get("verdict")
-        except Exception:  # noqa: BLE001 — el cert degrada; la ingesta/triaje ya están commiteados
-            logger.exception("certificate failed for run %s", result["run_id"])
-        try:
-            gate_res = get_gate_service().publish(
-                user_id=CI_SERVICE_USER_ID, run_id=result["run_id"])
-            gate = gate_res.get("conclusion")
-        except Exception:  # noqa: BLE001 — el gate degrada (p.ej. sin GitHub App)
-            logger.exception("gate failed for run %s", result["run_id"])
+    if not result.get("deduplicated"):
+        triage_summary, verdict, gate = _post_ingest_pipeline(
+            CI_SERVICE_USER_ID, result["run_id"])
     return CiWebhookResponse(**result, triage=triage_summary, verdict=verdict, gate=gate)
 
 
@@ -571,6 +592,99 @@ async def ci_webhook(request: Request) -> CiWebhookResponse:
     if CI_SERVICE_ORG_ID and artifact.org_id != CI_SERVICE_ORG_ID:
         raise HTTPException(status_code=403, detail="org_id not allowed for this CI account")
     return await run_in_threadpool(_process_ci_artifact, artifact)
+
+
+# ---------------------------------------------------------------------------
+# Ingesta CI genérica por token — "cualquier CI se enchufa con un token"
+# ---------------------------------------------------------------------------
+
+@router.post("/ingest/tokens", response_model=Dict[str, Any])
+def create_ingest_token(
+    req: IngestTokenCreateRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+    repo: IngestTokenRepository = Depends(get_ingest_token_repo),
+) -> Dict[str, Any]:
+    """Crea un token de ingesta (owner/admin). El token en claro SOLO viaja aquí."""
+    try:
+        out = repo.create_token(user_id=user.user_id, org_id=req.org_id, name=req.name)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    if out is None:
+        raise HTTPException(status_code=403, detail="requiere rol owner/admin en la organización")
+    return out
+
+
+@router.get("/ingest/tokens", response_model=List[Dict[str, Any]])
+def list_ingest_tokens(
+    org_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+    repo: IngestTokenRepository = Depends(get_ingest_token_repo),
+) -> List[Dict[str, Any]]:
+    try:
+        return repo.list_tokens(user_id=user.user_id, org_id=org_id)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+
+
+@router.post("/ingest/tokens/{token_id}/revoke", response_model=Dict[str, bool])
+def revoke_ingest_token(
+    token_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+    repo: IngestTokenRepository = Depends(get_ingest_token_repo),
+) -> Dict[str, bool]:
+    try:
+        ok = repo.revoke_token(user_id=user.user_id, token_id=token_id)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    if not ok:
+        raise HTTPException(status_code=403,
+                            detail="token no encontrado, ya revocado o sin permiso (owner/admin)")
+    return {"revoked": True}
+
+
+@router.post("/ci/ingest", response_model=Dict[str, Any])
+async def ci_ingest(
+    request: Request,
+    file: UploadFile = File(...),
+    project: str = Form(...),
+    source: str = Form("auto"),
+    repo: IngestTokenRepository = Depends(get_ingest_token_repo),
+    service: IngestionService = Depends(get_ingestion_service),
+) -> Dict[str, Any]:
+    """Ingesta CI genérica por TOKEN (sin sesión de usuario): sube el report de
+    cualquiera de los 7 formatos soportados (autodetección) y corre el pipeline
+    completo — ingesta + triaje + acta + gate (cada paso posterior best-effort).
+
+        curl -H "Authorization: Bearer mnemo_it_…" \\
+             -F file=@junit.xml -F project=mi-proyecto \\
+             https://…/v2/ci/ingest
+    """
+    auth = request.headers.get("Authorization", "")
+    token = auth[7:].strip() if auth.startswith("Bearer ") else request.headers.get("X-Mnemo-Token", "")
+    try:
+        info = repo.resolve(token=token)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    if info is None:
+        raise HTTPException(status_code=401, detail="token de ingesta inválido o revocado")
+    data = _read_upload_capped(file)
+
+    def _work() -> Dict[str, Any]:
+        result = service.ingest_report(user_id=info["created_by"], org_id=info["org_id"],
+                                       project=project, source=source, data=data)
+        triage, verdict, gate = None, None, None
+        if not result.get("deduplicated"):
+            triage, verdict, gate = _post_ingest_pipeline(info["created_by"], result["run_id"])
+        return {**result, "triage": triage, "verdict": verdict, "gate": gate}
+
+    try:
+        return await run_in_threadpool(_work)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except (ValueError, OSError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
 
 
 @router.get("/triage/run/{run_id}", response_model=List[TriageVerdictResponse])

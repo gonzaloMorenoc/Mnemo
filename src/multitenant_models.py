@@ -302,6 +302,11 @@ class KnowledgeProposalRejectRequest(BaseModel):
     reason: str = Field(default="", max_length=500)
 
 
+class IngestTokenCreateRequest(BaseModel):
+    org_id: str
+    name: str = Field(min_length=1, max_length=100)
+
+
 class KnowledgeUpdateRequest(BaseModel):
     org_id: str
     kind: Optional[str] = None
