@@ -58,11 +58,11 @@ export function KnowledgeImportPanel({ orgId }: { orgId: string }) {
     <Card className="max-w-2xl space-y-4 p-5">
       <h2 className="flex items-center gap-1.5 text-sm font-medium text-zinc-700">
         <CloudDownload size={14} className="text-zinc-400" />
-        Importar desde Jira
+        Importar desde Jira/Confluence
       </h2>
       <p className="text-sm text-zinc-500">
-        Convierte issues en propuestas de lección. Nada entra en la memoria sin tu
-        aprobación: todo pasa por la bandeja de propuestas.
+        Convierte issues y páginas en propuestas de lección. Nada entra en la memoria
+        sin tu aprobación: todo pasa por la bandeja de propuestas.
       </p>
 
       {config.data && !config.data.configured ? (
@@ -76,11 +76,13 @@ export function KnowledgeImportPanel({ orgId }: { orgId: string }) {
       ) : (
         <>
           <div className="space-y-1.5">
-            <Label htmlFor="import-refs">Claves de Jira (una por línea o separadas por comas)</Label>
+            <Label htmlFor="import-refs">
+              Claves de Jira o URLs de páginas de Confluence (una por línea o separadas por comas)
+            </Label>
             <Textarea
               id="import-refs"
               rows={3}
-              placeholder={"PAY-123\nCHK-45"}
+              placeholder={"PAY-123\nhttps://tu-site.atlassian.net/wiki/spaces/QA/pages/12345/..."}
               value={raw}
               onChange={(e) => setRaw(e.target.value)}
             />
