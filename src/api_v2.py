@@ -1094,7 +1094,9 @@ def generate_certificate_v2(
     try:
         created_at = datetime.now(timezone.utc).isoformat()
         return CertificateResponse(**service.generate(user_id=user.user_id, run_id=run_id,
-                                                      created_at=created_at))
+                                                      created_at=created_at, require_admin=True))
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except SigningKeyMissing as exc:

@@ -42,6 +42,16 @@ class CertificateRepository:
                 "commit_sha": row["commit_sha"],
                 "manifest": (row["summary"] or {}).get("manifest")}
 
+    def is_org_admin(self, *, user_id: str, org_id: str) -> bool:
+        """True si el usuario es owner/admin de la org (para gatear la emisión a mano)."""
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute("select exists(select 1 from public.memberships"
+                            " where org_id=%s and user_id=%s and role in ('owner','admin')) as ok",
+                            (org_id, user_id))
+                return bool(cur.fetchone()["ok"])
+
     def save_certificate(self, *, user_id: str, org_id: str, run_id: str,
                          canonical_json: Dict[str, Any], signature: str, verdict: str,
                          risk_score: int, sign_offs: Any, mnemo_version: str,
