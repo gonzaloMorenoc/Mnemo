@@ -102,14 +102,17 @@ export default function DashboardPage() {
 
   if (!orgLoading && !orgId) {
     return (
-      <Card className="p-6">
-        <p className="text-sm text-zinc-700">
-          Crea o únete a una organización para empezar.
-        </p>
-        <Button asChild className="mt-3">
-          <Link href="/app/org">Ir a Organización</Link>
-        </Button>
-      </Card>
+      <div className="space-y-6">
+        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Panel de control</h1>
+        <Card className="p-6">
+          <p className="text-sm text-zinc-700">
+            Crea o únete a una organización para empezar.
+          </p>
+          <Button asChild className="mt-3">
+            <Link href="/app/org">Ir a Organización</Link>
+          </Button>
+        </Card>
+      </div>
     );
   }
 
@@ -169,9 +172,9 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight text-zinc-900">
+        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">
           Panel de control
-        </h2>
+        </h1>
         <p className="text-sm text-zinc-500">
           El estado de tu memoria y aseguramiento de QA, de un vistazo.
         </p>

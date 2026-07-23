@@ -32,7 +32,7 @@ export function SidebarNav({ mobile = false, onClose }: SidebarNavProps) {
         )}
       </div>
 
-      <nav className="space-y-4 px-3">
+      <nav aria-label="Principal" className="space-y-4 px-3">
         {NAV_SECTIONS.map((section) => (
           <div key={section.title ?? "home"} className="space-y-1">
             {section.title && (

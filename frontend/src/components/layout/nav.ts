@@ -51,6 +51,24 @@ export const NAV_SECTIONS: NavSection[] = [
 
 export const NAV_ITEMS: NavItem[] = NAV_SECTIONS.flatMap((s) => s.items);
 
-export function labelForPath(pathname: string): string | null {
-  return NAV_ITEMS.find((i) => i.href === pathname)?.label ?? null;
+export type Crumb = { section: string | null; label: string };
+
+/**
+ * Resuelve el breadcrumb de una ruta con prefix-match segmentado:
+ * "/app/defects/123" → { section: "Aseguramiento", label: "Defect DNA" }.
+ * "/app" (Dashboard) solo casa con la ruta exacta para no absorber rutas desconocidas.
+ */
+export function crumbForPath(pathname: string): Crumb | null {
+  let best: { section: string | null; href: string; label: string } | null = null;
+  for (const section of NAV_SECTIONS) {
+    for (const item of section.items) {
+      const matches =
+        pathname === item.href ||
+        (item.href !== "/app" && pathname.startsWith(`${item.href}/`));
+      if (matches && (!best || item.href.length > best.href.length)) {
+        best = { section: section.title, href: item.href, label: item.label };
+      }
+    }
+  }
+  return best ? { section: best.section, label: best.label } : null;
 }

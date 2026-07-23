@@ -209,7 +209,8 @@ describe("GraphPage — grafo vacío", () => {
     await screen.findByText(/aún no hay conocimiento suficiente/i);
 
     const link = screen.getByRole("link", { name: /conocimiento/i });
-    expect(link).toHaveAttribute("href", "/app/knowledge");
+    // Deep-link a la pestaña Capturar (la acción que puebla el grafo)
+    expect(link).toHaveAttribute("href", "/app/knowledge?tab=capturar");
   });
 });
 

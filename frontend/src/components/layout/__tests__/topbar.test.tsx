@@ -22,55 +22,56 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/components/providers/auth-provider";
 import { Topbar } from "@/components/layout/topbar";
 
+function mockAuth() {
+  (useAuth as ReturnType<typeof vi.fn>).mockReturnValue({
+    user: { email: "a@b.c" },
+    signOut: vi.fn(),
+  });
+}
+
 afterEach(() => {
   vi.clearAllMocks();
   cleanup();
 });
 
-describe("Topbar — título desde fuente única + localización", () => {
-  it("muestra 'Integraciones' para /app/integrations (antes caía a Mnemo)", () => {
+describe("Topbar — breadcrumb org / sección / página (sin título duplicado)", () => {
+  it("muestra sección y página en el breadcrumb", () => {
     (usePathname as ReturnType<typeof vi.fn>).mockReturnValue("/app/integrations");
-    (useAuth as ReturnType<typeof vi.fn>).mockReturnValue({
-      user: { email: "a@b.c" },
-      signOut: vi.fn(),
-    });
+    mockAuth();
     render(<Topbar onOpenMobileMenu={vi.fn()} />);
-    expect(screen.getByRole("heading", { name: "Integraciones" })).toBeInTheDocument();
+    const crumb = screen.getByRole("navigation", { name: "Ruta de navegación" });
+    expect(crumb).toHaveTextContent("Configuración");
+    expect(crumb).toHaveTextContent("Integraciones");
   });
 
-  it("muestra 'Mnemo' cuando la ruta no está en el nav", () => {
-    (usePathname as ReturnType<typeof vi.fn>).mockReturnValue("/app/unknown-route");
-    (useAuth as ReturnType<typeof vi.fn>).mockReturnValue({
-      user: { email: "a@b.c" },
-      signOut: vi.fn(),
-    });
+  it("resuelve subrutas dinámicas al item padre", () => {
+    (usePathname as ReturnType<typeof vi.fn>).mockReturnValue("/app/defects/1b2c3d");
+    mockAuth();
     render(<Topbar onOpenMobileMenu={vi.fn()} />);
-    expect(screen.getByRole("heading", { name: "Mnemo" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("navigation", { name: "Ruta de navegación" }),
+    ).toHaveTextContent("Defect DNA");
   });
 
-  it("muestra el botón 'Cerrar sesión'", () => {
+  it("NO duplica el h1 de la página (el header ya no lleva heading)", () => {
     (usePathname as ReturnType<typeof vi.fn>).mockReturnValue("/app/integrations");
-    (useAuth as ReturnType<typeof vi.fn>).mockReturnValue({
-      user: { email: "a@b.c" },
-      signOut: vi.fn(),
-    });
+    mockAuth();
     render(<Topbar onOpenMobileMenu={vi.fn()} />);
+    expect(screen.queryByRole("heading")).toBeNull();
+  });
+
+  it("incluye el org-switcher y el botón 'Cerrar sesión'", () => {
+    (usePathname as ReturnType<typeof vi.fn>).mockReturnValue("/app");
+    mockAuth();
+    render(<Topbar onOpenMobileMenu={vi.fn()} />);
+    expect(screen.getByTestId("org-switcher")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cerrar sesión" })).toBeInTheDocument();
   });
 
-  it("no renderiza el subtítulo duplicado 'Mnemo' como párrafo", () => {
-    (usePathname as ReturnType<typeof vi.fn>).mockReturnValue("/app/integrations");
-    (useAuth as ReturnType<typeof vi.fn>).mockReturnValue({
-      user: { email: "a@b.c" },
-      signOut: vi.fn(),
-    });
+  it("en una ruta desconocida no renderiza breadcrumb (solo el contexto de org)", () => {
+    (usePathname as ReturnType<typeof vi.fn>).mockReturnValue("/app/ruta-desconocida");
+    mockAuth();
     render(<Topbar onOpenMobileMenu={vi.fn()} />);
-    // Only the h1 heading should exist — no secondary <p>Mnemo</p> subtitle
-    const heading = screen.getByRole("heading", { name: "Integraciones" });
-    expect(heading).toBeInTheDocument();
-    // There should be no <p> element containing just "Mnemo" as subtitle
-    const allParagraphs = document.querySelectorAll("p");
-    const mnemoSubtitle = Array.from(allParagraphs).find((p) => p.textContent === "Mnemo");
-    expect(mnemoSubtitle).toBeUndefined();
+    expect(screen.queryByRole("navigation", { name: "Ruta de navegación" })).toBeNull();
   });
 });
