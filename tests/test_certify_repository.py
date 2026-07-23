@@ -47,7 +47,8 @@ def org():
 def test_get_run_meta(repos, org):
     crepo, _ = repos
     meta = crepo.get_run_meta(user_id=org["user_id"], run_id=org["run_id"])
-    assert meta == {"org_id": org["org_id"], "project": "web", "commit_sha": "sha-cert"}
+    assert meta == {"org_id": org["org_id"], "project": "web", "commit_sha": "sha-cert",
+                    "manifest": None}
     assert crepo.get_run_meta(user_id=str(uuid.uuid4()), run_id=org["run_id"]) is None  # no-miembro
 
 

@@ -50,9 +50,14 @@ def compute_self_eval(*, calibration: Dict[str, Any], verdicts: List[Dict[str, A
     }
 
 
-def compute_verdict(verdicts: List[Dict[str, Any]], confidence: str = "high") -> str:
+def compute_verdict(verdicts: List[Dict[str, Any]], confidence: str = "high",
+                    manifest: Optional[Dict[str, Any]] = None) -> str:
     """Veredicto de aseguramiento (política §7.1) sobre los veredictos de triaje.
-    Compartido por el certificado (F4a) y el gate (F4b)."""
+    Compartido por el certificado (F4a) y el gate (F4b).
+
+    Un run CON fallos siempre es rojo (no se oculta tras inconcluso). Un run limpio
+    solo se firma "apto" si el manifiesto prueba una ejecución completa; si falta o
+    está incompleto → `inconcluso` (no podemos confirmar que corrieron tests)."""
     reales_novel_sin_approval = sum(
         1 for v in verdicts if v.get("category") == "real"
         and v.get("rule_applied") == "R5_real_novel" and not v.get("requires_approval"))
@@ -61,6 +66,9 @@ def compute_verdict(verdicts: List[Dict[str, Any]], confidence: str = "high") ->
         return "no-apto"
     if any(v.get("category") in ("real", "maintenance") for v in verdicts):
         return "apto-con-reservas"
+    # Run limpio (sin fallos accionables): exigir manifiesto completo para firmar verde.
+    if not manifest or not manifest.get("complete"):
+        return "inconcluso"
     # Invariante estructural: si la IA asistió alguna categoría (desempate LLM,
     # R6), el acta NUNCA es un "apto" rotundo — a lo sumo "apto-con-reservas",
     # con independencia de requires_approval. Así "la IA no produce un veredicto
@@ -73,9 +81,11 @@ def compute_verdict(verdicts: List[Dict[str, Any]], confidence: str = "high") ->
 def build_certificate(*, run: Dict[str, Any], verdicts: List[Dict[str, Any]],
                       sign_offs: List[Dict[str, Any]], mnemo_version: str,
                       model_version: str, created_at: str,
-                      self_eval: Dict[str, Any], key_id: str = "") -> Dict[str, Any]:
+                      self_eval: Dict[str, Any], key_id: str = "",
+                      manifest: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Certificado determinista de un run a partir de sus veredictos de triaje.
-    Puro: el timestamp se inyecta (created_at). Schema v2: acta de evidencia con self_eval firmado."""
+    Puro: el timestamp se inyecta (created_at). Schema v3: acta de evidencia con
+    self_eval firmado y manifiesto de ejecución (execution_manifest)."""
     breakdown = {c: 0 for c in _CATEGORIES}
     for v in verdicts:
         cat = v.get("category")
@@ -92,7 +102,7 @@ def build_certificate(*, run: Dict[str, Any], verdicts: List[Dict[str, Any]],
         and v.get("rule_applied") != "R5_real_novel")
     flaky = breakdown["flaky"]
 
-    verdict = compute_verdict(verdicts, confidence=self_eval["confidence"])
+    verdict = compute_verdict(verdicts, confidence=self_eval["confidence"], manifest=manifest)
 
     risk_score = min(100, 40 * reales_novel_sin_approval + 20 * pendientes_approval
                      + 10 * reales_recurrentes + 2 * flaky)
@@ -104,9 +114,10 @@ def build_certificate(*, run: Dict[str, Any], verdicts: List[Dict[str, Any]],
         for v in verdicts
     ]
     return {
-        "schema": "mnemo.cert.v2",
+        "schema": "mnemo.cert.v3",
         "attestation_type": "evidence_and_assessment",
         "disclaimer": _DISCLAIMER,
+        "execution_manifest": manifest,
         "identity": {"org_id": run["org_id"], "project": run["project"],
                      "commit_sha": run.get("commit_sha"), "run_id": run["run_id"],
                      "created_at": created_at, "mnemo_version": mnemo_version,
