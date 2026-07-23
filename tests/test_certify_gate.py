@@ -75,3 +75,12 @@ def test_publish_raises_when_run_not_found():
     svc, _, _ = _service(meta=None, verdicts=[_v("flaky")])
     with pytest.raises(ValueError):
         svc.publish(user_id="u", run_id="r")
+
+
+def test_gate_dicts_aceptan_inconcluso_sin_keyerror():
+    from src.certify.gate import _CONCLUSION, _MOTIVO, _render_output  # noqa: F401
+    assert _CONCLUSION["inconcluso"] == "neutral"
+    # _render_output indexa _MOTIVO[verdict] → no debe lanzar KeyError
+    title, summary = _render_output("inconcluso", [])
+    assert "inconcluso" in title
+    assert "No se pudo confirmar" in summary
