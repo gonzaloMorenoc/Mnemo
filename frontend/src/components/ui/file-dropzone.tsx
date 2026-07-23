@@ -70,7 +70,7 @@ export function FileDropzone({
       }}
       className={`flex cursor-pointer items-center justify-center rounded-xl border-2 border-dashed px-4 py-6 text-sm transition-colors ${
         dragging
-          ? "border-zinc-900 bg-zinc-50"
+          ? "border-primary bg-primary/5"
           : "border-zinc-200 bg-white hover:border-zinc-400 hover:bg-zinc-50"
       }`}
     >

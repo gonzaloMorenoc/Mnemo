@@ -20,7 +20,7 @@ export function SidebarNav({ mobile = false, onClose }: SidebarNavProps) {
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between px-5 py-5">
         <Link href="/app" className="flex items-center gap-2" onClick={onClose}>
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-900 text-white">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-white">
             <LayoutDashboard size={16} />
           </span>
           <span className="font-semibold tracking-tight text-zinc-900">Mnemo</span>
@@ -51,7 +51,7 @@ export function SidebarNav({ mobile = false, onClose }: SidebarNavProps) {
                   className={cn(
                     "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition",
                     active
-                      ? "bg-zinc-900 text-white"
+                      ? "bg-primary text-white"
                       : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900",
                   )}
                 >
