@@ -39,7 +39,7 @@ const CI_CURL = [
   `     ${BACKEND}/v2/ci/ingest`,
 ].join("\n");
 
-export function IngestTokensPanel({ orgId }: { orgId: string }) {
+export function IngestTokensPanel({ orgId, bare = false }: { orgId: string; bare?: boolean }) {
   const { accessToken } = useAuth();
   const qc = useQueryClient();
   const [name, setName] = useState("");
@@ -87,12 +87,8 @@ export function IngestTokensPanel({ orgId }: { orgId: string }) {
 
   const tokens = tokensQuery.data ?? [];
 
-  return (
-    <Card className="max-w-xl space-y-4 p-5">
-      <h2 className="flex items-center gap-1.5 text-sm font-medium text-zinc-700">
-        <KeyRound size={14} className="text-zinc-400" />
-        Tokens de ingesta CI
-      </h2>
+  const body = (
+    <>
       <p className="text-sm text-zinc-500">
         Conecta cualquier CI (JUnit, TestNG, Robot, Allure, Playwright, Cypress o Cucumber)
         sin instalar nada: sube el reporte con un token y Mnemo hace el resto — triaje,
@@ -216,6 +212,18 @@ export function IngestTokensPanel({ orgId }: { orgId: string }) {
           ))}
         </ul>
       )}
+    </>
+  );
+
+  // `bare`: la ConnectionCard del acordeón aporta la tarjeta y el título.
+  if (bare) return <div className="space-y-4">{body}</div>;
+  return (
+    <Card className="max-w-xl space-y-4 p-5">
+      <h2 className="flex items-center gap-1.5 text-sm font-medium text-zinc-700">
+        <KeyRound size={14} className="text-zinc-400" />
+        Tokens de ingesta CI
+      </h2>
+      {body}
     </Card>
   );
 }

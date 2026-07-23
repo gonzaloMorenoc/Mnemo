@@ -11,6 +11,13 @@ _DEFAULT_MODELS = {
 }
 
 
+def resolved_model_name() -> str:
+    """Nombre del modelo LLM realmente en uso (mismo cálculo que get_llm_provider).
+    En prod con Gemini vía OpenAI-compatible, LLM_MODEL viene fijado por env."""
+    provider = (config.LLM_PROVIDER or "ollama").strip().lower()
+    return config.LLM_MODEL or _DEFAULT_MODELS.get(provider, provider)
+
+
 def get_llm_provider() -> LLMProvider:
     """Construye el proveedor LLM segun la config de entorno (lazy clients)."""
     provider = (config.LLM_PROVIDER or "ollama").strip().lower()

@@ -37,7 +37,7 @@ from src.ci.webhook_auth import verify_signature
 from src.defects.ingestion_service import IngestionService
 from src.defects.repository import AssuranceRepository
 from src.assurance.narrator import LLMNarrator, Narrator
-from src.llm.factory import get_llm_provider
+from src.llm.factory import get_llm_provider, resolved_model_name
 from src.assurance.verdict import build_verdict
 from src.jira.client import JiraApiError
 from src.jira.integrations_repository import InstallationAlreadyBound, IntegrationsRepository
@@ -500,7 +500,8 @@ def join_org(
 
 @router.get("/health")
 def health_v2() -> Dict[str, Any]:
-    return {"status": "active", "multi_tenant_enabled": multi_tenant_enabled()}
+    return {"status": "active", "model": resolved_model_name(),
+            "multi_tenant_enabled": multi_tenant_enabled()}
 
 
 def _read_upload_capped(file: UploadFile) -> bytes:

@@ -72,6 +72,16 @@ def test_health_reports_multi_tenant_flag(monkeypatch):
     assert "status" in body
 
 
+def test_health_incluye_el_modelo_de_ia(monkeypatch):
+    """El frontend (Ajustes) muestra 'Modelo de IA' desde este campo; antes faltaba
+    y salía en blanco."""
+    monkeypatch.setattr(api_v2, "resolved_model_name", lambda: "gemini-2.0-flash")
+    client = make_client(with_user=False)
+    resp = client.get("/v2/health")
+    assert resp.status_code == 200
+    assert resp.json()["model"] == "gemini-2.0-flash"
+
+
 def test_list_orgs_db_error_returns_502():
     repo = MagicMock()
     repo.list_user_organizations.side_effect = psycopg.OperationalError("boom")

@@ -32,6 +32,10 @@ vi.mock("@/lib/api/endpoints", () => ({
   saveGithubConfig: vi.fn(),
   indexRepo: vi.fn(),
   listRepoTests: vi.fn(),
+  // usados por IngestTokensPanel (dentro del acordeón CI)
+  listIngestTokens: vi.fn().mockResolvedValue([]),
+  createIngestToken: vi.fn(),
+  revokeIngestToken: vi.fn(),
 }));
 
 import {
@@ -53,6 +57,12 @@ afterEach(() => {
 function renderWithClient(ui: React.ReactNode) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}
+
+// El acordeón arranca colapsado: hay que expandir la conexión GitHub para ver
+// su formulario y la acción anidada de indexar tests.
+async function expandGithub() {
+  fireEvent.click(await screen.findByRole("button", { name: /^GitHub/i }));
 }
 
 const MOCK_INDEX_RESULT = {
@@ -77,8 +87,8 @@ describe("IntegrationsPage — GitHub config configurado", () => {
     (indexRepo as ReturnType<typeof vi.fn>).mockResolvedValue(MOCK_INDEX_RESULT);
 
     renderWithClient(<IntegrationsPage />);
+    await expandGithub();
 
-    // Wait for the button to be enabled (query resolves → githubConfigured=true)
     const btn = await waitFor(() => {
       const b = screen.getByRole("button", { name: /Indexar tests del repo/i });
       expect(b).not.toBeDisabled();
@@ -102,8 +112,8 @@ describe("IntegrationsPage — GitHub config configurado", () => {
     (indexRepo as ReturnType<typeof vi.fn>).mockResolvedValue(MOCK_INDEX_RESULT);
 
     renderWithClient(<IntegrationsPage />);
+    await expandGithub();
 
-    // Wait for query to settle and button to be enabled
     const btn = await waitFor(() => {
       const b = screen.getByRole("button", { name: /Indexar tests del repo/i });
       expect(b).not.toBeDisabled();
@@ -129,6 +139,7 @@ describe("IntegrationsPage — listRepoTests renderiza tests", () => {
     (indexRepo as ReturnType<typeof vi.fn>).mockResolvedValue(MOCK_INDEX_RESULT);
 
     renderWithClient(<IntegrationsPage />);
+    await expandGithub();
 
     expect(await screen.findByText("tests/auth/login.spec.ts")).toBeInTheDocument();
     expect(screen.getByText("tests/payments/checkout.spec.ts")).toBeInTheDocument();
@@ -144,6 +155,7 @@ describe("IntegrationsPage — listRepoTests renderiza tests", () => {
     (indexRepo as ReturnType<typeof vi.fn>).mockResolvedValue(MOCK_INDEX_RESULT);
 
     renderWithClient(<IntegrationsPage />);
+    await expandGithub();
 
     expect(await screen.findByText("auth: 1")).toBeInTheDocument();
     expect(screen.getByText("payments: 1")).toBeInTheDocument();
@@ -160,6 +172,7 @@ describe("IntegrationsPage — GitHub NO configurado", () => {
     (listRepoTests as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
     renderWithClient(<IntegrationsPage />);
+    await expandGithub();
 
     const btn = await screen.findByRole("button", { name: /Indexar tests del repo/i });
     expect(btn).toBeDisabled();
@@ -174,13 +187,14 @@ describe("IntegrationsPage — GitHub NO configurado", () => {
     (listRepoTests as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
     renderWithClient(<IntegrationsPage />);
+    await expandGithub();
 
     expect(await screen.findByText(/configura GitHub primero/i)).toBeInTheDocument();
   });
 });
 
-describe("IntegrationsPage — badge Conectado y help-text de formato", () => {
-  it("muestra badge '✓ Conectado' cuando GitHub está configurado", async () => {
+describe("IntegrationsPage — pill de estado y help-text de formato", () => {
+  it("muestra el pill '✓ Conectado' (en la cabecera, sin expandir) cuando GitHub está configurado", async () => {
     (getGithubConfig as ReturnType<typeof vi.fn>).mockResolvedValue({
       configured: true,
       repo_full_name: "org/repo",
@@ -190,10 +204,10 @@ describe("IntegrationsPage — badge Conectado y help-text de formato", () => {
 
     renderWithClient(<IntegrationsPage />);
 
-    expect(await screen.findByTestId("github-connected-badge")).toBeInTheDocument();
+    expect(await screen.findByText("✓ Conectado")).toBeInTheDocument();
   });
 
-  it("NO muestra badge '✓ Conectado' cuando GitHub NO está configurado", async () => {
+  it("muestra 'Sin configurar' (no '✓ Conectado') cuando GitHub NO está configurado", async () => {
     (getGithubConfig as ReturnType<typeof vi.fn>).mockResolvedValue({
       configured: false,
       repo_full_name: null,
@@ -203,9 +217,9 @@ describe("IntegrationsPage — badge Conectado y help-text de formato", () => {
 
     renderWithClient(<IntegrationsPage />);
 
-    // Wait for query to settle
-    await screen.findByRole("button", { name: /Indexar tests del repo/i });
-    expect(screen.queryByTestId("github-connected-badge")).not.toBeInTheDocument();
+    // El pill 'Sin configurar' aparece en las cabeceras de GitHub y Jira
+    expect((await screen.findAllByText("Sin configurar")).length).toBeGreaterThan(0);
+    expect(screen.queryByText("✓ Conectado")).not.toBeInTheDocument();
   });
 
   it("muestra help-text de formato para Installation ID (numérico)", async () => {
@@ -217,8 +231,8 @@ describe("IntegrationsPage — badge Conectado y help-text de formato", () => {
     (listRepoTests as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
     renderWithClient(<IntegrationsPage />);
+    await expandGithub();
 
-    // Should show format hint for installation ID
     expect(await screen.findByTestId("gh-install-id-hint")).toBeInTheDocument();
   });
 
@@ -231,6 +245,7 @@ describe("IntegrationsPage — badge Conectado y help-text de formato", () => {
     (listRepoTests as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
     renderWithClient(<IntegrationsPage />);
+    await expandGithub();
 
     expect(await screen.findByTestId("gh-repo-hint")).toBeInTheDocument();
   });
@@ -247,6 +262,7 @@ describe("IntegrationsPage — error al indexar", () => {
     (indexRepo as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("conexión fallida"));
 
     renderWithClient(<IntegrationsPage />);
+    await expandGithub();
 
     const btn = await waitFor(() => {
       const b = screen.getByRole("button", { name: /Indexar tests del repo/i });
@@ -272,6 +288,7 @@ describe("IntegrationsPage — error al indexar", () => {
     );
 
     renderWithClient(<IntegrationsPage />);
+    await expandGithub();
 
     const btn = await waitFor(() => {
       const b = screen.getByRole("button", { name: /Indexar tests del repo/i });
