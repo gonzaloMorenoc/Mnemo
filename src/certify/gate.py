@@ -47,7 +47,7 @@ class GateService:
         raw_cal = self.repo.get_calibration_metrics(user_id=user_id, org_id=meta["org_id"]) or {}
         confidence = compute_confidence({"tenant_accuracy": raw_cal.get("accuracy", 0.0),
                                          "n_corrections": raw_cal.get("total", 0)})
-        verdict = compute_verdict(verdicts, confidence=confidence)
+        verdict = compute_verdict(verdicts, confidence=confidence, manifest=meta.get("manifest"))
         conclusion = _CONCLUSION[verdict]
         title, summary = _render_output(verdict, verdicts)
         codehost = self.codehost_factory(meta["org_id"], user_id)

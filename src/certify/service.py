@@ -45,7 +45,7 @@ class CertificateService:
                  "commit_sha": meta["commit_sha"], "run_id": run_id},
             verdicts=verdicts, sign_offs=[], mnemo_version=self._mnemo_version,
             model_version=self._model_version, created_at=created_at, self_eval=self_eval,
-            key_id=key_id(self._public_key),
+            key_id=key_id(self._public_key), manifest=meta.get("manifest"),
         )
         canonical = canonical_json(cert)
         signature = sign(canonical, self._private_key)  # SigningKeyMissing si falta

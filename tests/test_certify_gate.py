@@ -19,7 +19,9 @@ def _service(*, meta, verdicts, codehost=None, calibration=None, n_failures=0):
     return svc, codehost, factory
 
 
-_META = {"org_id": "o1", "project": "web", "commit_sha": "sha9"}
+# manifiesto completo por defecto → un run verde firma "apto" (los tests preceden al manifiesto)
+_META = {"org_id": "o1", "project": "web", "commit_sha": "sha9",
+         "manifest": {"total": 1, "passed": 1, "failed": 0, "skipped": 0, "complete": True}}
 
 
 def _v(category, *, rule="", approval=False):

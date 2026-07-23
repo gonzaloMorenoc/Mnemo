@@ -46,7 +46,8 @@ _VERDICTS = [
     }
 ]
 
-_META = {"org_id": "o", "project": "p", "commit_sha": "s"}
+_META = {"org_id": "o", "project": "p", "commit_sha": "s",
+         "manifest": {"total": 1, "passed": 1, "failed": 0, "skipped": 0, "complete": True}}
 _CREATED_AT = "2026-06-26T00:00:00Z"
 
 

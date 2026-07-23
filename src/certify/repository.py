@@ -30,7 +30,7 @@ class CertificateRepository:
             self._set_claims(conn, user_id)
             with conn.cursor() as cur:
                 cur.execute(
-                    "select r.org_id, r.project, r.commit_sha from public.test_runs r"
+                    "select r.org_id, r.project, r.commit_sha, r.summary from public.test_runs r"
                     " where r.id = %s and exists (select 1 from public.memberships m"
                     "   where m.org_id = r.org_id and m.user_id = %s)",
                     (run_id, user_id),
@@ -39,7 +39,8 @@ class CertificateRepository:
         if row is None:
             return None
         return {"org_id": str(row["org_id"]), "project": row["project"],
-                "commit_sha": row["commit_sha"]}
+                "commit_sha": row["commit_sha"],
+                "manifest": (row["summary"] or {}).get("manifest")}
 
     def save_certificate(self, *, user_id: str, org_id: str, run_id: str,
                          canonical_json: Dict[str, Any], signature: str, verdict: str,
