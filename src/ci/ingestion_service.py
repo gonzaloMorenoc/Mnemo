@@ -1,3 +1,4 @@
+import hashlib
 from dataclasses import replace
 from typing import Any, Dict
 
@@ -46,8 +47,20 @@ class CiIngestionService:
             if t.dom
         ]
 
+        counts = {"pass": 0, "fail": 0, "flaky": 0, "skipped": 0}
+        for t in artifact.tests:
+            counts[t.status] = counts.get(t.status, 0) + 1
+        total = len(artifact.tests)
+        manifest = {
+            "total": total, "passed": counts["pass"], "failed": counts["fail"],
+            "skipped": counts["skipped"], "flaky": counts["flaky"], "complete": total > 0,
+            "source_format": artifact.source,
+            "artifact_sha256": hashlib.sha256(artifact.model_dump_json().encode()).hexdigest(),
+            "commit_sha": artifact.commit_sha,
+        }
+
         return self.repo.ingest_ci_run(
             user_id=user_id, org_id=artifact.org_id, project=artifact.project,
             source=artifact.source, commit_sha=artifact.commit_sha, run_uid=artifact.run_uid,
-            items=items, results=results, snapshots=snapshots,
+            items=items, results=results, snapshots=snapshots, manifest=manifest,
         )
