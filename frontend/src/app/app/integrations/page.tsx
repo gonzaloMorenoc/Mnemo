@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FileDropzone } from "@/components/ui/file-dropzone";
+import { IngestTokensPanel } from "@/components/integrations/IngestTokensPanel";
 import type { JiraIngestResponse } from "@/lib/api/types";
 
 export default function IntegrationsPage() {
@@ -333,6 +334,9 @@ export default function IntegrationsPage() {
           </div>
         )}
       </Card>
+
+      {/* ── Tokens de ingesta CI ──────────────────────────────────────────── */}
+      <IngestTokensPanel orgId={orgId} />
 
       {/* ── Jira config card ──────────────────────────────────────────────── */}
       <Card className="max-w-xl space-y-4 p-5">
