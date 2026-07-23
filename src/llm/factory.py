@@ -26,7 +26,8 @@ def get_llm_provider() -> LLMProvider:
         if not config.OPENAI_API_KEY:
             raise RuntimeError("OPENAI_API_KEY requerida para LLM_PROVIDER=openai")
         return OpenAIProvider(model=model, api_key=config.OPENAI_API_KEY,
-                              base_url=config.OPENAI_BASE_URL or None)
+                              base_url=config.OPENAI_BASE_URL or None,
+                              timeout=config.LLM_TIMEOUT_SECONDS)
     if provider == "anthropic":
         if not config.ANTHROPIC_API_KEY:
             raise RuntimeError("ANTHROPIC_API_KEY requerida para LLM_PROVIDER=anthropic")
