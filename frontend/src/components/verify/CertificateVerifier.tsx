@@ -136,7 +136,9 @@ export function CertificateVerifier() {
                 {verdict ? <VerdictBadge verdict={verdict} /> : <Badge>—</Badge>}
               </Field>
               <Field label="Riesgo">
-                {String(payload?.canonical_json.risk_score ?? "—")}/100
+                {verdict === "inconcluso"
+                  ? "—"
+                  : `${String(payload?.canonical_json.risk_score ?? "—")}/100`}
               </Field>
               <Field label="Proyecto">{asString(identity.project) ?? "—"}</Field>
               <Field label="Commit">
@@ -151,6 +153,7 @@ export function CertificateVerifier() {
               </Field>
               <Field label="Emitido">{asString(identity.created_at) ?? "—"}</Field>
             </dl>
+            <ManifestSummary payload={payload} />
           </CardContent>
         </Card>
       )}
@@ -202,5 +205,20 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <dt className="text-xs uppercase tracking-wide text-zinc-500">{label}</dt>
       <dd className="text-zinc-900">{children}</dd>
     </div>
+  );
+}
+
+// Manifiesto de ejecución (acta v3); ausente en actas v2 → no se muestra.
+function ManifestSummary({ payload }: { payload: Payload | null }) {
+  const m = payload?.canonical_json.execution_manifest as
+    | { total: number; passed: number; failed: number; skipped: number; flaky?: number }
+    | null
+    | undefined;
+  if (!m) return null;
+  return (
+    <p className="text-sm text-emerald-900/70">
+      Ejecución: {m.total} tests · {m.passed} ✓ · {m.failed} ✗ · {m.skipped} omitidos
+      {m.flaky ? ` · ${m.flaky} flaky` : ""}
+    </p>
   );
 }

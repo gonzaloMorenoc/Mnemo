@@ -196,6 +196,18 @@ export interface ActionRejectResult {
   rejected: boolean;
 }
 
+export interface ExecutionManifest {
+  total: number;
+  passed: number;
+  failed: number;
+  skipped: number;
+  flaky?: number;
+  complete: boolean;
+  source_format: string;
+  artifact_sha256: string;
+  commit_sha?: string | null;
+}
+
 export interface Certificate {
   run_id: string;
   verdict: string;
@@ -203,6 +215,7 @@ export interface Certificate {
   canonical_json: Record<string, unknown>;
   signature: string;
   created_at?: string | null;
+  execution_manifest?: ExecutionManifest | null;
 }
 
 export interface CertificateVerifyResponse {
