@@ -59,15 +59,15 @@ describe("SidebarNav — secciones y navegación", () => {
     render(<SidebarNav />);
     const integracionesLink = screen.getByRole("link", { name: /Integraciones/i });
     const dashboardLink = screen.getByRole("link", { name: /Dashboard/i });
-    expect(integracionesLink.className).toMatch(/bg-zinc-900/);
-    expect(dashboardLink.className).not.toMatch(/bg-zinc-900/);
+    expect(integracionesLink.className).toMatch(/bg-primary/);
+    expect(dashboardLink.className).not.toMatch(/bg-primary/);
   });
 
   it("marca Dashboard como activo en /app y ningún otro item lo está", () => {
     (usePathname as ReturnType<typeof vi.fn>).mockReturnValue("/app");
     render(<SidebarNav />);
     const dashboardLink = screen.getByRole("link", { name: /Dashboard/i });
-    expect(dashboardLink.className).toMatch(/bg-zinc-900/);
+    expect(dashboardLink.className).toMatch(/bg-primary/);
   });
 
   it("/app no activa Conocimiento ni Assurance (match exacto)", () => {
@@ -75,7 +75,7 @@ describe("SidebarNav — secciones y navegación", () => {
     render(<SidebarNav />);
     const conocimientoLink = screen.getByRole("link", { name: /^Conocimiento$/i });
     const assuranceLink = screen.getByRole("link", { name: /Assurance/i });
-    expect(conocimientoLink.className).not.toMatch(/bg-zinc-900/);
-    expect(assuranceLink.className).not.toMatch(/bg-zinc-900/);
+    expect(conocimientoLink.className).not.toMatch(/bg-primary/);
+    expect(assuranceLink.className).not.toMatch(/bg-primary/);
   });
 });

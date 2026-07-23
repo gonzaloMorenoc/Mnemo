@@ -36,7 +36,7 @@ export function SetupChecklist({
       {steps.map((s) => (
         <li key={s.n}>
           <Card
-            className={`flex items-center gap-4 p-4 ${s.highlight ? "border-zinc-900" : ""}`}
+            className={`flex items-center gap-4 p-4 ${s.highlight ? "border-primary" : ""}`}
           >
             <span
               data-testid={s.done ? `step-done-${s.n}` : `step-todo-${s.n}`}
