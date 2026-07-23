@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
  * Paleta semántica de categorías de triaje (el color ES información):
  * real=rojo · flaky=ámbar · mantenimiento=azul · infra=violeta · sin etiquetar=neutro.
  */
-const CATEGORY_STYLE: Record<string, string> = {
+export const CATEGORY_STYLE: Record<string, string> = {
   real: "border-red-200 bg-red-100 text-red-800",
   flaky: "border-amber-200 bg-amber-100 text-amber-800",
   maintenance: "border-blue-200 bg-blue-100 text-blue-800",
@@ -12,7 +12,7 @@ const CATEGORY_STYLE: Record<string, string> = {
   unknown: "border-zinc-200 bg-zinc-50 text-zinc-500",
 };
 
-const CATEGORY_LABEL: Record<string, string> = {
+export const CATEGORY_LABEL: Record<string, string> = {
   real: "Fallo real",
   flaky: "Flaky",
   maintenance: "Mantenimiento",

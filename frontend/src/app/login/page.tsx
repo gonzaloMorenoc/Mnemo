@@ -17,8 +17,8 @@ import { Label } from "@/components/ui/label";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const schema = z.object({
-  email: z.string().email("Use a valid email"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  email: z.string().email("Introduce un email válido"),
+  password: z.string().min(6, "La contraseña necesita al menos 6 caracteres"),
 });
 
 type LoginFormValues = z.infer<typeof schema>;
@@ -52,7 +52,7 @@ function LoginForm() {
       }
     },
     onSuccess: () => {
-      toast.success("Welcome back.");
+      toast.success("Hola de nuevo.");
       router.replace(nextPath);
     },
     onError: (error) => {
@@ -62,15 +62,15 @@ function LoginForm() {
 
   return (
     <AuthCard
-      title="Sign in"
+      title="Iniciar sesión"
       description="Accede a tu espacio de trabajo en Mnemo."
-      footerText="Need an account?"
+      footerText="¿No tienes cuenta?"
       footerLinkHref="/signup"
-      footerLinkLabel="Create one"
+      footerLinkLabel="Crear una"
     >
       {!configured ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-          Supabase is not configured. Set `NEXT_PUBLIC_SUPABASE_URL` and
+          Supabase no está configurado. Define `NEXT_PUBLIC_SUPABASE_URL` y
           `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
         </div>
       ) : (
@@ -84,7 +84,7 @@ function LoginForm() {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">Contraseña</Label>
             <Input
               id="password"
               type="password"
@@ -97,7 +97,7 @@ function LoginForm() {
           </div>
 
           <Button className="w-full" type="submit" disabled={mutation.isPending}>
-            {mutation.isPending ? "Signing in..." : "Sign in"}
+            {mutation.isPending ? "Iniciando sesión…" : "Iniciar sesión"}
           </Button>
         </form>
       )}
@@ -110,7 +110,7 @@ export default function LoginPage() {
     <main className="mx-auto flex min-h-screen w-full max-w-6xl items-center px-4 py-8 sm:px-6">
       <div className="w-full space-y-8">
         <Link href="/" className="inline-flex text-sm font-semibold text-zinc-700 hover:text-zinc-900">
-          ← Back to home
+          ← Volver al inicio
         </Link>
         <Suspense>
           <LoginForm />

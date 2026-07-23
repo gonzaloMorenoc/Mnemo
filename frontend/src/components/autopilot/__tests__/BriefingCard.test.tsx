@@ -22,7 +22,7 @@ describe("BriefingCard", () => {
       recommendation: "Revisar el parche propuesto.", highlights: ["1 defecto real"], citations: ["family:f1"] });
     renderWithClient(<BriefingCard runId="r1" />);
     expect(await screen.findByText("Checkout falla por un 500.")).toBeInTheDocument();
-    expect(screen.getByText("apto-con-reservas")).toBeInTheDocument();
+    expect(screen.getByText("Apto con reservas")).toBeInTheDocument();  // VerdictBadge traduce el slug
     expect(screen.getByText("Revisar el parche propuesto.")).toBeInTheDocument();
   });
 

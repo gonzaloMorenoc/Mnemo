@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { getCertificatePubkey, verifyCertificate } from "@/lib/api/endpoints";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { VerdictBadge } from "@/components/ui/verdict-badge";
 import {
   Card,
   CardContent,
@@ -49,12 +50,6 @@ function extractPayload(raw: string): Payload {
 function asString(v: unknown): string | null {
   return typeof v === "string" ? v : null;
 }
-
-const VERDICT_STYLE: Record<string, string> = {
-  apto: "bg-emerald-100 text-emerald-800 border-emerald-200",
-  "apto-con-reservas": "bg-amber-100 text-amber-800 border-amber-200",
-  "no-apto": "bg-red-100 text-red-800 border-red-200",
-};
 
 export default function VerifyPage() {
   const [raw, setRaw] = useState("");
@@ -115,7 +110,7 @@ export default function VerifyPage() {
         <CardHeader>
           <CardTitle className="text-base">El acta (JSON)</CardTitle>
           <CardDescription>
-            Pega el certificado completo que recibiste o descargaste; se usan sus campos{" "}
+            Pega el acta completa que recibiste o descargaste; se usan sus campos{" "}
             <code className="font-mono text-xs">canonical_json</code> y{" "}
             <code className="font-mono text-xs">signature</code>.
           </CardDescription>
@@ -144,11 +139,13 @@ export default function VerifyPage() {
               <span className="text-lg font-semibold">Firma válida</span>
             </div>
             <p className="text-sm text-emerald-900/80">
-              El acta es auténtica y no ha sido modificada desde su emisión.
+              El acta es auténtica y no ha sido modificada desde su emisión. La firma
+              garantiza integridad y origen; el veredicto (apto / no apto) es el que
+              consta dentro del acta.
             </p>
             <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
               <Field label="Veredicto">
-                <Badge className={VERDICT_STYLE[verdict] ?? ""}>{verdict || "—"}</Badge>
+                {verdict ? <VerdictBadge verdict={verdict} /> : <Badge>—</Badge>}
               </Field>
               <Field label="Riesgo">
                 {String(payload?.canonical_json.risk_score ?? "—")}/100

@@ -16,7 +16,7 @@ function renderWithClient(ui: React.ReactNode) {
 }
 
 describe("RoiPanel", () => {
-  it("calcula horas ahorradas de los auto-triados y muestra el supuesto + 0€", async () => {
+  it("calcula horas ahorradas y muestra el supuesto honesto (sin \"0€/local\")", async () => {
     // 4 auto-triados (requires_approval false, category != unknown) + 1 que requiere approval + 1 unknown
     (getTriageVerdicts as ReturnType<typeof vi.fn>).mockResolvedValue([
       { id: "1", category: "flaky", requires_approval: false },
@@ -29,7 +29,8 @@ describe("RoiPanel", () => {
     renderWithClient(<RoiPanel runId="r1" />);
     expect(await screen.findByText(/1\.0\s*h/)).toBeInTheDocument();   // 4 × 15 / 60 = 1.0 h
     expect(screen.getByText(/15 min/)).toBeInTheDocument();            // el supuesto visible
-    expect(screen.getByText(/0\s*€/)).toBeInTheDocument();            // coste 0€
+    expect(screen.queryByText(/0\s*€/)).toBeNull();                   // sin la afirmación falsa
+    expect(screen.getByText(/clasificado automáticamente/)).toBeInTheDocument();
   });
 
   it("no rompe con 0 veredictos", async () => {

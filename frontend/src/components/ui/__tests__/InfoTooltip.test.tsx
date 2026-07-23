@@ -44,7 +44,7 @@ describe("InfoTooltip", () => {
     // Radix renders the text twice (visible content + hidden aria span);
     // query by role="tooltip" to get the aria span, or use getAllByText
     const matches = screen.getAllByText(
-      "El foso: tus correcciones acumuladas que calibran el motor de triaje.",
+      "Tus correcciones se acumulan como verdad de referencia: cuantas más, más fino el triaje futuro.",
     );
     expect(matches.length).toBeGreaterThan(0);
   });

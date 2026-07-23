@@ -66,7 +66,10 @@ export default function AssurancePage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Assurance</h1>
-        <p className="text-sm text-zinc-500">Sube un reporte de test y obtén el veredicto de aseguramiento.</p>
+        <p className="text-sm text-zinc-500">
+          Veredicto exprés contra la memoria: cuántos fallos ya conocemos y cuántos son
+          nuevos. Para el análisis completo con acta, usa Autopilot.
+        </p>
       </div>
 
       <Card className="max-w-xl space-y-4 p-5">
@@ -124,14 +127,17 @@ export default function AssurancePage() {
             <span><strong className="text-zinc-900">{v.novel}</strong> nuevos</span>
             <span><strong className="text-zinc-900">{v.ingested}</strong> totales</span>
           </div>
+          <div className="text-xs text-zinc-400">
+            Conocidos = ya estaban en una familia de defectos; nuevos = primera vez que los vemos.
+          </div>
           {v.top_families.length > 0 && (
             <ul className="space-y-1 text-sm text-zinc-600">
               {v.top_families.map((f) => (
                 <li key={f.id} className="flex items-center justify-between">
                   <span>{f.title}</span>
                   <span className="flex items-center gap-2">
-                    <Badge>{f.occurrence_count}x</Badge>
-                    {f.recurring && <Badge>recurrente</Badge>}
+                    <Badge title={`${f.occurrence_count} ocurrencias en total`}>{f.occurrence_count}x</Badge>
+                    {f.recurring && <Badge title="Visto en varios runs">recurrente</Badge>}
                   </span>
                 </li>
               ))}
