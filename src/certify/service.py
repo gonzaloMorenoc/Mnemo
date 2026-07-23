@@ -18,10 +18,14 @@ class CertificateService:
         self._model_version = model_version
         self._llm_provider = llm_provider
 
-    def generate(self, *, user_id: str, run_id: str, created_at: str) -> Dict[str, Any]:
+    def generate(self, *, user_id: str, run_id: str, created_at: str,
+                 require_admin: bool = False) -> Dict[str, Any]:
         meta = self.cert_repo.get_run_meta(user_id=user_id, run_id=run_id)
         if meta is None:
             raise ValueError("run no encontrado o sin acceso")
+        # El endpoint humano exige owner/admin; el webhook auto-emite con require_admin=False.
+        if require_admin and not self.cert_repo.is_org_admin(user_id=user_id, org_id=meta["org_id"]):
+            raise PermissionError("emitir un acta requiere rol owner/admin")
         verdicts = self.repo.get_triage_for_run(user_id=user_id, run_id=run_id)
         if not verdicts and self.repo.count_failures_for_run(user_id=user_id, run_id=run_id) > 0:
             # Fallos ingeridos pero sin veredictos = run sin triar → no certificar.
