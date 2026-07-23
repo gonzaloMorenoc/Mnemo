@@ -279,6 +279,7 @@ class AssuranceRepository:
         items: List[IngestItem],
         results: List[Dict[str, Any]],
         snapshots: List[Dict[str, Any]],
+        manifest: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Ingesta atómica de un run de CI: run + failures + familias + test_results +
         dom_snapshots en UNA transacción. Idempotente por (org_id, run_uid): si run_uid
@@ -350,6 +351,8 @@ class AssuranceRepository:
                     "ingested": len(items), "known": known, "novel": novel,
                     "results_recorded": len(results), "snapshots_saved": len(snapshots),
                 }
+                if manifest is not None:
+                    summary["manifest"] = manifest
                 cur.execute(
                     "update public.test_runs set summary = %s where id = %s",
                     (Json(summary), run_id),
