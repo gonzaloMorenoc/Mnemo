@@ -9,6 +9,7 @@ import {
   approveKnowledgeProposal,
   generateKnowledgeProposals,
   listKnowledgeProposals,
+  refineKnowledgeProposal,
   rejectKnowledgeProposal,
 } from "@/lib/api/endpoints";
 import type { KnowledgeProposal } from "@/lib/api/types";
@@ -79,6 +80,23 @@ export function KnowledgeProposalsPanel({ orgId }: { orgId: string }) {
   );
 }
 
+// Los 7 tipos del esquema (check de kind en BD) con su etiqueta en español.
+const KIND_OPTIONS: [string, string][] = [
+  ["leccion", "Lección"],
+  ["regla_negocio", "Regla de negocio"],
+  ["flujo", "Flujo"],
+  ["riesgo", "Riesgo"],
+  ["glosario", "Glosario"],
+  ["reto", "Reto"],
+  ["patron", "Patrón"],
+];
+
+const SOURCE_BADGE: Record<string, { label: string; className: string }> = {
+  auto_triage: { label: "Triaje", className: "" },
+  jira: { label: "Jira", className: "border-blue-200 bg-blue-50 text-blue-700" },
+  confluence: { label: "Confluence", className: "border-teal-200 bg-teal-50 text-teal-700" },
+};
+
 function ProposalCard({
   proposal,
   token,
@@ -89,6 +107,7 @@ function ProposalCard({
   onDone: () => void;
 }) {
   const [form, setForm] = useState({
+    kind: proposal.kind,
     title: proposal.title ?? "",
     challenge: proposal.challenge ?? "",
     approach: proposal.approach ?? "",
@@ -98,10 +117,27 @@ function ProposalCard({
   });
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
+  const refine = useMutation({
+    mutationFn: () => refineKnowledgeProposal(token, proposal.id),
+    onSuccess: (p) => {
+      setForm((f) => ({
+        ...f,
+        kind: p.kind ?? f.kind,
+        title: p.title ?? f.title,
+        challenge: p.challenge ?? f.challenge,
+        approach: p.approach ?? f.approach,
+        domain: p.domain ?? f.domain,
+        outcome: p.outcome ?? f.outcome,
+      }));
+      toast.success("Propuesta refinada — revisa antes de aprobar.");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const approve = useMutation({
     mutationFn: () =>
       approveKnowledgeProposal(token, proposal.id, {
-        kind: proposal.kind,
+        kind: form.kind,
         title: form.title,
         challenge: form.challenge || null,
         approach: form.approach || null,
@@ -125,16 +161,49 @@ function ProposalCard({
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const badge = SOURCE_BADGE[proposal.source] ?? SOURCE_BADGE.auto_triage;
+
   return (
     <div className="space-y-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
-      <div className="flex items-center gap-2">
-        <Badge>Lección propuesta</Badge>
-        <span className="text-xs text-zinc-500">inferida del triaje · revisa antes de aprobar</span>
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge className={badge.className}>{badge.label}</Badge>
+        <span className="text-xs text-zinc-500">
+          {proposal.source === "auto_triage"
+            ? "inferida del triaje · revisa antes de aprobar"
+            : "importada — revisa y destila antes de aprobar"}
+        </span>
+        {proposal.external_url && (
+          <a
+            href={proposal.external_url}
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs font-medium text-zinc-600 underline underline-offset-2 hover:text-zinc-900"
+          >
+            Ver original ↗
+          </a>
+        )}
       </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor={`t-${proposal.id}`}>Título</Label>
-        <Input id={`t-${proposal.id}`} maxLength={300} value={form.title} onChange={(e) => set("title", e.target.value)} />
+      <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+        <div className="space-y-1.5">
+          <Label htmlFor={`t-${proposal.id}`}>Título</Label>
+          <Input id={`t-${proposal.id}`} maxLength={300} value={form.title} onChange={(e) => set("title", e.target.value)} />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor={`k-${proposal.id}`}>Tipo</Label>
+          {/* El tipo decide qué detectores de gaps ven el item (regla_sin_test solo
+              mira regla_negocio/flujo/riesgo) → editable, no congelado */}
+          <select
+            id={`k-${proposal.id}`}
+            value={form.kind}
+            onChange={(e) => set("kind", e.target.value)}
+            className="h-10 rounded-xl border border-zinc-300 bg-white px-3 text-sm text-zinc-900"
+          >
+            {KIND_OPTIONS.map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Reto y enfoque son multilínea (causa raíz + pasos numerados) → Textarea */}
@@ -165,10 +234,18 @@ function ProposalCard({
       </div>
 
       <div className="flex justify-end gap-2">
-        <Button size="sm" variant="ghost" disabled={approve.isPending || reject.isPending} onClick={() => reject.mutate()}>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={approve.isPending || reject.isPending || refine.isPending}
+          onClick={() => refine.mutate()}
+        >
+          {refine.isPending ? "Refinando…" : "Refinar con IA"}
+        </Button>
+        <Button size="sm" variant="ghost" disabled={approve.isPending || reject.isPending || refine.isPending} onClick={() => reject.mutate()}>
           Descartar
         </Button>
-        <Button size="sm" disabled={approve.isPending || reject.isPending || !form.title.trim()} onClick={() => approve.mutate()}>
+        <Button size="sm" disabled={approve.isPending || reject.isPending || refine.isPending || !form.title.trim()} onClick={() => approve.mutate()}>
           {approve.isPending ? "Aprobando…" : "Aprobar"}
         </Button>
       </div>

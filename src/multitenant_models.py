@@ -304,6 +304,23 @@ class KnowledgeProposalRejectRequest(BaseModel):
     reason: str = Field(default="", max_length=500)
 
 
+class KnowledgeImportRequest(BaseModel):
+    org_id: str
+    refs: List[Annotated[str, Field(max_length=500)]] = Field(min_length=1, max_length=10)
+
+
+class KnowledgeImportRefError(BaseModel):
+    ref: str
+    reason: str
+
+
+class KnowledgeImportResponse(BaseModel):
+    created: List[Dict[str, Any]]
+    refreshed: List[Dict[str, Any]]
+    skipped: List[str]
+    errors: List[KnowledgeImportRefError]
+
+
 class IngestTokenCreateRequest(BaseModel):
     org_id: str
     name: str = Field(min_length=1, max_length=100)

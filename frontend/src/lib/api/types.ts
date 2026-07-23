@@ -156,7 +156,7 @@ export interface RunListItem {
 export interface KnowledgeProposal {
   id: string;
   org_id: string;
-  defect_family_id: string;
+  defect_family_id: string | null;
   run_id?: string | null;
   kind: string;
   title: string;
@@ -167,6 +167,17 @@ export interface KnowledgeProposal {
   tags: string[];
   status: string;
   created_at?: string | null;
+  source: "auto_triage" | "jira" | "confluence";
+  external_ref?: string | null;
+  external_url?: string | null;
+  project?: string | null;
+}
+
+export interface KnowledgeImportResult {
+  created: KnowledgeProposal[];
+  refreshed: KnowledgeProposal[];
+  skipped: string[];
+  errors: { ref: string; reason: string }[];
 }
 
 export interface GenerateProposalsResult {
@@ -243,6 +254,7 @@ export interface KnowledgeItem {
   created_at: string;
   project?: string | null;
   source?: string;
+  source_url?: string | null;
   status?: string;
   created_by?: string;
   updated_at?: string | null;

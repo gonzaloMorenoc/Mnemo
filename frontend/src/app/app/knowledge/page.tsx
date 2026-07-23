@@ -15,6 +15,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { KnowledgeAnswer, KnowledgeSource } from "@/lib/api/types";
 import { KnowledgeBrowser } from "@/components/knowledge/KnowledgeBrowser";
+import { KnowledgeImportPanel } from "@/components/knowledge/KnowledgeImportPanel";
 import { KnowledgeProposalsPanel } from "@/components/knowledge/KnowledgeProposalsPanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -182,7 +183,9 @@ export default function KnowledgePage() {
           <TabsTrigger value="capturar">Capturar</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="capturar" className="mt-4">
+        <TabsContent value="capturar" className="mt-4 space-y-6">
+      {/* Importar desde Jira: puebla la bandeja de propuestas (curación) */}
+      <KnowledgeImportPanel orgId={activeOrgId} />
       {/* Capture zone */}
       <Card className="max-w-2xl">
         <CardHeader>

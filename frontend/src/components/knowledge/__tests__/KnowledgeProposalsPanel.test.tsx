@@ -12,6 +12,7 @@ vi.mock("@/lib/api/endpoints", () => ({
   generateKnowledgeProposals: vi.fn(),
   approveKnowledgeProposal: vi.fn(),
   rejectKnowledgeProposal: vi.fn(),
+  refineKnowledgeProposal: vi.fn(),
 }));
 
 import { KnowledgeProposalsPanel } from "@/components/knowledge/KnowledgeProposalsPanel";
@@ -22,6 +23,13 @@ const PROPOSAL: KnowledgeProposal = {
   id: "p1", org_id: "o1", defect_family_id: "f1", run_id: null, kind: "leccion",
   title: "Timeout en checkout", challenge: "causa", approach: "fix", domain: null,
   outcome: null, tags: ["web"], status: "pending", created_at: null,
+  source: "auto_triage", external_ref: null, external_url: null, project: null,
+};
+
+const IMPORTED: KnowledgeProposal = {
+  ...PROPOSAL, id: "p2", defect_family_id: null, source: "jira",
+  external_ref: "jira:PAY-1", external_url: "https://a.atlassian.net/browse/PAY-1",
+  project: "PAY", title: "Cobro duplicado",
 };
 
 function renderPanel() {
@@ -83,5 +91,52 @@ describe("KnowledgeProposalsPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: /Descartar/i }));
     await waitFor(() =>
       expect(endpoints.rejectKnowledgeProposal).toHaveBeenCalledWith("tok", "p1"));
+  });
+
+  it("una propuesta importada muestra badge Jira, enlace al original y SIN coletilla de triaje", async () => {
+    vi.mocked(endpoints.listKnowledgeProposals).mockResolvedValue([IMPORTED]);
+    renderPanel();
+    await screen.findByDisplayValue("Cobro duplicado");
+    expect(screen.getByText("Jira")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Ver original/i })).toHaveAttribute(
+      "href", "https://a.atlassian.net/browse/PAY-1");
+    expect(screen.queryByText(/inferida del triaje/i)).toBeNull();
+  });
+
+  it("el kind es editable y se envía al aprobar", async () => {
+    vi.mocked(endpoints.listKnowledgeProposals).mockResolvedValue([IMPORTED]);
+    vi.mocked(endpoints.approveKnowledgeProposal).mockResolvedValue({ id: "k1" } as never);
+    renderPanel();
+    await screen.findByDisplayValue("Cobro duplicado");
+    fireEvent.change(screen.getByLabelText(/Tipo/i), { target: { value: "regla_negocio" } });
+    fireEvent.click(screen.getByRole("button", { name: /^Aprobar$/i }));
+    await waitFor(() => expect(endpoints.approveKnowledgeProposal).toHaveBeenCalled());
+    const call = vi.mocked(endpoints.approveKnowledgeProposal).mock.calls[0];
+    expect(call[2].kind).toBe("regla_negocio");
+  });
+
+  it("Refinar con IA actualiza la card con la respuesta", async () => {
+    vi.mocked(endpoints.listKnowledgeProposals).mockResolvedValue([IMPORTED]);
+    vi.mocked(endpoints.refineKnowledgeProposal).mockResolvedValue({
+      ...IMPORTED, title: "Lección destilada", domain: "pagos", kind: "regla_negocio",
+    });
+    renderPanel();
+    await screen.findByDisplayValue("Cobro duplicado");
+    fireEvent.click(screen.getByRole("button", { name: /Refinar con IA/i }));
+    await waitFor(() =>
+      expect(screen.getByDisplayValue("Lección destilada")).toBeInTheDocument());
+    expect(screen.getByDisplayValue("pagos")).toBeInTheDocument();
+  });
+
+  it("si el LLM cae, toast de error y la card queda igual", async () => {
+    vi.mocked(endpoints.listKnowledgeProposals).mockResolvedValue([IMPORTED]);
+    vi.mocked(endpoints.refineKnowledgeProposal).mockRejectedValue(
+      new Error("El modelo de IA no está disponible ahora mismo"));
+    renderPanel();
+    await screen.findByDisplayValue("Cobro duplicado");
+    fireEvent.click(screen.getByRole("button", { name: /Refinar con IA/i }));
+    await waitFor(() =>
+      expect(vi.mocked(endpoints.refineKnowledgeProposal)).toHaveBeenCalled());
+    expect(screen.getByDisplayValue("Cobro duplicado")).toBeInTheDocument();
   });
 });

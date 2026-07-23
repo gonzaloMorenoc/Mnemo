@@ -15,6 +15,9 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "4096"))
+# Timeout por llamada LLM. 50 s: justo bajo los 55 s del proxy del frontend; más
+# corto degradaría en silencio los flujos de output largo (test-plan, generación).
+LLM_TIMEOUT_SECONDS = int(os.getenv("LLM_TIMEOUT_SECONDS", "50"))
 ALLOW_EXTERNAL_LLM = os.getenv("ALLOW_EXTERNAL_LLM", "").lower() == "true"
 
 # Jira/Confluence Search Paths (Optional)

@@ -181,6 +181,16 @@ function ItemCard({
         {item.source === "auto_triage" && (
           <span className="text-xs text-zinc-500">inferida del triaje</span>
         )}
+        {item.source_url && (
+          <a
+            href={item.source_url}
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs font-medium text-zinc-500 underline underline-offset-2 hover:text-zinc-900"
+          >
+            Ver original ↗
+          </a>
+        )}
       </div>
       <p className="text-sm font-medium text-zinc-900">{item.title}</p>
       {!editing && item.challenge && (

@@ -10,8 +10,11 @@ class JiraApiError(Exception):
 
 
 class JiraApiClient:
-    def __init__(self, base_url: str, email: str, token: str):
-        self._jira = Jira(url=base_url, username=email, password=token, cloud=True)
+    def __init__(self, base_url: str, email: str, token: str, timeout: int = 10):
+        # timeout explícito: el default de la librería (75 s por llamada HTTP) es
+        # MAYOR que los 55 s del proxy del frontend → 504 seguro sin esto.
+        self._jira = Jira(url=base_url, username=email, password=token, cloud=True,
+                          timeout=timeout)
 
     def fetch_bugs(self, jql: str, *, page_size: int = 50, max_issues: int = 1000) -> List[JiraBug]:
         bugs: List[JiraBug] = []
@@ -54,7 +57,8 @@ class JiraApiClient:
         puede llegar como ADF (dict) o texto plano; se aplana con adf_to_text.
         """
         try:
-            raw = self._jira.issue(key, fields="summary,description,customfield_10016")
+            raw = self._jira.issue(
+                key, fields="summary,description,resolution,resolutiondate,customfield_10016")
         except Exception as exc:  # noqa: BLE001
             raise JiraApiError(str(exc)) from exc
         fields = raw.get("fields") or {}
@@ -63,4 +67,6 @@ class JiraApiClient:
             summary=(fields.get("summary") or "").strip(),
             description=adf_to_text(fields.get("description")),
             acceptance_criteria=adf_to_text(fields.get("customfield_10016")),
+            resolution=(fields.get("resolution") or {}).get("name") or "",
+            resolution_date=fields.get("resolutiondate") or "",
         )

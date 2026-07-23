@@ -28,7 +28,8 @@ _CANDIDATE_WHERE = """
 """
 
 _PROPOSAL_COLS = ("id, org_id, defect_family_id, run_id, kind, title, challenge, approach,"
-                  " domain, outcome, tags, status, created_at")
+                  " domain, outcome, tags, status, created_at,"
+                  " source, external_ref, external_url, project")
 
 
 class KnowledgeProposalRepository:
@@ -47,15 +48,21 @@ class KnowledgeProposalRepository:
         return bool(cur.fetchone()["ok"])
 
     def _rows(self, cur) -> List[Dict[str, Any]]:
+        return self._rows_from(cur.fetchall())
+
+    def _rows_from(self, raw) -> List[Dict[str, Any]]:
         return [
             {"id": str(r["id"]), "org_id": str(r["org_id"]),
-             "defect_family_id": str(r["defect_family_id"]),
+             # Guard de None: los imports no tienen familia (str(None) = "None" → uuid roto)
+             "defect_family_id": str(r["defect_family_id"]) if r["defect_family_id"] else None,
              "run_id": str(r["run_id"]) if r["run_id"] else None,
              "kind": r["kind"], "title": r["title"], "challenge": r["challenge"],
              "approach": r["approach"], "domain": r["domain"], "outcome": r["outcome"],
              "tags": r["tags"], "status": r["status"],
-             "created_at": r["created_at"].isoformat() if r["created_at"] else None}
-            for r in cur.fetchall()
+             "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+             "source": r["source"], "external_ref": r["external_ref"],
+             "external_url": r["external_url"], "project": r["project"]}
+            for r in raw
         ]
 
     def candidate_families(self, *, user_id: str, org_id: str, limit: int = 5,
@@ -133,6 +140,87 @@ class KnowledgeProposalRepository:
             conn.commit()
             return rows[0] if rows else None
 
+    _REFINABLE = {"kind", "title", "challenge", "approach", "domain", "outcome", "tags"}
+
+    def upsert_import_proposal(self, *, user_id: str, org_id: str, created_by: str,
+                               source: str, external_ref: str, external_url: str,
+                               project: Optional[str], kind: str, title: str,
+                               challenge: Optional[str], approach: Optional[str],
+                               domain: Optional[str], outcome: Optional[str],
+                               tags: Sequence[str]) -> Optional[Dict[str, Any]]:
+        """Crea/refresca la propuesta de una ref externa. El conflict target REPITE el
+        predicado del índice parcial (obligatorio para la inferencia — precedente:
+        defects/repository run_uid). imported_at se sella también en el refresh (tope
+        horario). Aprobada/rechazada → 0 filas (no resucita). `created` = xmax=0."""
+        with self._connect() as conn, conn.cursor() as cur:
+            if not self._is_member(cur, org_id, user_id):
+                return None
+            cur.execute(
+                "insert into public.knowledge_proposals"
+                " (org_id, kind, title, challenge, approach, domain, outcome, tags,"
+                "  created_by, source, external_ref, external_url, project, imported_at)"
+                " values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, now())"
+                " on conflict (org_id, external_ref) where external_ref is not null"
+                " do update set kind=excluded.kind, title=excluded.title,"
+                "  challenge=excluded.challenge, approach=excluded.approach,"
+                "  domain=excluded.domain, outcome=excluded.outcome, tags=excluded.tags,"
+                "  external_url=excluded.external_url, project=excluded.project,"
+                "  imported_at=now()"
+                " where knowledge_proposals.status='pending'"
+                f" returning {_PROPOSAL_COLS}, (xmax = 0) as created",
+                (org_id, kind, title, challenge, approach, domain, outcome,
+                 list(tags or []), created_by, source, external_ref, external_url, project),
+            )
+            raw = cur.fetchall()
+            conn.commit()
+            if not raw:
+                return None
+            row = self._rows_from(raw)[0]
+            return {**row, "created": bool(raw[0]["created"])}
+
+    def get_proposal(self, *, user_id: str, proposal_id: str) -> Optional[Dict[str, Any]]:
+        """Lectura por id, membership vía la org de la propia fila."""
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                f"select {_PROPOSAL_COLS} from public.knowledge_proposals p"
+                " where p.id=%s and exists(select 1 from public.memberships m"
+                "   where m.org_id=p.org_id and m.user_id=%s)",
+                (proposal_id, user_id))
+            rows = self._rows(cur)
+            return rows[0] if rows else None
+
+    def count_recent_imports(self, *, user_id: str, org_id: str) -> int:
+        """Imports (inserts Y refrescos: imported_at se re-sella) de la última hora."""
+        with self._connect() as conn, conn.cursor() as cur:
+            if not self._is_member(cur, org_id, user_id):
+                return 0
+            cur.execute("select count(*) as n from public.knowledge_proposals"
+                        " where org_id=%s and imported_at > now() - interval '1 hour'",
+                        (org_id,))
+            return int(cur.fetchone()["n"])
+
+    def update_pending_fields(self, *, user_id: str, proposal_id: str,
+                              fields: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Actualiza campos refinables de una propuesta PENDIENTE (miembro). Las claves
+        pasan por whitelist → son seguras en el SQL; los valores van parametrizados."""
+        bad = set(fields) - self._REFINABLE
+        if bad:
+            raise ValueError(f"campos no refinables: {sorted(bad)}")
+        if not fields:
+            return None
+        sets = ", ".join(f"{k}=%s" for k in fields)
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                f"update public.knowledge_proposals p set {sets}"
+                " where p.id=%s and p.status='pending'"
+                "   and exists(select 1 from public.memberships m"
+                "     where m.org_id=p.org_id and m.user_id=%s)"
+                f" returning {_PROPOSAL_COLS}",
+                (*fields.values(), proposal_id, user_id))
+            rows = self._rows(cur)
+            conn.commit()
+            return rows[0] if rows else None
+
     def approve(self, *, user_id: str, proposal_id: str, kind: str, title: str,
                 challenge: Optional[str], approach: Optional[str], domain: Optional[str],
                 outcome: Optional[str], tags: Sequence[str]) -> Optional[Dict[str, Any]]:
@@ -148,25 +236,34 @@ class KnowledgeProposalRepository:
                 " where p.id=%s and p.status='pending'"
                 "   and exists(select 1 from public.memberships m"
                 "     where m.org_id=p.org_id and m.user_id=%s and m.role in ('owner','admin'))"
-                " returning p.org_id, p.defect_family_id, p.run_id",
+                " returning p.org_id, p.defect_family_id, p.run_id,"
+                "  p.source, p.external_url, p.project",
                 (user_id, proposal_id, user_id),
             )
             row = cur.fetchone()
             if row is None:
                 return None
-            # El proyecto se hereda del run que destapó la familia (si lo hay), para que
-            # la lección quede segmentada por proyecto/cliente en el hojeo y los filtros.
+            # El proyecto se hereda del run que destapó la familia (si lo hay); si no,
+            # de la propuesta (imports: clave de proyecto del draft). Mantiene la
+            # segmentación por proyecto/cliente en el hojeo y los filtros.
             project = None
             if row["run_id"]:
                 cur.execute("select project from public.test_runs where id=%s",
                             (row["run_id"],))
                 prow = cur.fetchone()
                 project = prow["project"] if prow else None
+            if project is None:
+                project = row["project"]
+            # source/confidence salen de la FILA (el request no puede spoofear la
+            # procedencia). Import = contenido escrito por humanos → 'confirmado'.
+            is_import = row["source"] != "auto_triage"
             item = insert_qa_knowledge(
                 cur, org_id=str(row["org_id"]), kind=kind, title=title, challenge=challenge,
                 approach=approach, outcome=outcome, domain=domain, tags=tags, project=project,
-                source="auto_triage", confidence="inferido",
-                defect_family_id=str(row["defect_family_id"]),
+                source=row["source"],
+                confidence="confirmado" if is_import else "inferido",
+                source_url=row["external_url"],
+                defect_family_id=str(row["defect_family_id"]) if row["defect_family_id"] else None,
                 run_id=str(row["run_id"]) if row["run_id"] else None,
                 created_by=user_id, embedding=emb,
             )

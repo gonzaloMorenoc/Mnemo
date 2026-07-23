@@ -50,6 +50,11 @@ from src.knowledge.repository import QaKnowledgeRepository
 from src.knowledge.service import KnowledgeService
 from src.knowledge.proposal_repository import KnowledgeProposalRepository
 from src.knowledge.proposal_service import KnowledgeProposalService
+from src.knowledge.import_service import (
+    ImportNotConfigured,
+    ImportRateLimited,
+    KnowledgeImportService,
+)
 from src.multitenant_models import (
     ActionApproveResponse,
     ActionRejectRequest,
@@ -85,6 +90,8 @@ from src.multitenant_models import (
     IngestTokenCreateRequest,
     KnowledgeAskRequest,
     KnowledgeCreateRequest,
+    KnowledgeImportRequest,
+    KnowledgeImportResponse,
     KnowledgeProposalApproveRequest,
     KnowledgeProposalGenerateRequest,
     KnowledgeProposalRejectRequest,
@@ -420,6 +427,21 @@ def get_knowledge_proposal_service_optional() -> Optional[KnowledgeProposalServi
         return get_knowledge_proposal_service()
     except HTTPException:
         return None
+
+
+_knowledge_import_service = None
+
+
+def get_knowledge_import_service() -> KnowledgeImportService:
+    if not multi_tenant_enabled():
+        raise HTTPException(status_code=503, detail="Multi-tenant KB not configured")
+    global _knowledge_import_service
+    if _knowledge_import_service is None:
+        _knowledge_import_service = KnowledgeImportService(
+            repo=get_knowledge_proposal_repo(),
+            integrations=IntegrationsRepository(),
+        )
+    return _knowledge_import_service
 
 
 def _org_to_response(org: Dict[str, Any]) -> OrganizationResponse:
@@ -1373,6 +1395,55 @@ def reject_knowledge_proposal(
         raise HTTPException(status_code=403,
                             detail="No autorizado (owner/admin) o la propuesta ya no está pendiente")
     return {"rejected": True}
+
+
+@router.post("/knowledge/proposals/{proposal_id}/refine", response_model=Dict[str, Any])
+def refine_knowledge_proposal(
+    proposal_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+    svc: KnowledgeProposalService = Depends(get_knowledge_proposal_service),
+) -> Dict[str, Any]:
+    """UNA llamada LLM que condensa la propuesta (y propone kind/domain). Si el LLM
+    cae, la propuesta queda EXACTAMENTE como estaba (nunca se pierde el determinista)."""
+    try:
+        prop = svc.repo.get_proposal(user_id=user.user_id, proposal_id=proposal_id)
+        if prop is None or prop.get("status") != "pending":
+            raise HTTPException(status_code=404,
+                                detail="Propuesta no encontrada o ya resuelta")
+        out = svc.refine(user_id=user.user_id, proposal_id=proposal_id)
+    except HTTPException:
+        raise
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    if out is None:
+        raise HTTPException(
+            status_code=503,
+            detail="El modelo de IA no está disponible ahora mismo — la propuesta queda como estaba")
+    return out
+
+
+# Ruta estática ANTES de /knowledge/{item_id} para que gane el match.
+@router.post("/knowledge/import", response_model=KnowledgeImportResponse)
+def import_knowledge(
+    req: KnowledgeImportRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+    svc: KnowledgeImportService = Depends(get_knowledge_import_service),
+) -> KnowledgeImportResponse:
+    """Import determinista desde Jira (claves) a la bandeja de propuestas. Sin LLM
+    aquí: el refinado es por-propuesta. Errores por-ref en la respuesta."""
+    try:
+        out = svc.import_refs(user_id=user.user_id, org_id=req.org_id, refs=req.refs)
+    except ImportNotConfigured as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ImportRateLimited as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except JiraApiError as exc:
+        raise HTTPException(status_code=502, detail=f"Jira: {exc}") from exc
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    return KnowledgeImportResponse(**out)
 
 
 @router.get("/knowledge/{item_id}", response_model=Dict[str, Any])
