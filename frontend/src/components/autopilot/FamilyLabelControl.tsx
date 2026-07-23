@@ -26,10 +26,10 @@ const LABELS: Array<[string, string]> = [
   ["infra", "Infraestructura"],
 ];
 
-export function FamilyLabelControl({ familyId }: { familyId: string }) {
+export function FamilyLabelControl({ familyId, currentLabel }: { familyId: string; currentLabel?: string | null }) {
   const { accessToken } = useAuth();
   const qc = useQueryClient();
-  const [label, setLabel] = useState("unknown");
+  const [label, setLabel] = useState(currentLabel || "unknown");
   const [reason, setReason] = useState("");
 
   const mut = useMutation({
@@ -56,6 +56,9 @@ export function FamilyLabelControl({ familyId }: { familyId: string }) {
             ))}
           </SelectContent>
         </Select>
+        <p className="text-xs text-zinc-400">
+          Real = bug del producto · Flaky = test inestable · Mantenimiento = test desactualizado · Infra = fallo de entorno/CI.
+        </p>
       </div>
       <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="motivo (opcional)" aria-label="Motivo" />
       <Button className="text-xs" disabled={mut.isPending} onClick={() => mut.mutate()}>

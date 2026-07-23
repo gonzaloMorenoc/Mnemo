@@ -10,7 +10,6 @@ import { useActiveOrg } from "@/components/providers/org-provider";
 import { getGraph, getGaps, getKnowledgeItem, generatePlaywrightTest, openAutomationPr } from "@/lib/api/endpoints";
 import type { AutoGenCase, CoverageGap, GeneratedTest, Graph } from "@/lib/api/types";
 import { KnowledgeGraphView } from "@/components/graph/knowledge-graph-view";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -89,13 +88,13 @@ function GapTestSection({ gap, accessToken, activeOrgId }: {
       org_id: activeOrgId, code: result!.code, filename: result!.filename,
     }),
     onSuccess: (r) => toast.success(`PR abierto: ${r.pr_url}`),
-    onError: () => toast.error("No se pudo abrir el PR"),
+    onError: () => toast.error("No se pudo abrir el PR — configura GitHub en Integraciones"),
   });
   return (
     <div className="mt-2">
       <Button size="sm" variant="outline" disabled={genMut.isPending}
         onClick={() => genMut.mutate()} data-testid={`gap-generate-${gap.affected[0]}`}>
-        {genMut.isPending ? "Generando…" : "Generar test"}
+        {genMut.isPending ? "Generando…" : "Generar test Playwright"}
       </Button>
       {result && (
         <div className="mt-2">
@@ -174,7 +173,7 @@ export default function GraphPage() {
         <PageHeader />
         <Card className="max-w-xl p-5">
           <p className="text-sm text-zinc-500">
-            Selecciona una organización para ver el Knowledge Graph.
+            Selecciona una organización para ver el grafo de conocimiento.
           </p>
         </Card>
       </div>
@@ -203,7 +202,7 @@ export default function GraphPage() {
               <EmptyState
                 icon={Network}
                 title="Aún no hay conocimiento suficiente"
-                description="El grafo conecta lecciones, proyectos y familias de fallos. Captura o aprueba conocimiento y aparecerá aquí."
+                description="El grafo conecta lecciones, dominios y familias de fallos. Captura o aprueba conocimiento y aparecerá aquí."
                 actionHref="/app/knowledge?tab=capturar"
                 actionLabel="Capturar conocimiento"
               />
@@ -222,6 +221,10 @@ export default function GraphPage() {
                 <span className="flex items-center gap-1.5">
                   <span className="h-2.5 w-2.5 rounded-sm border border-zinc-400 bg-zinc-100" /> Dominio
                 </span>
+                <span className="mt-1 max-w-[180px] border-t border-zinc-100 pt-1 text-[11px] text-zinc-400">
+                  Las líneas conectan cada lección con su dominio, con el defecto que
+                  documenta y con lecciones de etiquetas comunes.
+                </span>
               </div>
             </div>
           )}
@@ -232,8 +235,11 @@ export default function GraphPage() {
           <div className="flex items-center gap-2">
             <Network size={16} className="text-zinc-400" />
             <h2 className="flex items-center gap-1 text-sm font-semibold text-zinc-700">
-              Coverage Gaps
-              <InfoTooltip term="regla_sin_test" label="Qué es: Coverage Gap" />
+              Huecos de cobertura
+              <InfoTooltip
+                content="Huecos detectados en tu cobertura: reglas sin test, defectos sin lección, dominios sin conocimiento. Severidad determinista según recurrencia e impacto (un defecto repetido 5+ veces o una regla crítica sin test puntúan alto) — sin IA."
+                label="Qué son: huecos de cobertura"
+              />
             </h2>
             {sortedGaps.length > 0 && (
               <span className="ml-auto rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-500">
@@ -290,13 +296,8 @@ export default function GraphPage() {
               )}
               {gap.affected.length > 0 && (
                 <div className="flex flex-wrap gap-1">
-                  {gap.affected.map((a) => (
-                    <Badge key={a} className="text-xs">
-                      {a}
-                    </Badge>
-                  ))}
                   <span className="text-xs text-zinc-400">
-                    ({gap.affected.length} afectados)
+                    {gap.affected.length} elemento{gap.affected.length === 1 ? "" : "s"} afectado{gap.affected.length === 1 ? "" : "s"}
                   </span>
                 </div>
               )}
@@ -314,7 +315,7 @@ function PageHeader() {
   return (
     <div>
       <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">
-        Knowledge Graph
+        Grafo de conocimiento
       </h1>
       <p className="text-sm text-zinc-500">
         Mapa de conocimiento, dominios y gaps de cobertura del equipo de QA.

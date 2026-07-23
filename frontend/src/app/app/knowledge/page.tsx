@@ -18,6 +18,7 @@ import { KnowledgeBrowser } from "@/components/knowledge/KnowledgeBrowser";
 import { KnowledgeImportPanel } from "@/components/knowledge/KnowledgeImportPanel";
 import { KnowledgeProposalsPanel } from "@/components/knowledge/KnowledgeProposalsPanel";
 import { Badge } from "@/components/ui/badge";
+import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -201,7 +202,10 @@ export default function KnowledgePage() {
           >
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="kind">Tipo</Label>
+                <span className="flex items-center gap-1">
+                  <Label htmlFor="kind">Tipo</Label>
+                  <InfoTooltip term="tipo_conocimiento" />
+                </span>
                 <Select value={form.kind} onValueChange={(v) => handleFormChange("kind", v)}>
                   <SelectTrigger id="kind" aria-label="Tipo">
                     <SelectValue />
@@ -224,6 +228,10 @@ export default function KnowledgePage() {
                   value={form.domain}
                   onChange={(e) => handleFormChange("domain", e.target.value)}
                 />
+                <p className="text-xs text-zinc-400">
+                  Área funcional (el grafo y el onboarding se organizan por dominio);
+                  el proyecto es el cliente/encargo; las etiquetas son libres.
+                </p>
               </div>
 
               <div className="space-y-1.5">
@@ -312,6 +320,10 @@ export default function KnowledgePage() {
       <Card className="max-w-2xl">
         <CardHeader>
           <CardTitle className="text-base">Preguntar a la base de conocimiento</CardTitle>
+          <p className="text-sm text-zinc-500">
+            Responde usando únicamente la memoria de tu organización y cita de dónde
+            sale cada dato. Si la memoria no lo sabe, te lo dirá.
+          </p>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex gap-2">
@@ -339,6 +351,13 @@ export default function KnowledgePage() {
               <p className="text-sm font-medium text-zinc-800">Respuesta</p>
               <p className="text-sm text-zinc-700">{answer.answer}</p>
 
+              {answer.citations.length === 0 && sources.length === 0 && (
+                <p className="text-xs text-zinc-500">
+                  La memoria aún no tiene conocimiento sobre esto. Captúralo en la
+                  pestaña «Capturar» o aprueba propuestas de la IA.
+                </p>
+              )}
+
               {answer.citations.length > 0 && (
                 <div>
                   <p className="mb-1.5 text-xs font-medium text-zinc-500">Fuentes citadas</p>
@@ -356,7 +375,7 @@ export default function KnowledgePage() {
 
           {sources.length > 0 && (
             <div className="space-y-2">
-              <p className="text-xs font-medium text-zinc-500">Fuentes encontradas</p>
+              <p className="text-xs font-medium text-zinc-500">Resultados relacionados en la memoria</p>
               {sources.map((src) => (
                 <div
                   key={src.id}
@@ -364,10 +383,13 @@ export default function KnowledgePage() {
                 >
                   <div className="flex items-center gap-2">
                     <Badge variant={src.type === "knowledge" ? "default" : "user"}>
-                      {src.type}
+                      {src.type === "knowledge" ? "Conocimiento" : "Defecto"}
                     </Badge>
                     {src.confidence && (
-                      <span className="text-xs text-zinc-500">confianza: {src.confidence}</span>
+                      <span className="flex items-center gap-1 text-xs text-zinc-500">
+                        confianza: {src.confidence === "confirmado" ? "confirmada" : "inferida"}
+                        <InfoTooltip term="confianza" />
+                      </span>
                     )}
                   </div>
                   {src.title && (

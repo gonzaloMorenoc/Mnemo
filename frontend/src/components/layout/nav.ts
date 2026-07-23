@@ -24,8 +24,8 @@ export const NAV_SECTIONS: NavSection[] = [
     title: "Memoria",
     items: [
       { href: "/app/knowledge", label: "Conocimiento", icon: BrainCircuit },
-      { href: "/app/onboarding", label: "Onboarding", icon: GraduationCap },
-      { href: "/app/graph", label: "Knowledge Graph", icon: Network },
+      { href: "/app/onboarding", label: "Onboarding al proyecto", icon: GraduationCap },
+      { href: "/app/graph", label: "Grafo de conocimiento", icon: Network },
       { href: "/app/test-plan", label: "Plan de pruebas", icon: ClipboardList },
     ],
   },

@@ -148,7 +148,7 @@ describe("ActionsPanel", () => {
     expect(await screen.findByText(/Acciones/)).toBeInTheDocument();
 
     // InfoTooltip renders a button with aria-label
-    const tooltipBtn = screen.getByRole("button", { name: /Qué es: Acciones de Nivel 2/i });
+    const tooltipBtn = screen.getByRole("button", { name: /Qué son: acciones correctivas/i });
     expect(tooltipBtn).toBeInTheDocument();
   });
 });

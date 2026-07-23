@@ -47,10 +47,10 @@ export default function SettingsPage() {
                 <strong>Estado:</strong> {healthQuery.data.status}
               </p>
               <p>
-                <strong>Modelo:</strong> {healthQuery.data.model}
+                <strong>Modelo de IA:</strong> {healthQuery.data.model}
               </p>
               <p>
-                <strong>Multi-tenant:</strong>{" "}
+                <strong>Aislamiento por organización:</strong>{" "}
                 {healthQuery.data.multi_tenant_enabled ? "Activado" : "Desactivado"}
               </p>
             </div>

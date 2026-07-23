@@ -40,8 +40,8 @@ describe("TriageVerdictList", () => {
     expect(await screen.findAllByText("Fallo real")).not.toHaveLength(0);
     expect(screen.getByText("Flaky")).toBeInTheDocument();
     expect(screen.getByText("Mantenimiento")).toBeInTheDocument();
-    expect(screen.getByText("Infra")).toBeInTheDocument();
-    expect(screen.getByText("Desconocido")).toBeInTheDocument();
+    expect(screen.getByText("Infraestructura")).toBeInTheDocument();  // etiqueta unificada con CategoryBadge
+    expect(screen.getByText("Sin etiquetar")).toBeInTheDocument();
   });
 
   it("renderiza un InfoTooltip con aria-label en el encabezado de triaje", async () => {

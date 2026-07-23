@@ -25,6 +25,14 @@ const KIND_LABEL: Record<string, string> = {
   self_heal: "Auto-reparación",
 };
 
+const STATUS_LABEL: Record<string, string> = {
+  proposed: "Propuesta",
+  approved: "Aprobada",
+  rejected: "Rechazada",
+  executed: "Ejecutada",
+  failed: "Falló",
+};
+
 const KIND_EFFECT: Record<string, string> = {
   quarantine: "Esto pondrá el test en cuarentena en el sistema de CI.",
   ticket: "Esto abrirá un ticket en el gestor de incidencias.",
@@ -68,15 +76,19 @@ export function ActionsPanel({ runId, orgId }: { runId: string; orgId: string })
     <Card className="space-y-3 p-5">
       <div className="flex items-center justify-between">
         <h2 className="flex items-center gap-1 text-sm font-medium text-zinc-700">
-          Acciones (Nivel 2)
-          <InfoTooltip term="triaje" label="Qué es: Acciones de Nivel 2" />
+          Acciones correctivas
+          <InfoTooltip term="acciones_nivel2" label="Qué son: acciones correctivas" />
         </h2>
         <Button size="sm" variant="ghost" disabled={propose.isPending} onClick={() => propose.mutate()}>
           {propose.isPending ? "Proponiendo…" : "Proponer acciones"}
         </Button>
       </div>
+      <p className="text-xs text-zinc-400">Paso 2 — qué hacer con cada fallo.</p>
       {actions.length === 0 ? (
-        <p className="text-sm text-zinc-500">Sin acciones para este run.</p>
+        <p className="text-sm text-zinc-500">
+          Sin acciones para este run. Pulsa «Proponer acciones» y Mnemo sugerirá
+          cuarentenas, tickets o auto-reparaciones para que las apruebes.
+        </p>
       ) : (
         <ul className="space-y-2">
           {actions.map((a) => (
@@ -124,9 +136,11 @@ export function ActionsPanel({ runId, orgId }: { runId: string; orgId: string })
                   </AlertDialog>
                 </span>
               ) : a.artifact_ref ? (
-                <a className="text-blue-600 underline" href={a.artifact_ref} target="_blank" rel="noreferrer">{a.status}</a>
+                <a className="text-blue-600 underline" href={a.artifact_ref} target="_blank" rel="noreferrer">
+                  {STATUS_LABEL[a.status] ?? a.status}
+                </a>
               ) : (
-                <Badge>{a.status}</Badge>
+                <Badge>{STATUS_LABEL[a.status] ?? a.status}</Badge>
               )}
             </li>
           ))}

@@ -73,7 +73,7 @@ describe("SidebarNav — secciones y navegación", () => {
   it("/app no activa Conocimiento ni Assurance (match exacto)", () => {
     (usePathname as ReturnType<typeof vi.fn>).mockReturnValue("/app");
     render(<SidebarNav />);
-    const conocimientoLink = screen.getByRole("link", { name: /Conocimiento/i });
+    const conocimientoLink = screen.getByRole("link", { name: /^Conocimiento$/i });
     const assuranceLink = screen.getByRole("link", { name: /Assurance/i });
     expect(conocimientoLink.className).not.toMatch(/bg-zinc-900/);
     expect(assuranceLink.className).not.toMatch(/bg-zinc-900/);

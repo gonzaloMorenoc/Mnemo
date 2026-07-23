@@ -18,7 +18,7 @@ const VERDICT_LABEL: Record<string, string> = {
 
 export function VerdictBadge({ verdict }: { verdict?: string | null }) {
   if (!verdict) {
-    return <Badge className="border-zinc-200 bg-zinc-50 text-zinc-500">Sin acta</Badge>;
+    return <Badge className="border-zinc-200 bg-zinc-50 text-zinc-500">Sin veredicto aún</Badge>;
   }
   return (
     <Badge className={VERDICT_STYLE[verdict] ?? ""}>

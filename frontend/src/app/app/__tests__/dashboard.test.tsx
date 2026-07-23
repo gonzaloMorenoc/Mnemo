@@ -111,7 +111,7 @@ describe("DashboardPage", () => {
       // precisión del motor
       expect(screen.getAllByText("60%").length).toBeGreaterThan(0);
       // propuestas pendientes visibles
-      expect(screen.getAllByText(/1 propuesta pendiente/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/1 propuesta de la IA por revisar/i).length).toBeGreaterThan(0);
       // gaps con severidad alta destacada
       expect(screen.getAllByText(/1 de severidad alta/i).length).toBeGreaterThan(0);
       // checklist completo (pasos 1-4 done) → colapsado a una línea

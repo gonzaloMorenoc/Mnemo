@@ -265,7 +265,7 @@ export default function TestPlanPage() {
       }
     },
     onError: (err: Error) => {
-      const msg = err instanceof ApiClientError && err.status === 503 ? "Configura Xray" : err.message;
+      const msg = err instanceof ApiClientError && err.status === 503 ? "Configura Jira en Integraciones para exportar a Xray" : err.message;
       toast.error(msg);
     },
   });
@@ -291,7 +291,7 @@ export default function TestPlanPage() {
       <div className="space-y-6" data-testid="test-plan-loading-skeleton">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Plan de pruebas</h1>
-          <p className="text-sm text-zinc-500">Genera un plan de pruebas a partir de historias de usuario o documentos.</p>
+          <p className="text-sm text-zinc-500">Genera un plan de pruebas a partir de la historia de usuario y de la memoria de tu equipo (riesgos, lecciones y bugs previos), con citas.</p>
         </div>
         <Skeleton className="h-48 max-w-xl rounded-xl" />
         <Skeleton className="h-64 w-full rounded-xl" />
@@ -304,7 +304,7 @@ export default function TestPlanPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Plan de pruebas</h1>
-          <p className="text-sm text-zinc-500">Genera un plan de pruebas a partir de historias de usuario o documentos.</p>
+          <p className="text-sm text-zinc-500">Genera un plan de pruebas a partir de la historia de usuario y de la memoria de tu equipo (riesgos, lecciones y bugs previos), con citas.</p>
         </div>
         <Card className="max-w-xl p-5">
           <p className="text-sm text-zinc-500">Selecciona una organización para generar un plan de pruebas.</p>
@@ -317,7 +317,7 @@ export default function TestPlanPage() {
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Plan de pruebas</h1>
-        <p className="text-sm text-zinc-500">Genera un plan de pruebas a partir de historias de usuario o documentos.</p>
+        <p className="text-sm text-zinc-500">Genera un plan de pruebas a partir de la historia de usuario y de la memoria de tu equipo (riesgos, lecciones y bugs previos), con citas.</p>
       </div>
 
       {/* Input form */}
@@ -427,6 +427,7 @@ export default function TestPlanPage() {
               variant="outline"
               onClick={() => generateMutation.mutate()}
               disabled={generateMutation.isPending}
+              title="Vuelve a generar el plan desde la fuente — se perderán tus ediciones."
             >
               {generateMutation.isPending ? "Re-generando…" : "Re-generar"}
             </Button>
@@ -444,7 +445,7 @@ export default function TestPlanPage() {
           {/* Style sample for Playwright generation */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm">Ejemplo de estilo (opcional)</CardTitle>
+              <CardTitle className="text-sm">Estilo para los tests Playwright (opcional)</CardTitle>
             </CardHeader>
             <CardContent>
               <textarea
@@ -548,8 +549,8 @@ export default function TestPlanPage() {
                 >
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium text-sm text-zinc-900">{tc.title}</span>
-                    <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-xs text-zinc-600">{tc.level}</span>
-                    <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-xs text-zinc-600">{tc.priority}</span>
+                    <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-xs text-zinc-600">Nivel: {tc.level}</span>
+                    <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-xs text-zinc-600">Prioridad: {tc.priority}</span>
                     {tc.automatable && (
                       <span className="rounded-full bg-green-100 text-green-800 px-2 py-0.5 text-xs">automatizable</span>
                     )}
@@ -630,7 +631,7 @@ export default function TestPlanPage() {
           {citations.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm">Citas</CardTitle>
+                <CardTitle className="text-sm">Fuentes citadas</CardTitle>
               </CardHeader>
               <CardContent>
                 <ul className="space-y-1">

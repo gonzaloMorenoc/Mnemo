@@ -19,7 +19,9 @@ export default function AutopilotPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Autopilot</h1>
-        <p className="text-sm text-zinc-500">Triaje, acción Nivel 2, certificado y gate de un run.</p>
+        <p className="text-sm text-zinc-500">
+          Analiza un run: clasifica cada fallo, propone acciones correctivas y emite el acta firmada.
+        </p>
       </div>
       <RunSelector orgId={orgId} onRunId={setRunId} />
       {runId && (

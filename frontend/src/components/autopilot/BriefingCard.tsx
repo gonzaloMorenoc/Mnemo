@@ -5,8 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/components/providers/auth-provider";
 import { getBriefing } from "@/lib/api/endpoints";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { VerdictBadge } from "@/components/ui/verdict-badge";
 
 export function BriefingCard({ runId }: { runId: string }) {
   const { accessToken } = useAuth();
@@ -21,7 +21,7 @@ export function BriefingCard({ runId }: { runId: string }) {
     <Card className="space-y-3 p-5">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-medium text-zinc-700">Resumen ejecutivo</h2>
-        {b && <Badge>{b.verdict}</Badge>}
+        {b && <VerdictBadge verdict={b.verdict} />}
       </div>
       {b ? (
         <div className="space-y-2 text-sm text-zinc-600">

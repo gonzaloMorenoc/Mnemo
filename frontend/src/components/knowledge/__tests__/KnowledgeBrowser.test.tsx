@@ -95,8 +95,8 @@ describe("KnowledgeBrowser (hojeo + curación)", () => {
     ]);
     renderBrowser();
     await screen.findByText("Timeout del PSP");
-    expect(screen.getByText("checkout-suite")).toBeInTheDocument();  // badge de proyecto
-    expect(screen.getByText("banca-api")).toBeInTheDocument();
+    expect(screen.getByText("Proyecto: checkout-suite")).toBeInTheDocument();  // badge con prefijo
+    expect(screen.getByText("Proyecto: banca-api")).toBeInTheDocument();
     // el filtro por proyecto aparece (hay proyectos en los datos)
     expect(screen.getByLabelText(/Filtrar por proyecto/i)).toBeInTheDocument();
   });

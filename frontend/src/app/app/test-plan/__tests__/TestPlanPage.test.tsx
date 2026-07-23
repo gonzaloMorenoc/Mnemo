@@ -165,7 +165,7 @@ describe("TestPlanPage — importar a Jira (Xray)", () => {
     });
   });
 
-  // I3: 503 ApiClientError → "Configura Xray"
+  // I3: 503 ApiClientError → "Configura Jira en Integraciones para exportar a Xray"
   it("I3 — muestra toast.error('Configura Xray') cuando exportTestPlanXray falla con ApiClientError 503", async () => {
     (generateTestPlan as ReturnType<typeof vi.fn>).mockResolvedValue(MOCK_RESULT);
     (exportTestPlanXray as ReturnType<typeof vi.fn>).mockRejectedValue(
@@ -184,11 +184,11 @@ describe("TestPlanPage — importar a Jira (Xray)", () => {
     fireEvent.click(screen.getByRole("button", { name: /importar a jira/i }));
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith("Configura Xray");
+      expect(toast.error).toHaveBeenCalledWith("Configura Jira en Integraciones para exportar a Xray");
     });
   });
 
-  // I3: non-503 error shows real error message, not "Configura Xray"
+  // I3: non-503 error shows real error message, not "Configura Jira en Integraciones para exportar a Xray"
   it("I3 — muestra el mensaje real cuando exportTestPlanXray falla con error no-503", async () => {
     (generateTestPlan as ReturnType<typeof vi.fn>).mockResolvedValue(MOCK_RESULT);
     (exportTestPlanXray as ReturnType<typeof vi.fn>).mockRejectedValue(
@@ -209,7 +209,7 @@ describe("TestPlanPage — importar a Jira (Xray)", () => {
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith("Red no disponible");
     });
-    expect(toast.error).not.toHaveBeenCalledWith("Configura Xray");
+    expect(toast.error).not.toHaveBeenCalledWith("Configura Jira en Integraciones para exportar a Xray");
   });
 });
 

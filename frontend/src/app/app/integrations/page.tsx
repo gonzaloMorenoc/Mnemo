@@ -126,7 +126,7 @@ export default function IntegrationsPage() {
 
   function showCounts(res: JiraIngestResponse) {
     setMsg(
-      `Listo. Ingeridos: ${res.ingested} · Nuevos: ${res.novel} · Conocidos: ${res.known} · Omitidos: ${res.skipped}`,
+      `Listo. ${res.ingested} procesados: ${res.novel} defectos nuevos, ${res.known} ya conocidos (agrupados con su familia), ${res.skipped} omitidos.`,
     );
   }
 
@@ -218,7 +218,7 @@ export default function IntegrationsPage() {
       <div className="space-y-6" data-testid="integrations-loading-skeleton">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Integraciones</h1>
-          <p className="text-sm text-zinc-500">Conecta GitHub y Jira para potenciar el análisis de QA.</p>
+          <p className="text-sm text-zinc-500">Conecta GitHub, Jira y tu CI para potenciar el análisis de QA.</p>
         </div>
         <Skeleton className="h-48 max-w-xl rounded-xl" />
         <Skeleton className="h-48 max-w-xl rounded-xl" />
@@ -230,7 +230,7 @@ export default function IntegrationsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Integraciones</h1>
-        <p className="text-sm text-zinc-500">Conecta GitHub y Jira para potenciar el análisis de QA.</p>
+        <p className="text-sm text-zinc-500">Conecta GitHub, Jira y tu CI para potenciar el análisis de QA.</p>
       </div>
 
       {/* ── GitHub config card ────────────────────────────────────────────── */}
@@ -325,6 +325,10 @@ export default function IntegrationsPage() {
       {/* ── Repo indexing card ────────────────────────────────────────────── */}
       <Card className="max-w-xl space-y-4 p-5">
         <h2 className="text-sm font-medium text-zinc-700">Tests del repositorio</h2>
+        <p className="text-sm text-zinc-500">
+          Mnemo lee los tests del repo para saber qué está cubierto y detectar
+          reglas sin test en el grafo.
+        </p>
 
         <div className="space-y-2">
           <Button
@@ -400,6 +404,9 @@ export default function IntegrationsPage() {
               onChange={(e) => setToken(e.target.value)}
               placeholder="••••••••"
             />
+            <p className="text-xs text-zinc-400">
+              Genéralo en id.atlassian.com → Seguridad → Tokens de API.
+            </p>
           </div>
           <div className="space-y-1">
             <Label htmlFor="jql">JQL por defecto</Label>
@@ -409,6 +416,10 @@ export default function IntegrationsPage() {
               onChange={(e) => setJql(e.target.value)}
               placeholder="issuetype = Bug"
             />
+            <p className="text-xs text-zinc-400">
+              Filtro de Jira (JQL) que decide qué issues trae «Importar bugs».
+              Por defecto, todos los bugs — déjalo así si no usas JQL.
+            </p>
           </div>
           {configured && (
             <p className="text-xs text-zinc-500">Integración ya configurada. Rellena el token solo para actualizarla.</p>
@@ -424,13 +435,17 @@ export default function IntegrationsPage() {
         <h2 className="text-sm font-medium text-zinc-700">Importar bugs</h2>
 
         <div className="space-y-1">
-          <Label htmlFor="project">Proyecto (slug)</Label>
+          <Label htmlFor="project">Etiqueta de proyecto</Label>
           <Input
             id="project"
             value={project}
             onChange={(e) => setProject(e.target.value)}
-            placeholder="jira"
+            placeholder="p.ej. web-cliente"
           />
+          <p className="text-xs text-zinc-400">
+            Nombre corto con el que se agruparán los bugs importados. Si lo dejas
+            vacío se usa «jira».
+          </p>
         </div>
 
         <div className="space-y-2">

@@ -23,12 +23,11 @@ export function RoiPanel({ runId }: { runId: string }) {
     <Card className="space-y-2 p-5">
       <h2 className="text-sm font-medium text-zinc-700">Retorno (ROI)</h2>
       <div className="flex gap-6 text-sm text-zinc-600">
-        <span><strong className="text-zinc-900">{autoTriados}</strong> auto-triados</span>
+        <span><strong className="text-zinc-900">{autoTriados}</strong> fallos clasificados sin intervención</span>
         <span><strong className="text-zinc-900">{horas} h</strong> ahorradas</span>
-        <span><strong className="text-zinc-900">0 €</strong> / release</span>
       </div>
       <p className="text-xs text-zinc-400">
-        Supuesto: 15 min de triaje manual por fallo. Modelo ejecutado en local — coste de API nulo.
+        Supuesto: 15 min de triaje manual evitados por cada fallo clasificado automáticamente.
       </p>
     </Card>
   );
