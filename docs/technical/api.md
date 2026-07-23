@@ -134,7 +134,7 @@ El campo `risk` vale `"atencion"` si hay fallos nuevos (familias novel); si no, 
 | `POST` | `/v2/knowledge/proposals/{id}/approve` | Aprueba (CAS + inserta en la memoria, atómico) | JWT + owner/admin |
 | `POST` | `/v2/knowledge/proposals/{id}/reject` | Descarta (no resucita) | JWT + owner/admin |
 | `POST` | `/v2/knowledge/proposals/{id}/refine` | UNA llamada LLM que condensa la propuesta y sugiere `kind`/`domain`; 503 si el LLM cae (la propuesta queda intacta) | JWT + miembro |
-| `POST` | `/v2/knowledge/import` | Import determinista desde Jira: `{org_id, refs:["PAY-123",…]}` (máx 10) → propuestas en la bandeja con enlace al original. 409 sin integración, 429 al superar 30/hora por org. Errores por-ref en la respuesta | JWT + miembro |
+| `POST` | `/v2/knowledge/import` | Import determinista desde Atlassian: `{org_id, refs:[…]}` (máx 10) con claves de Jira (`PAY-123`) y/o URLs de páginas de Confluence **del site configurado** → propuestas en la bandeja con enlace al original. 409 sin integración, 429 al superar 30/hora por org. Errores por-ref en la respuesta | JWT + miembro |
 
 ---
 
