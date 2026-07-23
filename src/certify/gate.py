@@ -2,12 +2,14 @@ from typing import Any, Callable, Dict, List, Tuple
 
 from src.certify.certificate import compute_confidence, compute_verdict
 
-_CONCLUSION = {"no-apto": "failure", "apto-con-reservas": "neutral", "apto": "success"}
+_CONCLUSION = {"no-apto": "failure", "apto-con-reservas": "neutral", "apto": "success",
+               "inconcluso": "neutral"}
 _CATEGORIES = ("real", "flaky", "maintenance", "infra", "unknown")
 _MOTIVO = {
     "no-apto": "El motor evaluó: defecto real sin precedente de alta confianza o ítems pendientes de aprobación (Nivel 2).",
     "apto-con-reservas": "El motor evaluó: hay defectos reales recurrentes o mantenimiento; revisar antes de liberar.",
     "apto": "El motor evaluó: todo flaky en cuarentena, curado o infra reconocida.",
+    "inconcluso": "No se pudo confirmar una ejecución completa (manifiesto ausente o incompleto).",
 }
 
 
