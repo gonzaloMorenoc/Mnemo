@@ -9,6 +9,8 @@ class JiraIssue:
     summary: str
     description: str
     acceptance_criteria: str = ""
+    resolution: str = ""
+    resolution_date: str = ""
 
 
 @dataclass
