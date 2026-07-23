@@ -108,7 +108,7 @@ describe("KnowledgeProposalsPanel", () => {
     vi.mocked(endpoints.approveKnowledgeProposal).mockResolvedValue({ id: "k1" } as never);
     renderPanel();
     await screen.findByDisplayValue("Cobro duplicado");
-    fireEvent.change(screen.getByLabelText(/Tipo/i), { target: { value: "regla_negocio" } });
+    fireEvent.change(screen.getByLabelText("Tipo"), { target: { value: "regla_negocio" } });
     fireEvent.click(screen.getByRole("button", { name: /^Aprobar$/i }));
     await waitFor(() => expect(endpoints.approveKnowledgeProposal).toHaveBeenCalled());
     const call = vi.mocked(endpoints.approveKnowledgeProposal).mock.calls[0];

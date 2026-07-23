@@ -56,7 +56,8 @@ export default function CalibrationPage() {
             <p className="text-5xl font-semibold tracking-tight text-zinc-900">{(m.accuracy * 100).toFixed(0)}%</p>
             <p className="text-sm text-zinc-500">precisión del motor ({m.aciertos}/{m.total} correcciones coincidieron)</p>
           </div>
-          <p className="text-sm text-zinc-600">{m.familias_calibradas} familias calibradas</p>
+          <p className="text-sm text-zinc-600">{m.familias_calibradas} familias con etiqueta humana (tu verdad de referencia)</p>
+          <p className="text-xs font-medium text-zinc-500">Tus etiquetas, por categoría:</p>
           <div className="flex flex-wrap gap-2">
             {Object.entries(m.por_categoria ?? {}).map(([cat, n]) => (
               <CategoryBadge key={cat} category={cat} count={n} />

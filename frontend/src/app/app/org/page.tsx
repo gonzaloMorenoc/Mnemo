@@ -173,8 +173,8 @@ export default function OrganizationPage() {
                 className="grid gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm md:grid-cols-[1fr_auto_auto] md:items-center"
               >
                 <p className="font-medium text-zinc-800">{org.name}</p>
-                <p className="text-xs text-zinc-500">Rol: {org.role ?? "member"}</p>
-                <code className="rounded bg-white px-2 py-1 text-xs text-zinc-700">{org.join_code}</code>
+                <p className="text-xs text-zinc-500">Rol: {org.role === "owner" ? "Propietario/a" : org.role === "admin" ? "Admin" : "Miembro"}</p>
+                <span className="text-xs text-zinc-500">Código de invitación: <code className="rounded bg-white px-2 py-1 text-xs text-zinc-700">{org.join_code}</code></span>
               </div>
             ))}
           </div>

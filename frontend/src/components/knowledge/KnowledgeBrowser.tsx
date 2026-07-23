@@ -8,6 +8,7 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { deleteKnowledge, listKnowledge, updateKnowledge } from "@/lib/api/endpoints";
 import type { KnowledgeItem } from "@/lib/api/types";
 import { Badge } from "@/components/ui/badge";
+import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -114,7 +115,14 @@ export function KnowledgeBrowser({ orgId }: { orgId: string }) {
         {query.isLoading ? (
           <p className="text-sm text-zinc-500">Cargando…</p>
         ) : visible.length === 0 ? (
-          <p className="text-sm text-zinc-500">Sin resultados con estos filtros.</p>
+          kind === "todos" && status === "todos" && project === "todos" ? (
+            <p className="text-sm text-zinc-500">
+              La memoria está vacía. Captura tu primer conocimiento en la pestaña
+              «Capturar» o aprueba las propuestas de la IA.
+            </p>
+          ) : (
+            <p className="text-sm text-zinc-500">Sin resultados con estos filtros.</p>
+          )
         ) : (
           visible.map((it) => (
             <ItemCard key={it.id} item={it} orgId={orgId} token={accessToken!} onDone={invalidate} />
@@ -174,12 +182,15 @@ function ItemCard({
       <div className="flex flex-wrap items-center gap-2">
         <Badge>{KIND_LABEL[item.kind] ?? item.kind}</Badge>
         {item.project && (
-          <Badge className="border-blue-200 bg-blue-50 text-blue-700">{item.project}</Badge>
+          <Badge className="border-blue-200 bg-blue-50 text-blue-700">Proyecto: {item.project}</Badge>
         )}
-        {item.domain && <Badge variant="user">{item.domain}</Badge>}
+        {item.domain && <Badge variant="user">Dominio: {item.domain}</Badge>}
         {obsoleto && <Badge className="bg-amber-100 text-amber-800">Obsoleto</Badge>}
         {item.source === "auto_triage" && (
-          <span className="text-xs text-zinc-500">inferida del triaje</span>
+          <span className="flex items-center gap-1 text-xs text-zinc-500">
+            inferida del triaje
+            <InfoTooltip term="triaje" />
+          </span>
         )}
         {item.source_url && (
           <a

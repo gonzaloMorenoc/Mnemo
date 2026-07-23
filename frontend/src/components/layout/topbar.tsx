@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, Menu, Sparkles } from "lucide-react";
+import { ChevronRight, Menu, UserRound } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { useAuth } from "@/components/providers/auth-provider";
@@ -53,7 +53,7 @@ export function Topbar({ onOpenMobileMenu }: TopbarProps) {
 
       <div className="flex shrink-0 items-center gap-2">
         <span className="hidden items-center gap-1 rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs text-zinc-600 sm:inline-flex">
-          <Sparkles size={12} />
+          <UserRound size={12} />
           {truncate(user?.email ?? "unknown-user")}
         </span>
         <Button

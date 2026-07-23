@@ -169,7 +169,7 @@ describe("GraphPage — empty state sin organización", () => {
     renderWithClient(<GraphPage />);
 
     expect(
-      screen.getByText(/selecciona una organización para ver el Knowledge Graph/i),
+      screen.getByText(/selecciona una organización para ver el grafo de conocimiento/i),
     ).toBeInTheDocument();
     expect(screen.queryByTestId("knowledge-graph-view")).not.toBeInTheDocument();
   });
@@ -340,7 +340,7 @@ describe("GraphPage — degradación ante errores de query", () => {
     });
 
     // Page still renders — no crash
-    expect(screen.getByText("Knowledge Graph")).toBeInTheDocument();
+    expect(screen.getByText("Grafo de conocimiento")).toBeInTheDocument();
   });
 
   it("llama a toast.error cuando getGaps rechaza y la página no se rompe", async () => {
@@ -355,7 +355,7 @@ describe("GraphPage — degradación ante errores de query", () => {
       expect(toast.error).toHaveBeenCalledWith("Error al cargar los gaps");
     });
 
-    expect(screen.getByText("Knowledge Graph")).toBeInTheDocument();
+    expect(screen.getByText("Grafo de conocimiento")).toBeInTheDocument();
   });
 });
 

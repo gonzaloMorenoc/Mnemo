@@ -78,14 +78,15 @@ export default function DefectsPage() {
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-zinc-900">
           Defect DNA
-          <InfoTooltip term="defecto_sin_conocimiento" label="Qué es: Defect DNA" />
+          <InfoTooltip term="familia_defectos" label="Qué es: Defect DNA" />
         </h1>
         <p className="text-sm text-zinc-500">Familias de defecto y su linaje a través de proyectos.</p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card className="p-4">
-          <h2 className="mb-3 text-sm font-medium text-zinc-700">Familias</h2>
+          <h2 className="text-sm font-medium text-zinc-700">Familias</h2>
+          <p className="mb-3 text-xs text-zinc-400">Fallos parecidos, agrupados automáticamente por su firma de error.</p>
           {defectsQuery.isLoading && <Skeleton className="h-24 w-full" />}
           {defectsQuery.isError && (
             <p className="text-sm text-red-600">No se pudieron cargar las familias de defecto.</p>
@@ -110,11 +111,13 @@ export default function DefectsPage() {
                     <span className="flex min-w-0 items-center gap-1.5">
                       <span className="truncate font-medium text-zinc-900">{f.title}</span>
                       {f.has_lesson && (
-                        <BookOpen
-                          size={13}
-                          className="shrink-0 text-emerald-600"
-                          aria-label="Tiene lección en la memoria"
-                        />
+                        <span title="Tiene lección en la memoria" className="shrink-0">
+                          <BookOpen
+                            size={13}
+                            className="text-emerald-600"
+                            aria-label="Tiene lección en la memoria"
+                          />
+                        </span>
                       )}
                     </span>
                     <span className="flex shrink-0 items-center gap-1.5">
@@ -171,7 +174,11 @@ export default function DefectsPage() {
                 />
               )}
               {lineageQuery.data?.family && (
-                <FamilyLabelControl key={`label-${lineageQuery.data.family.id}`} familyId={lineageQuery.data.family.id} />
+                <FamilyLabelControl
+                  key={`label-${lineageQuery.data.family.id}`}
+                  familyId={lineageQuery.data.family.id}
+                  currentLabel={defectsQuery.data?.find((f) => f.id === lineageQuery.data?.family?.id)?.label}
+                />
               )}
             </div>
           )}

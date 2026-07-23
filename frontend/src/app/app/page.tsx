@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { VerdictBadge } from "@/components/ui/verdict-badge";
+import { InfoTooltip } from "@/components/ui/InfoTooltip";
 
 const QUICK_ACCESS_HREFS = ["/app/knowledge", "/app/graph", "/app/test-plan"] as const;
 const quickAccessItems = NAV_ITEMS.filter((item) =>
@@ -37,17 +38,22 @@ function KpiCard({
   href,
   cta,
   loading,
+  term,
   children,
 }: {
   title: string;
   href: string;
   cta: string;
   loading?: boolean;
+  term?: string;
   children: React.ReactNode;
 }) {
   return (
     <Card className="flex flex-col gap-2 p-4">
-      <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">{title}</p>
+      <p className="flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-zinc-400">
+        {title}
+        {term && <InfoTooltip term={term} />}
+      </p>
       {loading ? <Skeleton className="h-10 w-24" /> : <div className="flex-1">{children}</div>}
       <Link href={href} className="text-xs font-medium text-zinc-500 hover:text-zinc-900">
         {cta} →
@@ -195,11 +201,11 @@ export default function DashboardPage() {
               </p>
             </div>
           ) : (
-            <p className="text-sm text-zinc-500">Aún sin runs.</p>
+            <p className="text-sm text-zinc-500">Aún sin runs — sube un reporte en Autopilot.</p>
           )}
         </KpiCard>
 
-        <KpiCard title="Precisión del motor" href="/app/calibration" cta="Calibración" loading={calibration.isLoading}>
+        <KpiCard title="Precisión del motor" term="precision_motor" href="/app/calibration" cta="Calibración" loading={calibration.isLoading}>
           {calibration.isError ? (
             <KpiError />
           ) : m && m.total > 0 ? (
@@ -210,7 +216,7 @@ export default function DashboardPage() {
               <p className="text-xs text-zinc-400">{m.familias_calibradas} familias calibradas</p>
             </div>
           ) : (
-            <p className="text-sm text-zinc-500">Sin calibrar aún — etiqueta familias.</p>
+            <p className="text-sm text-zinc-500">Sin calibrar aún — etiqueta familias en Defect DNA.</p>
           )}
         </KpiCard>
 
@@ -220,17 +226,17 @@ export default function DashboardPage() {
               {knowledge.data?.length ?? 0}
             </p>
             <p className="text-xs text-zinc-400">
-              items en memoria
+              lecciones, reglas y riesgos capturados
               {nPending > 0 && (
                 <span className="ml-1 font-medium text-amber-600">
-                  · {nPending} propuesta{nPending === 1 ? "" : "s"} pendiente{nPending === 1 ? "" : "s"}
+                  · {nPending} propuesta{nPending === 1 ? "" : "s"} de la IA por revisar
                 </span>
               )}
             </p>
           </div>
         </KpiCard>
 
-        <KpiCard title="Gaps de cobertura" href="/app/graph" cta="Ver gaps" loading={gaps.isLoading}>
+        <KpiCard title="Gaps de cobertura" term="regla_sin_test" href="/app/graph" cta="Ver gaps" loading={gaps.isLoading}>
           <div className="space-y-1">
             <p className="text-3xl font-semibold tracking-tight text-zinc-900">
               {gaps.data?.length ?? 0}
@@ -288,12 +294,15 @@ export default function DashboardPage() {
         </div>
       )}
 
+      <div className="space-y-2">
+      <h3 className="text-sm font-medium text-zinc-700">Accesos rápidos</h3>
       <div className="grid gap-3 sm:grid-cols-3">
         {quickAccessItems.map(({ href, label }) => (
           <Button key={href} asChild variant="outline">
             <Link href={href}>{label}</Link>
           </Button>
         ))}
+      </div>
       </div>
     </div>
   );

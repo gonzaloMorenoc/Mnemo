@@ -29,6 +29,6 @@ describe("CalibrationPage", () => {
       total: 3, aciertos: 2, accuracy: 0.6667, familias_calibradas: 2, por_categoria: { flaky: 2, real: 1 } });
     renderWithClient(<CalibrationPage />);
     expect(await screen.findByText("67%")).toBeInTheDocument();
-    expect(screen.getByText(/2 familias calibradas/i)).toBeInTheDocument();
+    expect(screen.getByText(/2 familias con etiqueta humana/i)).toBeInTheDocument();
   });
 });

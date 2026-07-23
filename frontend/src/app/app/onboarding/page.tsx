@@ -164,6 +164,9 @@ export default function OnboardingPage() {
               {pathMutation.isPending ? "Generando ruta…" : "Ruta de aprendizaje"}
             </Button>
           </div>
+          <p className="text-xs text-zinc-400">
+            Ambos se generan con IA a partir de la memoria del equipo y citan sus fuentes.
+          </p>
         </CardContent>
       </Card>
 

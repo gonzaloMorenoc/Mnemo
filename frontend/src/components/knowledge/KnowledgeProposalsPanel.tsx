@@ -14,6 +14,7 @@ import {
 } from "@/lib/api/endpoints";
 import type { KnowledgeProposal } from "@/lib/api/types";
 import { Badge } from "@/components/ui/badge";
+import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -38,7 +39,7 @@ export function KnowledgeProposalsPanel({ orgId }: { orgId: string }) {
     onSuccess: (r) => {
       const parts = [`${r.created} propuesta(s) generada(s)`];
       if (r.failed) parts.push(`${r.failed} fallo(s) — reintenta`);
-      if (r.remaining) parts.push(`${r.remaining} defecto(s) sin cubrir`);
+      if (r.remaining) parts.push(`${r.remaining} defecto(s) aún sin lección`);
       toast.success(parts.join(" · "));
       invalidate();
     },
@@ -190,7 +191,10 @@ function ProposalCard({
           <Input id={`t-${proposal.id}`} maxLength={300} value={form.title} onChange={(e) => set("title", e.target.value)} />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor={`k-${proposal.id}`}>Tipo</Label>
+          <span className="flex items-center gap-1">
+            <Label htmlFor={`k-${proposal.id}`}>Tipo</Label>
+            <InfoTooltip term="tipo_conocimiento" />
+          </span>
           {/* El tipo decide qué detectores de gaps ven el item (regla_sin_test solo
               mira regla_negocio/flujo/riesgo) → editable, no congelado */}
           <select
@@ -239,6 +243,7 @@ function ProposalCard({
           variant="ghost"
           disabled={approve.isPending || reject.isPending || refine.isPending}
           onClick={() => refine.mutate()}
+          title="Reescribe título, reto y enfoque con IA y sugiere tipo y dominio. Puede tardar unos segundos. No guarda nada: revisa y aprueba tú."
         >
           {refine.isPending ? "Refinando…" : "Refinar con IA"}
         </Button>
