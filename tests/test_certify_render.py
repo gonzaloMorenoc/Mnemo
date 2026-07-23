@@ -48,3 +48,21 @@ def test_render_escapes_nothing_breaks_on_empty_evidence():
     cert = {**_CERT, "evidence": [], "verdict": "apto", "risk_score": 0}
     html = render_html(cert, "s")
     assert "apto" in html
+
+
+def test_render_inconcluso_no_muestra_risk_0_y_pinta_manifiesto():
+    cert = {
+        "verdict": "inconcluso", "risk_score": 0,
+        "identity": {"project": "web", "commit_sha": "c", "run_id": "r", "created_at": "t",
+                     "mnemo_version": "1", "model_version": "m"},
+        "breakdown": {}, "evidence": [], "sign_offs": [], "self_eval": None,
+        "execution_manifest": {"total": 128, "passed": 120, "failed": 5, "skipped": 3,
+                               "flaky": 0, "complete": True, "source_format": "junit"},
+    }
+    html = render_html(cert, "sig")
+    # Riesgo NO debe ser "0" para inconcluso; usa la raya (—)
+    assert "Risk score:</strong> 0" not in html
+    assert "&mdash;" in html
+    assert "no prueba una ejecución completa" in html
+    # El manifiesto SÍ aparece en el acta descargable
+    assert "128 tests" in html and "junit" in html

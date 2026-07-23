@@ -43,3 +43,16 @@ def test_acta_v3_run_vacio_sin_manifiesto_es_inconcluso():
         created_at="2026-01-01", self_eval={"confidence": "high"}, manifest=None)
     assert cert["verdict"] == "inconcluso"
     assert cert["execution_manifest"] is None
+
+
+def test_manifiesto_declara_fallos_sin_verdicts_es_inconcluso():
+    # cabecera declara fallos pero triaje vacío (parser no extrajo) → inconcluso, no apto
+    m = {"total": 3, "passed": 0, "failed": 3, "skipped": 0, "complete": True}
+    assert compute_verdict([], confidence="high", manifest=m) == "inconcluso"
+
+
+def test_flaky_triado_con_manifiesto_completo_sigue_apto():
+    # flaky triado (verdicts NO vacío) no se convierte en inconcluso por la guarda de failed
+    verdicts = [{"category": "flaky", "requires_approval": False}]
+    m = {"total": 3, "passed": 2, "failed": 0, "flaky": 1, "complete": True}
+    assert compute_verdict(verdicts, confidence="high", manifest=m) == "apto"

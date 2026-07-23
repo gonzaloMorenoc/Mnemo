@@ -2,7 +2,8 @@ import html as _html
 from io import BytesIO
 from typing import Any, Dict
 
-_VERDICT_COLOR = {"apto": "#1a7f37", "apto-con-reservas": "#9a6700", "no-apto": "#cf222e"}
+_VERDICT_COLOR = {"apto": "#1a7f37", "apto-con-reservas": "#9a6700", "no-apto": "#cf222e",
+                  "inconcluso": "#57606a"}
 
 
 def _e(v: object) -> str:
@@ -16,7 +17,24 @@ def _rule_label(rule: object) -> str:
 def render_html(cert: Dict[str, Any], signature: str) -> str:
     idn = cert.get("identity", {})
     bd = cert.get("breakdown", {})
-    color = _VERDICT_COLOR.get(cert.get("verdict", ""), "#57606a")
+    verdict = cert.get("verdict", "")
+    color = _VERDICT_COLOR.get(verdict, "#57606a")
+    # Un run "inconcluso" no tiene riesgo que reportar (no se pudo confirmar la ejecución).
+    risk_html = "&mdash;" if verdict == "inconcluso" else _e(cert.get("risk_score"))
+
+    # Manifiesto de ejecución (acta v3); ausente en actas v2.
+    m = cert.get("execution_manifest") or {}
+    manifest_html = (
+        f"<p><strong>Ejecución:</strong> {_e(m.get('total'))} tests &middot; "
+        f"{_e(m.get('passed'))} pasados &middot; {_e(m.get('failed'))} fallidos &middot; "
+        f"{_e(m.get('skipped'))} omitidos"
+        + (f" &middot; {_e(m.get('flaky'))} flaky" if m.get("flaky") else "")
+        + f" &middot; formato <code>{_e(m.get('source_format'))}</code></p>"
+    ) if m else ""
+    inconcluso_note = (
+        "<p style='color:#57606a'>El reporte no prueba una ejecución completa; "
+        "el acta lo refleja.</p>" if verdict == "inconcluso" else ""
+    )
     rows = "".join(
         f"<tr><td>{_e(e.get('failure_id'))}</td><td>{_e(e.get('category'))}</td>"
         f"<td>{_e(e.get('confidence'))}</td><td>{_e(_rule_label(e.get('rule_applied')))}</td>"
@@ -55,11 +73,13 @@ def render_html(cert: Dict[str, Any], signature: str) -> str:
         "</style></head><body>"
         "<p class='brand'>Mnemo &middot; Release Assurance</p>"
         "<h1>Release Assurance Certificate</h1>"
-        f"<p><strong>Evaluación del motor:</strong> <span class='verdict' style='color:{color}'>{_e(cert.get('verdict'))}</span>"
-        f" &middot; <strong>Risk score:</strong> {_e(cert.get('risk_score'))}</p>"
+        f"<p><strong>Evaluación del motor:</strong> <span class='verdict' style='color:{color}'>{_e(verdict)}</span>"
+        f" &middot; <strong>Risk score:</strong> {risk_html}</p>"
+        f"{inconcluso_note}"
         f"<p>Proyecto <code>{_e(idn.get('project'))}</code> &middot; commit <code>{_e(idn.get('commit_sha'))}</code>"
         f" &middot; run <code>{_e(idn.get('run_id'))}</code> &middot; {_e(idn.get('created_at'))}</p>"
         f"<p>Mnemo {_e(idn.get('mnemo_version'))} &middot; modelo {_e(idn.get('model_version'))}</p>"
+        f"{manifest_html}"
         f"{disclaimer_html}"
         f"<p><strong>Desglose:</strong> {breakdown}</p>"
         f"{self_eval_html}"
