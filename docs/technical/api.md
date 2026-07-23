@@ -93,14 +93,16 @@ El campo `risk` vale `"atencion"` si hay fallos nuevos (familias novel); si no, 
 
 | Método | Ruta | Descripción | Auth |
 |--------|------|-------------|------|
-| `POST` | `/v2/certificates/run/{run_id}` | Genera el certificado firmado de release assurance | JWT + miembro |
+| `POST` | `/v2/certificates/run/{run_id}` | Genera el certificado firmado de release assurance | JWT + **owner/admin** |
 | `GET` | `/v2/certificates/{run_id}` | Lee el certificado de un run (JSON) | JWT + miembro |
 | `GET` | `/v2/certificates/{run_id}/html` | Renderiza el certificado en HTML | JWT + miembro |
 | `GET` | `/v2/certificates/{run_id}/pdf` | Descarga el certificado en PDF | JWT + miembro |
 | `GET` | `/v2/certificates/pubkey` | Clave pública Ed25519 de firma (`{algorithm, public_key_pem}`; 503 sin clave configurada) | **Público** |
 | `POST` | `/v2/certificates/verify` | Verifica la firma de un certificado (`canonical_json` + `signature`) → `{valido}` | **Público** |
 
-`verdict` ∈ `apto` / `apto-con-reservas` / `no-apto`. Los dos últimos endpoints son **públicos sin auth a propósito**: la verificación es criptografía pura y su valor está en que un tercero (cliente, auditor) pueda comprobar un acta sin cuenta en Mnemo — también desde la página `/verify` del frontend u offline con la clave pública.
+`verdict` ∈ `apto` / `apto-con-reservas` / `no-apto` / **`inconcluso`**. El acta es **schema `mnemo.cert.v3`** e incluye un **`execution_manifest`** firmado (`{total, passed, failed, skipped, flaky, complete, source_format, artifact_sha256, commit_sha}`): registra qué se ejecutó, no solo los fallos. Un run **limpio pero sin manifiesto completo** (no se puede probar que corrieron tests — p.ej. un reporte vacío) → **`inconcluso`**, no `apto`; un run con fallos sigue siendo rojo. Las actas **v2** ya emitidas se siguen verificando (verify es agnóstico al schema). Emitir a mano exige **owner/admin**; la auto-emisión del webhook usa la cuenta de servicio.
+
+Los dos endpoints públicos (`pubkey`, `verify`) son **sin auth a propósito**: la verificación es criptografía pura y su valor está en que un tercero (cliente, auditor) pueda comprobar un acta sin cuenta en Mnemo — también desde la página `/verify` del frontend u offline con la clave pública.
 
 ---
 
