@@ -38,7 +38,8 @@ def test_approve_inherits_project_from_run():
     repo = _repo()
     cur = MagicMock()
     cur.fetchone.side_effect = [
-        {"org_id": "o1", "defect_family_id": "f1", "run_id": "r1"},  # CAS returning
+        {"org_id": "o1", "defect_family_id": "f1", "run_id": "r1",
+         "source": "auto_triage", "external_url": None, "project": None},  # CAS returning
         {"project": "checkout-suite"},                                # lookup en test_runs
     ]
     out, ins = _approve(repo, cur)
@@ -52,7 +53,8 @@ def test_approve_without_run_leaves_project_none():
     repo = _repo()
     cur = MagicMock()
     cur.fetchone.side_effect = [
-        {"org_id": "o1", "defect_family_id": "f1", "run_id": None},
+        {"org_id": "o1", "defect_family_id": "f1", "run_id": None,
+         "source": "auto_triage", "external_url": None, "project": None},
     ]
     out, ins = _approve(repo, cur)
     assert out == {"id": "k1"}

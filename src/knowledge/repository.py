@@ -14,8 +14,11 @@ _STATUSES = {"activo", "obsoleto"}
 _EDITABLE = ("kind", "title", "challenge", "approach", "outcome", "domain",
              "tags", "project", "status")
 
+KINDS = _KINDS  # export público (el refine valida el kind que propone el LLM)
+
 _INSERT_COLS = ("org_id, kind, title, challenge, approach, outcome, domain, tags, project,"
-                " source, confidence, defect_family_id, run_id, created_by, embedding")
+                " source, confidence, source_url, defect_family_id, run_id, created_by,"
+                " embedding")
 
 
 def embedding_text(title: str, challenge: Optional[str] = None,
@@ -29,7 +32,8 @@ def insert_qa_knowledge(cur, *, org_id: str, kind: str, title: str,
                         outcome: Optional[str], domain: Optional[str],
                         tags: Optional[Sequence[str]], project: Optional[str],
                         source: str, confidence: str, defect_family_id: Optional[str],
-                        run_id: Optional[str], created_by: str, embedding) -> Dict[str, Any]:
+                        run_id: Optional[str], created_by: str, embedding,
+                        source_url: Optional[str] = None) -> Dict[str, Any]:
     """INSERT en qa_knowledge sobre un cursor dado. NO hace commit ni comprueba membership:
     lo hace el llamador. Se extrae de create_item para poder insertar dentro de la MISMA
     transacción que la aprobación de una propuesta (atomicidad). Valida el kind."""
@@ -37,10 +41,11 @@ def insert_qa_knowledge(cur, *, org_id: str, kind: str, title: str,
         raise ValueError(f"kind inválido: {kind}")
     cur.execute(
         f"insert into public.qa_knowledge ({_INSERT_COLS})"
-        " values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
+        " values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
         " returning id, kind, title, domain, tags, confidence, created_at",
         (org_id, kind, title, challenge, approach, outcome, domain, list(tags or []),
-         project, source, confidence, defect_family_id, run_id, created_by, embedding),
+         project, source, confidence, source_url, defect_family_id, run_id, created_by,
+         embedding),
     )
     return cur.fetchone()
 
@@ -63,7 +68,8 @@ class QaKnowledgeRepository:
                     outcome: Optional[str] = None, domain: Optional[str] = None,
                     tags: Optional[Sequence[str]] = None, project: Optional[str] = None,
                     source: str = "manual", confidence: str = "confirmado",
-                    defect_family_id: Optional[str] = None, run_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+                    defect_family_id: Optional[str] = None, run_id: Optional[str] = None,
+                    source_url: Optional[str] = None) -> Optional[Dict[str, Any]]:
         if kind not in _KINDS:
             raise ValueError(f"kind inválido: {kind}")
         emb = Vector(list(self.embedder.embed(embedding_text(title, challenge, approach))))
@@ -74,7 +80,7 @@ class QaKnowledgeRepository:
                 cur, org_id=org_id, kind=kind, title=title, challenge=challenge,
                 approach=approach, outcome=outcome, domain=domain, tags=tags, project=project,
                 source=source, confidence=confidence, defect_family_id=defect_family_id,
-                run_id=run_id, created_by=user_id, embedding=emb,
+                run_id=run_id, created_by=user_id, embedding=emb, source_url=source_url,
             )
             conn.commit()
             return dict(row)
@@ -89,7 +95,7 @@ class QaKnowledgeRepository:
             if not self._is_member(cur, org_id, user_id):
                 return []
             q = ("select id, kind, title, challenge, approach, outcome, domain, tags, project,"
-                 " source, confidence, status, created_by, created_at, updated_at"
+                 " source, confidence, source_url, status, created_by, created_at, updated_at"
                  " from public.qa_knowledge where org_id=%s")
             params: list = [org_id]
             if kind:
@@ -172,7 +178,8 @@ class QaKnowledgeRepository:
             # como numpy.ndarray y rompe la serialización JSON de la respuesta (500).
             cur.execute(
                 "select id, kind, title, challenge, approach, outcome, domain, tags,"
-                " project, source, confidence, defect_family_id, run_id, created_by, created_at"
+                " project, source, confidence, source_url, defect_family_id, run_id,"
+                " created_by, created_at"
                 " from public.qa_knowledge where id=%s and org_id=%s",
                 (item_id, org_id),
             )
