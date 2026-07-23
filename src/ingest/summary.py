@@ -27,10 +27,18 @@ class RunSummary:
 
 def _summarize_junit(data: bytes) -> RunSummary:
     root = ET.fromstring(data)
-    nodes = [root, *root.iter("testsuite")]
-    total = max((int_attr(n, "tests") for n in nodes), default=0)
-    failed = max((int_attr(n, "failures") + int_attr(n, "errors") for n in nodes), default=0)
-    skipped = max((int_attr(n, "skipped") for n in nodes), default=0)
+    # Preferir el agregado de la raíz (un <testsuite> único o <testsuites tests=…>);
+    # si la raíz <testsuites> NO trae agregado, SUMAR los <testsuite> hijos (no max,
+    # que subcontaría un run multi-suite).
+    if root.get("tests") is not None:
+        total = int_attr(root, "tests")
+        failed = int_attr(root, "failures") + int_attr(root, "errors")
+        skipped = int_attr(root, "skipped")
+    else:
+        suites = list(root.iter("testsuite"))
+        total = sum(int_attr(s, "tests") for s in suites)
+        failed = sum(int_attr(s, "failures") + int_attr(s, "errors") for s in suites)
+        skipped = sum(int_attr(s, "skipped") for s in suites)
     passed = max(total - failed - skipped, 0)
     return RunSummary(total, passed, failed, skipped, complete=total > 0, source_format="junit")
 
@@ -39,7 +47,8 @@ def _summarize_testng(data: bytes) -> RunSummary:
     root = ET.fromstring(strip_ansi_bytes(data))
     total = int_attr(root, "total")
     failed = int_attr(root, "failed")
-    skipped = int_attr(root, "skipped") + int_attr(root, "ignored")
+    # `skipped` cuadra con el `total` de la cabecera (que excluye 'ignored').
+    skipped = int_attr(root, "skipped")
     passed = int_attr(root, "passed")
     return RunSummary(total, passed, failed, skipped, complete=total > 0, source_format="testng")
 
@@ -101,6 +110,9 @@ def _summarize_cucumber(data: bytes) -> RunSummary:
         if not isinstance(feature, dict):
             continue
         for element in feature.get("elements") or []:
+            # Los 'background' llevan steps pero NO son escenarios → no cuentan.
+            if (element.get("type") or "scenario").lower() != "scenario":
+                continue
             statuses = [(st.get("result") or {}).get("status", "").lower()
                         for st in element.get("steps") or []]
             if any(s == "failed" for s in statuses):
@@ -128,7 +140,8 @@ def summarize(source: str, data: bytes) -> Optional[RunSummary]:
         return None
     try:
         return fn(data)
-    except (ParseError, DefusedXmlException, json.JSONDecodeError, ValueError, KeyError, TypeError):
+    except (ParseError, DefusedXmlException, json.JSONDecodeError, ValueError, KeyError,
+            TypeError, AttributeError):
         return None
 
 

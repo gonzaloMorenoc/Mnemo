@@ -212,10 +212,10 @@ export interface Certificate {
   run_id: string;
   verdict: string;
   risk_score: number;
+  // El manifiesto va DENTRO del acta firmada → se lee de canonical_json.execution_manifest.
   canonical_json: Record<string, unknown>;
   signature: string;
   created_at?: string | null;
-  execution_manifest?: ExecutionManifest | null;
 }
 
 export interface CertificateVerifyResponse {

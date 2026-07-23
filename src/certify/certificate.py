@@ -66,8 +66,12 @@ def compute_verdict(verdicts: List[Dict[str, Any]], confidence: str = "high",
         return "no-apto"
     if any(v.get("category") in ("real", "maintenance") for v in verdicts):
         return "apto-con-reservas"
-    # Run limpio (sin fallos accionables): exigir manifiesto completo para firmar verde.
+    # Run limpio (sin fallos accionables triados): exigir manifiesto completo para firmar verde.
     if not manifest or not manifest.get("complete"):
+        return "inconcluso"
+    # El manifiesto declara fallos pero el triaje está vacío (formatos sin red de
+    # seguridad: playwright/cypress/allure/cucumber) → no hay evidencia; no firmar verde.
+    if not verdicts and manifest.get("failed", 0) > 0:
         return "inconcluso"
     # Invariante estructural: si la IA asistió alguna categoría (desempate LLM,
     # R6), el acta NUNCA es un "apto" rotundo — a lo sumo "apto-con-reservas",

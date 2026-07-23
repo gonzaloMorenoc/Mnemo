@@ -6,6 +6,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { getCertificatePubkey, verifyCertificate } from "@/lib/api/endpoints";
+import type { ExecutionManifest } from "@/lib/api/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { VerdictBadge } from "@/components/ui/verdict-badge";
@@ -210,10 +211,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 // Manifiesto de ejecución (acta v3); ausente en actas v2 → no se muestra.
 function ManifestSummary({ payload }: { payload: Payload | null }) {
-  const m = payload?.canonical_json.execution_manifest as
-    | { total: number; passed: number; failed: number; skipped: number; flaky?: number }
-    | null
-    | undefined;
+  const m = payload?.canonical_json.execution_manifest as ExecutionManifest | null | undefined;
   if (!m) return null;
   return (
     <p className="text-sm text-emerald-900/70">
