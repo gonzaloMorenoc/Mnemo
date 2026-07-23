@@ -7,11 +7,16 @@ defecto sin conocimiento (huecos `defecto_sin_conocimiento`). El humano los apru
 import logging
 from typing import Any, Dict, List, Optional, Sequence
 
+from src.ai.generate import generate_structured
 from src.knowledge.proposal_mapping import rca_to_proposal
+from src.knowledge.repository import KINDS
 
 logger = logging.getLogger(__name__)
 
 _DEFAULT_CAP = 5  # familias por petición: acota el nº de llamadas LLM (analyze_structured)
+
+_REFINE_SCHEMA = {"title": "", "challenge": "", "approach": "",
+                  "outcome": "", "kind": "", "domain": ""}
 
 
 class KnowledgeProposalService:
@@ -102,3 +107,41 @@ class KnowledgeProposalService:
 
     def reject(self, *, user_id: str, proposal_id: str, reason: str = "") -> bool:
         return self.repo.reject(user_id=user_id, proposal_id=proposal_id, reason=reason)
+
+    def refine(self, *, user_id: str, proposal_id: str) -> Optional[Dict[str, Any]]:
+        """Condensa la propuesta con UNA llamada LLM (título/reto/enfoque/resultado y
+        además kind y domain — sin domain el item queda huérfano en grafo y gaps).
+        None = no existe / no pendiente / LLM caído → el caller decide (503); la
+        propuesta NO se toca en ningún caso de fallo (nunca se pierde el determinista)."""
+        prop = self.repo.get_proposal(user_id=user_id, proposal_id=proposal_id)
+        if prop is None or prop.get("status") != "pending":
+            return None
+        prompt = (
+            "Eres el curador de una memoria de QA. Reescribe esta propuesta de lección "
+            "para que sea clara, accionable y breve. Responde SIEMPRE en español y SOLO "
+            "con un JSON con las claves: title, challenge, approach, outcome, kind, domain. "
+            f"kind debe ser uno de: {sorted(KINDS)}. domain = área funcional en 1-3 "
+            "palabras (p.ej. pagos, checkout, autenticación).\n\n"
+            f"Propuesta actual:\ntitle: {prop['title']}\n"
+            f"challenge: {prop.get('challenge') or ''}\n"
+            f"approach: {prop.get('approach') or ''}\n"
+            f"outcome: {prop.get('outcome') or ''}\n"
+            f"kind: {prop['kind']}"
+        )
+        out = generate_structured(prompt=prompt, context=[], schema=_REFINE_SCHEMA,
+                                  on_failure="none")
+        if not out or not (out.get("title") or "").strip():
+            return None
+        fields: Dict[str, Any] = {
+            "title": out["title"].strip()[:300],
+            "challenge": (out.get("challenge") or "").strip()[:4000] or prop.get("challenge"),
+            "approach": (out.get("approach") or "").strip()[:4000] or prop.get("approach"),
+            "outcome": (out.get("outcome") or "").strip()[:4000] or prop.get("outcome"),
+        }
+        if (out.get("kind") or "") in KINDS:
+            fields["kind"] = out["kind"]
+        domain = (out.get("domain") or "").strip()[:300]
+        if domain:
+            fields["domain"] = domain
+        return self.repo.update_pending_fields(user_id=user_id, proposal_id=proposal_id,
+                                               fields=fields)
