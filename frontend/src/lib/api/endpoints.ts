@@ -27,6 +27,7 @@ import type {
   IngestToken,
   IngestTokenCreated,
   KnowledgeAnswer,
+  KnowledgeImportResult,
   KnowledgeItem,
   KnowledgeProposal,
   KnowledgeSource,
@@ -266,6 +267,16 @@ export function approveKnowledgeProposal(
 ) {
   return apiRequest<KnowledgeItem>(
     `/api/v2/knowledge/proposals/${encodeURIComponent(proposalId)}/approve`, "POST", { token, body });
+}
+
+export function refineKnowledgeProposal(token: string, proposalId: string) {
+  return apiRequest<KnowledgeProposal>(
+    `/api/v2/knowledge/proposals/${encodeURIComponent(proposalId)}/refine`, "POST", { token });
+}
+
+export function importKnowledge(token: string, orgId: string, refs: string[]) {
+  return apiRequest<KnowledgeImportResult>(
+    "/api/v2/knowledge/import", "POST", { token, body: { org_id: orgId, refs } });
 }
 
 export function rejectKnowledgeProposal(token: string, proposalId: string, reason = "") {
