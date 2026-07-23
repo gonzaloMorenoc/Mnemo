@@ -47,7 +47,7 @@ export default function SettingsPage() {
                 <strong>Estado:</strong> {healthQuery.data.status}
               </p>
               <p>
-                <strong>Modelo de IA:</strong> {healthQuery.data.model}
+                <strong>Modelo de IA:</strong> {healthQuery.data.model || "N/D"}
               </p>
               <p>
                 <strong>Aislamiento por organización:</strong>{" "}
