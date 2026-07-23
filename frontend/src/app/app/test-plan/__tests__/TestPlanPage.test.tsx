@@ -165,8 +165,8 @@ describe("TestPlanPage — importar a Jira (Xray)", () => {
     });
   });
 
-  // I3: 503 ApiClientError → "Configura Jira en Integraciones para exportar a Xray"
-  it("I3 — muestra toast.error('Configura Xray') cuando exportTestPlanXray falla con ApiClientError 503", async () => {
+  // I3: 503 ApiClientError → mensaje HONESTO (Xray no configurable aún; "configura Jira" no lo desbloquea)
+  it("I3 — muestra un mensaje honesto cuando exportTestPlanXray falla con ApiClientError 503", async () => {
     (generateTestPlan as ReturnType<typeof vi.fn>).mockResolvedValue(MOCK_RESULT);
     (exportTestPlanXray as ReturnType<typeof vi.fn>).mockRejectedValue(
       new ApiClientError("Xray integration not configured", 503),
@@ -184,7 +184,7 @@ describe("TestPlanPage — importar a Jira (Xray)", () => {
     fireEvent.click(screen.getByRole("button", { name: /importar a jira/i }));
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith("Configura Jira en Integraciones para exportar a Xray");
+      expect(toast.error).toHaveBeenCalledWith("La exportación a Xray aún no está disponible en esta organización.");
     });
   });
 

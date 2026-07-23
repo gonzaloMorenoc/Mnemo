@@ -265,7 +265,10 @@ export default function TestPlanPage() {
       }
     },
     onError: (err: Error) => {
-      const msg = err instanceof ApiClientError && err.status === 503 ? "Configura Jira en Integraciones para exportar a Xray" : err.message;
+      // La exportación a Xray requiere su propia configuración, que todavía no se
+      // puede crear desde la interfaz; "configura Jira" NO la desbloquea (Xray usa
+      // una conexión distinta). Mensaje honesto hasta que exista la config de Xray.
+      const msg = err instanceof ApiClientError && err.status === 503 ? "La exportación a Xray aún no está disponible en esta organización." : err.message;
       toast.error(msg);
     },
   });
