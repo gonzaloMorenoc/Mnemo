@@ -129,6 +129,12 @@ El campo `risk` vale `"atencion"` si hay fallos nuevos (familias novel); si no, 
 | `GET` | `/v2/knowledge/{item_id}?org_id=` | Obtiene un ítem por id (`org_id` es query param **obligatorio** — 422 si falta) | JWT + miembro |
 | `POST` | `/v2/knowledge/search` | Búsqueda semántica unificada (knowledge + defect families) | JWT + miembro |
 | `POST` | `/v2/knowledge/ask` | Pregunta en lenguaje natural contra la base de conocimiento | JWT + miembro |
+| `GET` | `/v2/knowledge/proposals?org_id=&status=` | Bandeja de propuestas ("IA propone / humano aprueba") | JWT + miembro |
+| `POST` | `/v2/knowledge/proposals/generate` | Genera propuestas desde familias sin lección (RCA por LLM, cap 5) | JWT + miembro |
+| `POST` | `/v2/knowledge/proposals/{id}/approve` | Aprueba (CAS + inserta en la memoria, atómico) | JWT + owner/admin |
+| `POST` | `/v2/knowledge/proposals/{id}/reject` | Descarta (no resucita) | JWT + owner/admin |
+| `POST` | `/v2/knowledge/proposals/{id}/refine` | UNA llamada LLM que condensa la propuesta y sugiere `kind`/`domain`; 503 si el LLM cae (la propuesta queda intacta) | JWT + miembro |
+| `POST` | `/v2/knowledge/import` | Import determinista desde Jira: `{org_id, refs:["PAY-123",…]}` (máx 10) → propuestas en la bandeja con enlace al original. 409 sin integración, 429 al superar 30/hora por org. Errores por-ref en la respuesta | JWT + miembro |
 
 ---
 

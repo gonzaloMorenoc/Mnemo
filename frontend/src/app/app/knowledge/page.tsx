@@ -185,7 +185,7 @@ export default function KnowledgePage() {
 
         <TabsContent value="capturar" className="mt-4 space-y-6">
       {/* Importar desde Jira: puebla la bandeja de propuestas (curación) */}
-      <KnowledgeImportPanel orgId={orgId} />
+      <KnowledgeImportPanel orgId={activeOrgId} />
       {/* Capture zone */}
       <Card className="max-w-2xl">
         <CardHeader>
