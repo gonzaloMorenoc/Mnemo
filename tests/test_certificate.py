@@ -1,4 +1,7 @@
 from src.certify.certificate import build_certificate, compute_confidence, compute_self_eval, compute_verdict
+
+# Un run limpio (solo flaky/infra) solo firma "apto" con manifiesto completo.
+_M = {"total": 1, "passed": 1, "failed": 0, "skipped": 0, "complete": True}
 from src.certify.signing import canonical_json, sign, verify
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives import serialization
@@ -32,8 +35,8 @@ def test_self_eval_shape_and_run_composition():
 
 def test_verdict_low_confidence_downgrades_apto_only():
     apto = [{"category": "flaky", "requires_approval": False}]
-    assert compute_verdict(apto, confidence="high") == "apto"
-    assert compute_verdict(apto, confidence="low") == "apto-con-reservas"
+    assert compute_verdict(apto, confidence="high", manifest=_M) == "apto"
+    assert compute_verdict(apto, confidence="low", manifest=_M) == "apto-con-reservas"
     # no-apto y apto-con-reservas no cambian con confidence
     pend = [{"category": "real", "requires_approval": True}]
     assert compute_verdict(pend, confidence="low") == "no-apto"
@@ -44,10 +47,10 @@ def test_verdict_llm_assisted_never_yields_clean_apto():
     # "apto" rotundo, aunque un humano haya quitado requires_approval. Antes esto
     # colgaba solo de requires_approval=True; ahora compute_verdict lo garantiza.
     llm = [{"category": "flaky", "requires_approval": False, "llm_assisted": True}]
-    assert compute_verdict(llm, confidence="high") == "apto-con-reservas"
+    assert compute_verdict(llm, confidence="high", manifest=_M) == "apto-con-reservas"
     # un run determinista equivalente (sin IA) sí puede ser apto
     det = [{"category": "flaky", "requires_approval": False, "llm_assisted": False}]
-    assert compute_verdict(det, confidence="high") == "apto"
+    assert compute_verdict(det, confidence="high", manifest=_M) == "apto"
 
 
 def test_build_certificate_is_v2_with_self_eval_and_disclaimer():
@@ -57,8 +60,8 @@ def test_build_certificate_is_v2_with_self_eval_and_disclaimer():
                            verdicts=verdicts, created_at="2026-06-26T00:00:00Z")
     cert = build_certificate(run={"org_id": "o", "project": "p", "commit_sha": "s", "run_id": "r"},
                              verdicts=verdicts, sign_offs=[], mnemo_version="1.0", model_version="x",
-                             created_at="2026-06-26T00:00:00Z", self_eval=se)
-    assert cert["schema"] == "mnemo.cert.v2"
+                             created_at="2026-06-26T00:00:00Z", self_eval=se, manifest=_M)
+    assert cert["schema"] == "mnemo.cert.v3"
     assert cert["attestation_type"] == "evidence_and_assessment"
     assert "garantía" in cert["disclaimer"].lower()
     assert cert["self_eval"]["confidence"] == "high"
@@ -92,7 +95,7 @@ def test_low_confidence_self_eval_downgrades_cert_verdict():
                            verdicts=verdicts, created_at="2026-06-26T00:00:00Z")
     cert = build_certificate(run={"org_id": "o", "project": "p", "commit_sha": "s", "run_id": "r"},
                              verdicts=verdicts, sign_offs=[], mnemo_version="1.0", model_version="x",
-                             created_at="2026-06-26T00:00:00Z", self_eval=se)
+                             created_at="2026-06-26T00:00:00Z", self_eval=se, manifest=_M)
     assert cert["verdict"] == "apto-con-reservas"
 
 def test_self_eval_includes_ai_eval_but_does_not_modulate_confidence():
@@ -112,8 +115,8 @@ def test_verdict_identical_with_and_without_ai_eval():
     ai_bad = {"faithfulness": 0.1, "groundedness": 0.1, "n": 1}
     se_ai = compute_self_eval(calibration=cal, verdicts=verdicts, created_at="t", ai_eval=ai_bad)
     assert se_none["confidence"] == se_ai["confidence"] == "high"        # ai_eval no modula
-    v_none = compute_verdict(verdicts, confidence=se_none["confidence"])
-    v_ai = compute_verdict(verdicts, confidence=se_ai["confidence"])
+    v_none = compute_verdict(verdicts, confidence=se_none["confidence"], manifest=_M)
+    v_ai = compute_verdict(verdicts, confidence=se_ai["confidence"], manifest=_M)
     # ai_eval no cambia el veredicto (reproducible); es apto-con-reservas por ser llm_assisted (D3)
     assert v_none == v_ai == "apto-con-reservas"
 
