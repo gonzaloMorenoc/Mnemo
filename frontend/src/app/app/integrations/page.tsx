@@ -18,13 +18,13 @@ import {
   listRepoTests,
 } from "@/lib/api/endpoints";
 import { ApiClientError } from "@/lib/api/client";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FileDropzone } from "@/components/ui/file-dropzone";
 import { IngestTokensPanel } from "@/components/integrations/IngestTokensPanel";
+import { ConnectionCard } from "@/components/integrations/ConnectionCard";
 import type { JiraIngestResponse } from "@/lib/api/types";
 
 // Página de instalación de la GitHub App (opcional; sin ella se muestran instrucciones).
@@ -220,32 +220,23 @@ export default function IntegrationsPage() {
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Integraciones</h1>
           <p className="text-sm text-zinc-500">Conecta GitHub, Jira y tu CI para potenciar el análisis de QA.</p>
         </div>
-        <Skeleton className="h-48 max-w-xl rounded-xl" />
-        <Skeleton className="h-48 max-w-xl rounded-xl" />
+        <Skeleton className="h-14 max-w-xl rounded-xl" />
+        <Skeleton className="h-14 max-w-xl rounded-xl" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Integraciones</h1>
-        <p className="text-sm text-zinc-500">Conecta GitHub, Jira y tu CI para potenciar el análisis de QA.</p>
+        <p className="text-sm text-zinc-500">
+          Conecta GitHub, Jira y tu CI. Cada conexión se despliega al pulsarla.
+        </p>
       </div>
 
-      {/* ── GitHub config card ────────────────────────────────────────────── */}
-      <Card className="max-w-xl space-y-4 p-5">
-        <div className="flex items-center gap-2">
-          <h2 className="text-sm font-medium text-zinc-700">Configuración de GitHub</h2>
-          {githubConfigured && (
-            <span
-              data-testid="github-connected-badge"
-              className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700"
-            >
-              ✓ Conectado
-            </span>
-          )}
-        </div>
+      {/* ── GitHub: conexión + indexar tests ──────────────────────────────── */}
+      <ConnectionCard title="GitHub" connected={githubConfigured}>
         <ol className="list-decimal space-y-1 pl-4 text-xs text-zinc-500">
           <li>
             Instala la GitHub App de Mnemo en tu organización
@@ -320,17 +311,14 @@ export default function IntegrationsPage() {
             {saveGithubMut.isPending ? "Guardando…" : "Guardar configuración de GitHub"}
           </Button>
         </div>
-      </Card>
 
-      {/* ── Repo indexing card ────────────────────────────────────────────── */}
-      <Card className="max-w-xl space-y-4 p-5">
-        <h2 className="text-sm font-medium text-zinc-700">Tests del repositorio</h2>
-        <p className="text-sm text-zinc-500">
-          Mnemo lee los tests del repo para saber qué está cubierto y detectar
-          reglas sin test en el grafo.
-        </p>
-
-        <div className="space-y-2">
+        {/* Acción anidada: indexar los tests del repo (necesita GitHub) */}
+        <div className="space-y-3 border-t border-zinc-100 pt-4">
+          <h3 className="text-sm font-medium text-zinc-700">Tests del repositorio</h3>
+          <p className="text-sm text-zinc-500">
+            Mnemo lee los tests del repo para saber qué está cubierto y detectar
+            reglas sin test en el grafo.
+          </p>
           <Button
             onClick={() => indexMut.mutate()}
             disabled={indexMut.isPending || !githubConfigured}
@@ -340,41 +328,36 @@ export default function IntegrationsPage() {
           {!githubConfigured && (
             <p className="text-xs text-zinc-500">configura GitHub primero</p>
           )}
-        </div>
-
-        {repoTests.length > 0 && (
-          <div className="space-y-3 border-t pt-4">
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(domainCounts).map(([domain, count]) => (
-                <span
-                  key={domain}
-                  className="inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-700"
-                >
-                  {domain}: {count}
-                </span>
-              ))}
+          {repoTests.length > 0 && (
+            <div className="space-y-3 pt-2">
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(domainCounts).map(([domain, count]) => (
+                  <span
+                    key={domain}
+                    className="inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-700"
+                  >
+                    {domain}: {count}
+                  </span>
+                ))}
+              </div>
+              <ul className="space-y-1">
+                {repoTests.map((t) => (
+                  <li key={t.path} className="text-xs text-zinc-600">
+                    <span className="font-mono">{t.path}</span>
+                    {" · "}
+                    <span className="text-zinc-400">{t.framework}</span>
+                    {" · "}
+                    <span className="text-zinc-400">{t.domain}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
-            <ul className="space-y-1">
-              {repoTests.map((t) => (
-                <li key={t.path} className="text-xs text-zinc-600">
-                  <span className="font-mono">{t.path}</span>
-                  {" · "}
-                  <span className="text-zinc-400">{t.framework}</span>
-                  {" · "}
-                  <span className="text-zinc-400">{t.domain}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </Card>
+          )}
+        </div>
+      </ConnectionCard>
 
-      {/* ── Tokens de ingesta CI ──────────────────────────────────────────── */}
-      <IngestTokensPanel orgId={orgId} />
-
-      {/* ── Jira config card ──────────────────────────────────────────────── */}
-      <Card className="max-w-xl space-y-4 p-5">
-        <h2 className="text-sm font-medium text-zinc-700">Configuración de Jira</h2>
+      {/* ── Jira: conexión + importar bugs ────────────────────────────────── */}
+      <ConnectionCard title="Jira" connected={configured}>
         <form onSubmit={handleSave} className="space-y-4">
           <div className="space-y-1">
             <Label htmlFor="base-url">Base URL</Label>
@@ -428,52 +411,56 @@ export default function IntegrationsPage() {
             {busy ? "Guardando…" : "Guardar configuración"}
           </Button>
         </form>
-      </Card>
 
-      {/* ── Import card ───────────────────────────────────────────────────── */}
-      <Card className="max-w-xl space-y-4 p-5">
-        <h2 className="text-sm font-medium text-zinc-700">Importar bugs</h2>
+        {/* Acción anidada: importar bugs (necesita Jira) */}
+        <div className="space-y-4 border-t border-zinc-100 pt-4">
+          <h3 className="text-sm font-medium text-zinc-700">Importar bugs</h3>
+          <div className="space-y-1">
+            <Label htmlFor="project">Etiqueta de proyecto</Label>
+            <Input
+              id="project"
+              value={project}
+              onChange={(e) => setProject(e.target.value)}
+              placeholder="p.ej. web-cliente"
+            />
+            <p className="text-xs text-zinc-400">
+              Nombre corto con el que se agruparán los bugs importados. Si lo dejas
+              vacío se usa «jira».
+            </p>
+          </div>
 
-        <div className="space-y-1">
-          <Label htmlFor="project">Etiqueta de proyecto</Label>
-          <Input
-            id="project"
-            value={project}
-            onChange={(e) => setProject(e.target.value)}
-            placeholder="p.ej. web-cliente"
-          />
-          <p className="text-xs text-zinc-400">
-            Nombre corto con el que se agruparán los bugs importados. Si lo dejas
-            vacío se usa «jira».
-          </p>
+          <div className="space-y-2">
+            <Button onClick={handlePull} disabled={busy || !configured}>
+              {busy ? "Importando…" : "Importar bugs ahora (API)"}
+            </Button>
+            {!configured && (
+              <p className="text-xs text-zinc-500">Guarda la configuración antes de importar.</p>
+            )}
+          </div>
+
+          <div className="space-y-2 border-t border-zinc-100 pt-4">
+            <Label htmlFor="export-file">Subir export de Jira (CSV / JSON)</Label>
+            <FileDropzone
+              id="export-file"
+              file={file}
+              onFile={setFile}
+              accept=".csv,.json"
+              hint="Export de issues de Jira en CSV o JSON"
+            />
+            <Button onClick={handleUpload} disabled={busy || !file}>
+              {busy ? "Subiendo…" : "Subir export"}
+            </Button>
+          </div>
+
+          {msg && <p className="text-sm text-green-600">{msg}</p>}
+          {error && <p className="text-sm text-red-600">{error}</p>}
         </div>
+      </ConnectionCard>
 
-        <div className="space-y-2">
-          <Button onClick={handlePull} disabled={busy || !configured}>
-            {busy ? "Importando…" : "Importar bugs ahora (API)"}
-          </Button>
-          {!configured && (
-            <p className="text-xs text-zinc-500">Guarda la configuración antes de importar.</p>
-          )}
-        </div>
-
-        <div className="space-y-2 border-t pt-4">
-          <Label htmlFor="export-file">Subir export de Jira (CSV / JSON)</Label>
-          <FileDropzone
-            id="export-file"
-            file={file}
-            onFile={setFile}
-            accept=".csv,.json"
-            hint="Export de issues de Jira en CSV o JSON"
-          />
-          <Button onClick={handleUpload} disabled={busy || !file}>
-            {busy ? "Subiendo…" : "Subir export"}
-          </Button>
-        </div>
-
-        {msg && <p className="text-sm text-green-600">{msg}</p>}
-        {error && <p className="text-sm text-red-600">{error}</p>}
-      </Card>
+      {/* ── CI: tokens de ingesta ─────────────────────────────────────────── */}
+      <ConnectionCard title="CI · Tokens de ingesta">
+        <IngestTokensPanel orgId={orgId} bare />
+      </ConnectionCard>
     </div>
   );
 }
