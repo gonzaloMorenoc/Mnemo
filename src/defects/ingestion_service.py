@@ -12,6 +12,7 @@ from src.ingest.detect import detect_source
 from src.ingest.junit import parse_junit
 from src.ingest.playwright import parse_playwright
 from src.ingest.robot import parse_robot
+from src.ingest.summary import summarize, to_manifest
 from src.ingest.testng import parse_testng
 from src.sanitizer import sanitize_text
 
@@ -61,8 +62,12 @@ class IngestionService:
             items.append(IngestItem(rec=clean, fingerprint=fp, embedding=embedding))
         # Idempotencia (B3): el run_uid se deriva del contenido → re-subir el mismo
         # archivo al mismo proyecto deduplica en vez de doblar occurrence_count.
-        run_uid = f"report:{project}:{hashlib.sha256(data).hexdigest()}"
+        artifact_sha256 = hashlib.sha256(data).hexdigest()
+        run_uid = f"report:{project}:{artifact_sha256}"
+        run_summary = summarize(source, data)
+        manifest = (to_manifest(run_summary, artifact_sha256=artifact_sha256, commit_sha=None)
+                    if run_summary else None)
         return self.repo.ingest_run(
             user_id=user_id, org_id=org_id, project=project, source=source,
-            items=items, run_uid=run_uid,
+            items=items, run_uid=run_uid, manifest=manifest,
         )

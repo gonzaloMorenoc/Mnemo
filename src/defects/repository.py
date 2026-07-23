@@ -201,6 +201,7 @@ class AssuranceRepository:
         items: List[IngestItem],
         commit_sha: Optional[str] = None,
         run_uid: Optional[str] = None,
+        manifest: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Ingest a test run and classify each failure into a defect family.
 
@@ -249,6 +250,8 @@ class AssuranceRepository:
                         known += 1
 
                 summary = {"ingested": len(items), "known": known, "novel": novel}
+                if manifest is not None:
+                    summary["manifest"] = manifest
                 cur.execute(
                     "update public.test_runs set summary = %s where id = %s",
                     (Json(summary), run_id),
