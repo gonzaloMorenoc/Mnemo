@@ -9,7 +9,7 @@ vi.mock("@/lib/api/endpoints", () => ({
   getCertificate: vi.fn(), generateCertificate: vi.fn(), getCertificatePdf: vi.fn(),
 }));
 
-import { getCertificate, getCertificatePdf } from "@/lib/api/endpoints";
+import { getCertificate, getCertificatePdf, generateCertificate } from "@/lib/api/endpoints";
 import { toast } from "sonner";
 import { CertificateCard } from "@/components/autopilot/CertificateCard";
 
@@ -107,5 +107,32 @@ describe("CertificateCard enlace de verificación", () => {
 
     const campo = await screen.findByLabelText(/enlace de verificación/i);
     expect((campo as HTMLInputElement).value).toContain("/verify#v1.BLOB123");
+  });
+
+  it("al generar una acta nueva, el enlace de reserva de la acta vieja deja de mostrarse", async () => {
+    (getCertificate as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({
+        verdict: "apto", risk_score: 12, signature: "SIGSIGSIGSIGSIGSIGSIGSIGSIGSIGSIG",
+        share: "OLD123",
+      })
+      .mockResolvedValueOnce({
+        verdict: "apto", risk_score: 34, signature: "NEWNEWNEWNEWNEWNEWNEWNEWNEWNEWNE",
+        share: "NEW456",
+      });
+    (generateCertificate as ReturnType<typeof vi.fn>).mockResolvedValue({});
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn(async () => { throw new Error("no"); }) },
+    });
+
+    renderWithClient(<CertificateCard runId="r1" />);
+    fireEvent.click(await screen.findByRole("button", { name: /copiar enlace/i }));
+
+    const campoViejo = await screen.findByLabelText(/enlace de verificación/i);
+    expect((campoViejo as HTMLInputElement).value).toContain("/verify#v1.OLD123");
+
+    fireEvent.click(screen.getByRole("button", { name: /generar acta/i }));
+
+    await waitFor(() => expect(screen.getByText("34/100")).toBeInTheDocument());
+    expect(screen.queryByLabelText(/enlace de verificación/i)).toBeNull();
   });
 });

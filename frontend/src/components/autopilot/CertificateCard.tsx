@@ -32,7 +32,11 @@ export function CertificateCard({ runId }: { runId: string }) {
 
   const cert = query.data;
 
-  const [enlaceManual, setEnlaceManual] = useState("");
+  // Guarda el share con el que se generó el enlace junto al enlace mismo:
+  // si llega un acta nueva (otro cert.share), la comparación de abajo deja
+  // de coincidir y el enlace de reserva se oculta solo, sin useEffect.
+  const [enlaceManual, setEnlaceManual] = useState<{ share: string; url: string } | null>(null);
+  const enlaceVigente = enlaceManual && enlaceManual.share === cert?.share ? enlaceManual.url : null;
 
   async function handleCopyLink() {
     const url = buildShareUrl(window.location.origin, cert!.share!);
@@ -41,7 +45,7 @@ export function CertificateCard({ runId }: { runId: string }) {
       toast.success("Enlace copiado.");
     } catch {
       // Sin contexto seguro o sin permiso: que al menos pueda copiarlo a mano.
-      setEnlaceManual(url);
+      setEnlaceManual({ share: cert!.share!, url });
     }
   }
 
@@ -102,10 +106,10 @@ export function CertificateCard({ runId }: { runId: string }) {
                 El enlace lleva el acta completa (proyecto, commit, evidencia y calibración):
                 compartirlo es publicarlo.
               </p>
-              {enlaceManual ? (
+              {enlaceVigente ? (
                 <input
                   readOnly
-                  value={enlaceManual}
+                  value={enlaceVigente}
                   aria-label="Enlace de verificación"
                   onFocus={(e) => e.currentTarget.select()}
                   className="w-full rounded border border-zinc-200 px-2 py-1 font-mono text-xs text-zinc-600"
