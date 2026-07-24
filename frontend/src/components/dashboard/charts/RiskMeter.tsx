@@ -10,7 +10,7 @@ function riskColor(score: number): string {
 export function RiskMeter({ score }: { score: number | null }) {
   if (score == null) {
     return (
-      <span aria-label="Riesgo: no aplica" className="text-zinc-400">
+      <span role="img" aria-label="Riesgo: no aplica" className="text-zinc-400">
         —
       </span>
     );

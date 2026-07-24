@@ -126,7 +126,7 @@ export default function DashboardPage() {
         ) : runs.isLoading ? (
           <Skeleton className="h-40 rounded-xl" />
         ) : latest ? (
-          <LatestReleaseHero run={latest} manifest={manifest} />
+          <LatestReleaseHero run={latest} manifest={manifest} certified={Boolean(cert.data)} />
         ) : (
           <Card className="p-5">
             <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">Última release</p>

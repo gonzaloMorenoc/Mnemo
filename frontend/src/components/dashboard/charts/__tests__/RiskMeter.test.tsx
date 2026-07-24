@@ -17,4 +17,9 @@ describe("RiskMeter", () => {
     expect(screen.getByText("—")).toBeInTheDocument();
     expect(screen.queryByText(/\/100/)).toBeNull();
   });
+
+  it("con score null es accesible por role+name (screen readers)", () => {
+    render(<RiskMeter score={null} />);
+    expect(screen.getByRole("img", { name: "Riesgo: no aplica" })).toBeInTheDocument();
+  });
 });
