@@ -19,12 +19,41 @@ import psycopg
 from src.certify.repository import CertificateRepository
 from src.certify.service import CertificateService
 from src.ci.ingestion_service import CiIngestionService
-from src.ci.models import CiRunArtifact
+from src.ci.models import CiRunArtifact, CiTestResult
 from src.config import LLM_MODEL, MNEMO_SIGNING_PRIVATE_KEY, MNEMO_SIGNING_PUBLIC_KEY, MNEMO_VERSION
 from src.defects.repository import AssuranceRepository
 from src.triage.service import TriageService
 
 _FIX = pathlib.Path(__file__).parent.parent.parent / "scripts" / "demo_fixtures"
+
+_PAD_TOTAL = 40  # tamaño plausible de una suite; los runs se rellenan hasta aquí con tests que pasan
+
+
+def _padded(art: CiRunArtifact, total: int = _PAD_TOTAL) -> CiRunArtifact:
+    """Rellena la suite con tests que pasan hasta `total`, para un manifiesto con cuerpo.
+    No toca los tests existentes (los fallos que dirigen el triaje se conservan primero)."""
+    have = len(art.tests)
+    if have >= total:
+        return art
+    pad = [CiTestResult(test_name=f"test_suite_case_{i:03d}", status="pass") for i in range(total - have)]
+    return art.model_copy(update={"tests": [*art.tests, *pad]})
+
+
+def _trend_artifact(*, org_id: str, project: str, commit: str, n_pass: int,
+                    failures: "list[CiTestResult] | None" = None) -> CiRunArtifact:
+    """Un run de tendencia: n_pass tests que pasan + fallos opcionales (firmas conocidas)."""
+    tests = [CiTestResult(test_name=f"test_suite_case_{i:03d}", status="pass") for i in range(n_pass)]
+    tests.extend(failures or [])
+    return CiRunArtifact(project=project, org_id=org_id, commit_sha=commit, source="playwright", tests=tests)
+
+
+# Firmas de fallo conocidas (su test_name mapea a las familias que etiqueta seed_knowledge).
+_FAIL_EXPORT = CiTestResult(test_name="test_export_csv", status="fail", error_type="AssertionError",
+                            message="expected status 200 but got 500", file="tests/export.spec.ts", line=88)
+_FAIL_CHECKOUT = CiTestResult(test_name="test_checkout_guest", status="fail", error_type="TimeoutError",
+                              message="waiting for payment widget timed out", file="tests/checkout.spec.ts", line=42)
+_FAIL_LOGIN = CiTestResult(test_name="test_login_submit", status="fail", error_type="ElementNotFound",
+                           message="selector #submit not found", file="tests/login.spec.ts", line=15)
 
 
 def _load_artifact(name: str, org_id: str) -> CiRunArtifact:
