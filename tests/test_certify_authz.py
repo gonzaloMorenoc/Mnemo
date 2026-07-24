@@ -27,7 +27,7 @@ def test_owner_admin_si_puede_emitir_a_mano(monkeypatch):
     svc = _svc(is_admin=True)
     monkeypatch.setattr("src.certify.service.sign", lambda c, k: "sig")
     out = svc.generate(user_id="u", run_id="r", created_at="2026-01-01", require_admin=True)
-    assert out["verdict"] == "inconcluso"  # run vacío sin manifiesto
+    assert out["verdict"] == "sin_confirmar"  # run vacío sin manifiesto
 
 
 def test_webhook_auto_emite_sin_require_admin(monkeypatch):
@@ -35,4 +35,4 @@ def test_webhook_auto_emite_sin_require_admin(monkeypatch):
     monkeypatch.setattr("src.certify.service.sign", lambda c, k: "sig")
     # require_admin=False (default) → NO exige admin → no lanza
     out = svc.generate(user_id="svc", run_id="r", created_at="2026-01-01")
-    assert out["verdict"] == "inconcluso"
+    assert out["verdict"] == "sin_confirmar"

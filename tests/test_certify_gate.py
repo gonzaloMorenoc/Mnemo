@@ -79,10 +79,10 @@ def test_publish_raises_when_run_not_found():
         svc.publish(user_id="u", run_id="r")
 
 
-def test_gate_dicts_aceptan_inconcluso_sin_keyerror():
+def test_gate_dicts_aceptan_sin_confirmar_sin_keyerror():
     from src.certify.gate import _CONCLUSION, _MOTIVO, _render_output  # noqa: F401
-    assert _CONCLUSION["inconcluso"] == "neutral"
+    assert _CONCLUSION["sin_confirmar"] == "neutral"
     # _render_output indexa _MOTIVO[verdict] → no debe lanzar KeyError
-    title, summary = _render_output("inconcluso", [])
-    assert "inconcluso" in title
+    title, summary = _render_output("sin_confirmar", [])
+    assert "sin_confirmar" in title
     assert "No se pudo confirmar" in summary

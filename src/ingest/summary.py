@@ -134,7 +134,7 @@ _SUMMARIZERS = {
 
 def summarize(source: str, data: bytes) -> Optional[RunSummary]:
     """RunSummary del reporte, o None si el formato no se soporta o el parseo falla
-    (→ el manifiesto queda ausente → el veredicto será inconcluso)."""
+    (→ el manifiesto queda ausente → el veredicto será sin_confirmar)."""
     fn = _SUMMARIZERS.get(source)
     if fn is None:
         return None

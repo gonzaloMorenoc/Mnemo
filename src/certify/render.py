@@ -3,7 +3,7 @@ from io import BytesIO
 from typing import Any, Dict
 
 _VERDICT_COLOR = {"apto": "#1a7f37", "apto-con-reservas": "#9a6700", "no-apto": "#cf222e",
-                  "inconcluso": "#57606a"}
+                  "sin_confirmar": "#57606a"}
 
 
 def _e(v: object) -> str:
@@ -19,8 +19,8 @@ def render_html(cert: Dict[str, Any], signature: str) -> str:
     bd = cert.get("breakdown", {})
     verdict = cert.get("verdict", "")
     color = _VERDICT_COLOR.get(verdict, "#57606a")
-    # Un run "inconcluso" no tiene riesgo que reportar (no se pudo confirmar la ejecución).
-    risk_html = "&mdash;" if verdict == "inconcluso" else _e(cert.get("risk_score"))
+    # Un run "sin_confirmar" no tiene riesgo que reportar (no se pudo confirmar la ejecución).
+    risk_html = "&mdash;" if verdict == "sin_confirmar" else _e(cert.get("risk_score"))
 
     # Manifiesto de ejecución (acta v3); ausente en actas v2.
     m = cert.get("execution_manifest") or {}
@@ -31,9 +31,9 @@ def render_html(cert: Dict[str, Any], signature: str) -> str:
         + (f" &middot; {_e(m.get('flaky'))} flaky" if m.get("flaky") else "")
         + f" &middot; formato <code>{_e(m.get('source_format'))}</code></p>"
     ) if m else ""
-    inconcluso_note = (
+    sin_confirmar_note = (
         "<p style='color:#57606a'>El reporte no prueba una ejecución completa; "
-        "el acta lo refleja.</p>" if verdict == "inconcluso" else ""
+        "el acta lo refleja.</p>" if verdict == "sin_confirmar" else ""
     )
     rows = "".join(
         f"<tr><td>{_e(e.get('failure_id'))}</td><td>{_e(e.get('category'))}</td>"
@@ -75,7 +75,7 @@ def render_html(cert: Dict[str, Any], signature: str) -> str:
         "<h1>Release Assurance Certificate</h1>"
         f"<p><strong>Evaluación del motor:</strong> <span class='verdict' style='color:{color}'>{_e(verdict)}</span>"
         f" &middot; <strong>Risk score:</strong> {risk_html}</p>"
-        f"{inconcluso_note}"
+        f"{sin_confirmar_note}"
         f"<p>Proyecto <code>{_e(idn.get('project'))}</code> &middot; commit <code>{_e(idn.get('commit_sha'))}</code>"
         f" &middot; run <code>{_e(idn.get('run_id'))}</code> &middot; {_e(idn.get('created_at'))}</p>"
         f"<p>Mnemo {_e(idn.get('mnemo_version'))} &middot; modelo {_e(idn.get('model_version'))}</p>"

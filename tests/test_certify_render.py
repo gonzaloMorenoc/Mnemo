@@ -50,9 +50,9 @@ def test_render_escapes_nothing_breaks_on_empty_evidence():
     assert "apto" in html
 
 
-def test_render_inconcluso_no_muestra_risk_0_y_pinta_manifiesto():
+def test_render_sin_confirmar_no_muestra_risk_0_y_pinta_manifiesto():
     cert = {
-        "verdict": "inconcluso", "risk_score": 0,
+        "verdict": "sin_confirmar", "risk_score": 0,
         "identity": {"project": "web", "commit_sha": "c", "run_id": "r", "created_at": "t",
                      "mnemo_version": "1", "model_version": "m"},
         "breakdown": {}, "evidence": [], "sign_offs": [], "self_eval": None,
@@ -60,7 +60,7 @@ def test_render_inconcluso_no_muestra_risk_0_y_pinta_manifiesto():
                                "flaky": 0, "complete": True, "source_format": "junit"},
     }
     html = render_html(cert, "sig")
-    # Riesgo NO debe ser "0" para inconcluso; usa la raya (—)
+    # Riesgo NO debe ser "0" para sin_confirmar; usa la raya (—)
     assert "Risk score:</strong> 0" not in html
     assert "&mdash;" in html
     assert "no prueba una ejecución completa" in html

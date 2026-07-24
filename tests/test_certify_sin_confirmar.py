@@ -3,13 +3,13 @@ from src.certify.certificate import build_certificate, compute_verdict
 _COMPLETE = {"total": 10, "passed": 10, "failed": 0, "skipped": 0, "complete": True}
 
 
-def test_run_verde_sin_manifiesto_es_inconcluso():
-    assert compute_verdict([], confidence="high", manifest=None) == "inconcluso"
+def test_run_verde_sin_manifiesto_es_sin_confirmar():
+    assert compute_verdict([], confidence="high", manifest=None) == "sin_confirmar"
 
 
-def test_run_verde_con_manifiesto_incompleto_es_inconcluso():
+def test_run_verde_con_manifiesto_incompleto_es_sin_confirmar():
     assert compute_verdict([], confidence="high",
-                           manifest={"total": 0, "complete": False}) == "inconcluso"
+                           manifest={"total": 0, "complete": False}) == "sin_confirmar"
 
 
 def test_run_verde_con_manifiesto_completo_es_apto():
@@ -36,23 +36,23 @@ def test_acta_v3_incluye_execution_manifest():
     assert cert["verdict"] == "apto"
 
 
-def test_acta_v3_run_vacio_sin_manifiesto_es_inconcluso():
+def test_acta_v3_run_vacio_sin_manifiesto_es_sin_confirmar():
     cert = build_certificate(
         run={"org_id": "o", "project": "p", "commit_sha": "c", "run_id": "r"},
         verdicts=[], sign_offs=[], mnemo_version="1", model_version="m",
         created_at="2026-01-01", self_eval={"confidence": "high"}, manifest=None)
-    assert cert["verdict"] == "inconcluso"
+    assert cert["verdict"] == "sin_confirmar"
     assert cert["execution_manifest"] is None
 
 
-def test_manifiesto_declara_fallos_sin_verdicts_es_inconcluso():
-    # cabecera declara fallos pero triaje vacío (parser no extrajo) → inconcluso, no apto
+def test_manifiesto_declara_fallos_sin_verdicts_es_sin_confirmar():
+    # cabecera declara fallos pero triaje vacío (parser no extrajo) → sin_confirmar, no apto
     m = {"total": 3, "passed": 0, "failed": 3, "skipped": 0, "complete": True}
-    assert compute_verdict([], confidence="high", manifest=m) == "inconcluso"
+    assert compute_verdict([], confidence="high", manifest=m) == "sin_confirmar"
 
 
 def test_flaky_triado_con_manifiesto_completo_sigue_apto():
-    # flaky triado (verdicts NO vacío) no se convierte en inconcluso por la guarda de failed
+    # flaky triado (verdicts NO vacío) no se convierte en sin_confirmar por la guarda de failed
     verdicts = [{"category": "flaky", "requires_approval": False}]
     m = {"total": 3, "passed": 2, "failed": 0, "flaky": 1, "complete": True}
     assert compute_verdict(verdicts, confidence="high", manifest=m) == "apto"

@@ -82,7 +82,7 @@ def test_compute_verdict_apto_on_flaky_or_infra():
     assert compute_verdict([_vv("flaky"), _vv("infra")], manifest=_COMPLETE_MANIFEST) == "apto"
 
 
-def test_compute_verdict_inconcluso_on_empty_without_manifest():
-    # Sin manifiesto no se puede probar que corrieron tests → inconcluso (antes: "apto").
-    assert compute_verdict([]) == "inconcluso"
+def test_compute_verdict_sin_confirmar_on_empty_without_manifest():
+    # Sin manifiesto no se puede probar que corrieron tests → sin_confirmar (antes: "apto").
+    assert compute_verdict([]) == "sin_confirmar"
     assert compute_verdict([], manifest=_COMPLETE_MANIFEST) == "apto"

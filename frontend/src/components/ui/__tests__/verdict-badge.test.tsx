@@ -16,9 +16,9 @@ describe("VerdictBadge", () => {
     expect(screen.getByText("No apto")).toBeInTheDocument();
   });
 
-  it("muestra 'Inconcluso' para el 4º veredicto", () => {
-    render(<VerdictBadge verdict="inconcluso" />);
-    expect(screen.getByText("Inconcluso")).toBeInTheDocument();
+  it("muestra 'Sin confirmar' para el 4º veredicto", () => {
+    render(<VerdictBadge verdict="sin_confirmar" />);
+    expect(screen.getByText("Sin confirmar")).toBeInTheDocument();
   });
 
   it("sin veredicto muestra 'Sin veredicto aún'", () => {

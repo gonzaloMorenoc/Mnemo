@@ -55,9 +55,9 @@ def compute_verdict(verdicts: List[Dict[str, Any]], confidence: str = "high",
     """Veredicto de aseguramiento (política §7.1) sobre los veredictos de triaje.
     Compartido por el certificado (F4a) y el gate (F4b).
 
-    Un run CON fallos siempre es rojo (no se oculta tras inconcluso). Un run limpio
+    Un run CON fallos siempre es rojo (no se oculta tras sin_confirmar). Un run limpio
     solo se firma "apto" si el manifiesto prueba una ejecución completa; si falta o
-    está incompleto → `inconcluso` (no podemos confirmar que corrieron tests)."""
+    está incompleto → `sin_confirmar` (no podemos confirmar que corrieron tests)."""
     reales_novel_sin_approval = sum(
         1 for v in verdicts if v.get("category") == "real"
         and v.get("rule_applied") == "R5_real_novel" and not v.get("requires_approval"))
@@ -68,11 +68,11 @@ def compute_verdict(verdicts: List[Dict[str, Any]], confidence: str = "high",
         return "apto-con-reservas"
     # Run limpio (sin fallos accionables triados): exigir manifiesto completo para firmar verde.
     if not manifest or not manifest.get("complete"):
-        return "inconcluso"
+        return "sin_confirmar"
     # El manifiesto declara fallos pero el triaje está vacío (formatos sin red de
     # seguridad: playwright/cypress/allure/cucumber) → no hay evidencia; no firmar verde.
     if not verdicts and manifest.get("failed", 0) > 0:
-        return "inconcluso"
+        return "sin_confirmar"
     # Invariante estructural: si la IA asistió alguna categoría (desempate LLM,
     # R6), el acta NUNCA es un "apto" rotundo — a lo sumo "apto-con-reservas",
     # con independencia de requires_approval. Así "la IA no produce un veredicto
