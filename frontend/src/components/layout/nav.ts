@@ -20,13 +20,7 @@ export type NavItem = { href: string; label: string; icon: LucideIcon };
 export type NavSection = { title: string | null; items: NavItem[] };
 
 export const NAV_SECTIONS: NavSection[] = [
-  {
-    title: null,
-    items: [
-      { href: "/app", label: "Dashboard", icon: LayoutDashboard },
-      { href: "/app/guia", label: "Guía", icon: BookMarked },
-    ],
-  },
+  { title: null, items: [{ href: "/app", label: "Dashboard", icon: LayoutDashboard }] },
   {
     title: "Memoria",
     items: [
@@ -54,6 +48,8 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/app/settings", label: "Ajustes", icon: Settings },
     ],
   },
+  // "Guía" va al final del todo, separada de las secciones de trabajo.
+  { title: null, items: [{ href: "/app/guia", label: "Guía", icon: BookMarked }] },
 ];
 
 export const NAV_ITEMS: NavItem[] = NAV_SECTIONS.flatMap((s) => s.items);
