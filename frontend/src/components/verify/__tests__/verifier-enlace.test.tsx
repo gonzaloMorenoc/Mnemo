@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { StrictMode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
@@ -12,6 +12,7 @@ vi.mock("@/lib/api/endpoints", () => ({
 
 import { CertificateVerifier } from "@/components/verify/CertificateVerifier";
 import { verifyCertificate } from "@/lib/api/endpoints";
+import { toast } from "sonner";
 
 const ACTA =
   '{"canonical_json":{"schema":"mnemo.cert.v3","verdict":"apto","identity":{"project":"checkout-suite"},"x":0.0},"signature":"sig"}';
@@ -48,6 +49,32 @@ describe("CertificateVerifier — llegada por enlace", () => {
     expect(await screen.findByText(/enlace está incompleto/i)).toBeInTheDocument();
     expect(screen.queryByText(/ha sido alterada|no confíes/i)).toBeNull();
     expect(verifyCertificate).not.toHaveBeenCalled();
+  });
+
+  it("enlace con contenido indecodificable (base64 inválido): mismo aviso ámbar", async () => {
+    // Prefijo `#v1.` correcto, pero el contenido no es base64 válido: `decodeShare`
+    // devuelve null (rama distinta a la del truncamiento, que sí decodifica pero
+    // falla al parsear el JSON incompleto).
+    renderConHash("#v1.!!!esto-no-es-base64!!!");
+    expect(await screen.findByText(/enlace está incompleto/i)).toBeInTheDocument();
+    expect(screen.queryByText(/ha sido alterada|no confíes/i)).toBeNull();
+    expect(verifyCertificate).not.toHaveBeenCalled();
+  });
+
+  it("verificar a mano tras un enlace roto limpia el aviso ámbar (ya no aplica al texto nuevo)", async () => {
+    // Enlace truncado: aparece el aviso ámbar.
+    renderConHash(`#v1.${BLOB.slice(0, Math.floor(BLOB.length / 2))}`);
+    expect(await screen.findByText(/enlace está incompleto/i)).toBeInTheDocument();
+
+    // El usuario pega a mano un acta distinta (JSON inválido) y verifica.
+    fireEvent.change(screen.getByLabelText(/Acta en formato JSON/i), {
+      target: { value: "esto no es json" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Verificar firma/i }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    // El aviso del enlace ya no aplica: el acta en pantalla no vino de un enlace.
+    expect(screen.queryByText(/enlace está incompleto/i)).toBeNull();
   });
 
   it("sin hash se comporta como siempre: no verifica nada al montar", async () => {

@@ -85,6 +85,13 @@ export function CertificateVerifier() {
 
   const runVerification = useCallback(
     (rawActa: string, fromLink = false) => {
+      // Verificar a mano siempre parte de cero: si el acta en pantalla venía de
+      // un enlace (sello de procedencia, aviso ámbar de enlace roto), esa
+      // procedencia ya no aplica al texto que el usuario acaba de pegar.
+      if (!fromLink) {
+        setLlegaPorEnlace(false);
+        setLinkError("");
+      }
       let p: Payload;
       try {
         p = extractPayload(rawActa);
