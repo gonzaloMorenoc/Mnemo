@@ -17,6 +17,10 @@ describe("crumbForPath — breadcrumb con prefix-match", () => {
     });
   });
 
+  it("resuelve /app/guia (top-level, sin sección) a la Guía", () => {
+    expect(crumbForPath("/app/guia")).toEqual({ section: null, label: "Guía" });
+  });
+
   it("el Dashboard solo casa con /app exacto", () => {
     expect(crumbForPath("/app")).toEqual({ section: null, label: "Dashboard" });
     expect(crumbForPath("/app/ruta-desconocida")).toBeNull();

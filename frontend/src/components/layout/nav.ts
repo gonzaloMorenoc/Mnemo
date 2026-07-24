@@ -1,5 +1,6 @@
 import {
   BadgeCheck,
+  BookMarked,
   Bot,
   BrainCircuit,
   Building2,
@@ -19,7 +20,13 @@ export type NavItem = { href: string; label: string; icon: LucideIcon };
 export type NavSection = { title: string | null; items: NavItem[] };
 
 export const NAV_SECTIONS: NavSection[] = [
-  { title: null, items: [{ href: "/app", label: "Dashboard", icon: LayoutDashboard }] },
+  {
+    title: null,
+    items: [
+      { href: "/app", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/app/guia", label: "Guía", icon: BookMarked },
+    ],
+  },
   {
     title: "Memoria",
     items: [
