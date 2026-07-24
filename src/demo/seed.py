@@ -47,13 +47,28 @@ def _trend_artifact(*, org_id: str, project: str, commit: str, n_pass: int,
     return CiRunArtifact(project=project, org_id=org_id, commit_sha=commit, source="playwright", tests=tests)
 
 
-# Firmas de fallo conocidas (su test_name mapea a las familias que etiqueta seed_knowledge).
+# Firmas de fallo conocidas: reproducen EXACTAMENTE el fingerprint (error_type +
+# message normalizado + top_frame del trace — ver src/defects/fingerprint.py, NO
+# el test_name) de un fallo de los fixtures nucleo, para que MERGEN en la misma
+# familia que etiqueta seed_knowledge en vez de abrir familias nuevas sin etiquetar.
 _FAIL_EXPORT = CiTestResult(test_name="test_export_csv", status="fail", error_type="AssertionError",
-                            message="expected status 200 but got 500", file="tests/export.spec.ts", line=88)
-_FAIL_CHECKOUT = CiTestResult(test_name="test_checkout_guest", status="fail", error_type="TimeoutError",
-                              message="waiting for payment widget timed out", file="tests/checkout.spec.ts", line=42)
-_FAIL_LOGIN = CiTestResult(test_name="test_login_submit", status="fail", error_type="ElementNotFound",
-                           message="selector #submit not found", file="tests/login.spec.ts", line=15)
+                            message="expected status 200 but got 500",
+                            trace="at ExportService.export (export.ts:88)",
+                            file="tests/export.spec.ts", line=88)  # == real.json
+# _FAIL_CHECKOUT: flaky.json solo aporta un TimeoutError generico ("Timeout 30000ms
+# waiting for #cart") que el motor de triaje determinista NO clasifica (no matchea
+# infra/locator/assertion en src/triage/patterns.py) → sin la calibracion de
+# seed_knowledge queda "unknown" pase lo que pase con el fingerprint. Se DESCARTA de
+# _TREND (ver demo-trend-03 mas abajo) para no crear una familia sin etiquetar/ruido.
+_FAIL_LOGIN = CiTestResult(test_name="test_login", status="fail", error_type="NoSuchElementError",
+                           message="locator not found: #submit",
+                           file="tests/login.spec.ts", line=10,
+                           # el DOM (no forma parte del fingerprint) reproduce el mismo cambio de
+                           # selector que maintenance_red.json → la regla determinista R3 (locator +
+                           # DOM distinto del ultimo verde) categoriza "maintenance" tambien aqui,
+                           # sin depender de la calibracion de seed_knowledge.
+                           dom="<form id=\"login\"><input name=\"user\"/><button id=\"send\">Entrar</button></form>"
+                           )  # == maintenance_red.json
 
 
 def _load_artifact(name: str, org_id: str) -> CiRunArtifact:
@@ -63,11 +78,16 @@ def _load_artifact(name: str, org_id: str) -> CiRunArtifact:
 
 
 # Serie de tendencia (orden = cronológico, más antiguos primero). El último es todo-verde
-# → el héroe "Última release" muestra APTO. Los fallos reutilizan firmas conocidas.
+# → el héroe "Última release" muestra "apto-con-reservas": el certificado se emite ANTES
+# de que seed_knowledge calibre, así que todo run verde nace con confianza baja (D3, a
+# propósito) — nunca "apto" a secas. Los fallos reutilizan firmas conocidas cuyo fingerprint
+# (error_type + mensaje normalizado + top_frame, NO el test_name) es IDÉNTICO al de un fallo
+# de los fixtures núcleo → mergean en la misma familia que etiqueta seed_knowledge, en vez de
+# abrir familias nuevas sin etiquetar.
 _TREND = [
     ("demo-trend-01", 38, [_FAIL_EXPORT]),
     ("demo-trend-02", 40, []),
-    ("demo-trend-03", 36, [_FAIL_CHECKOUT, _FAIL_EXPORT]),
+    ("demo-trend-03", 36, [_FAIL_EXPORT]),
     ("demo-trend-04", 41, []),
     ("demo-trend-05", 39, [_FAIL_LOGIN]),
     ("demo-trend-06", 42, []),

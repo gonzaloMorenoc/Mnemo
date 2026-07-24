@@ -40,7 +40,7 @@ def main(argv, ask=input) -> int:
     if len(argv) < 2:
         print("uso: python3 scripts/reseed_demo.py <demo_user_uuid>"); return 2
     demo_user_id = argv[1]
-    host = db_url.split("@")[-1]
+    host = db_url.rsplit("@", 1)[-1] if "@" in db_url else "<oculto>"
     print(f"Esto BORRARÁ las orgs {_ORGS} del usuario {demo_user_id} en {host} y las re-sembrará.")
     if not _confirmed(ask("Escribe 'reseed' para confirmar: ")):
         print("Cancelado."); return 1

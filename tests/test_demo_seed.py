@@ -151,6 +151,12 @@ def test_seed_runs_tienen_manifiesto_y_hay_al_menos_10(demo_user):
     assert len(fechas) >= 5, f"created_at apenas repartido: {len(fechas)} fechas distintas"
 
 
+def test_seed_no_crea_familias_unknown(demo_user):
+    res = seed_demo(db_url=DBURL, demo_user_id=demo_user)
+    cats = _verdict_categories(res["org_a"])
+    assert "unknown" not in cats, f"el seed dejó defectos sin clasificar (ruido): {cats}"
+
+
 @pytest.mark.integration
 def test_fresh_push_is_maintenance_with_baseline(demo_user):
     from src.demo.seed import seed_demo, _load_artifact
