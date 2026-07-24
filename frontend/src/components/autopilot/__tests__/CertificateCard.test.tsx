@@ -46,16 +46,16 @@ describe("CertificateCard PDF download", () => {
   });
 });
 
-describe("CertificateCard — inconcluso y manifiesto", () => {
-  it("acta inconcluso: riesgo '—' y nota + manifiesto de canonical_json", async () => {
+describe("CertificateCard — sin_confirmar y manifiesto", () => {
+  it("acta sin_confirmar: riesgo '—' y nota + manifiesto de canonical_json", async () => {
     (getCertificate as ReturnType<typeof vi.fn>).mockResolvedValue({
-      verdict: "inconcluso", risk_score: 0, signature: "SIGSIGSIGSIGSIGSIGSIGSIGSIGSIGSIG",
+      verdict: "sin_confirmar", risk_score: 0, signature: "SIGSIGSIGSIGSIGSIGSIGSIGSIGSIGSIG",
       canonical_json: {
         execution_manifest: { total: 128, passed: 120, failed: 5, skipped: 3, complete: true },
       },
     });
     renderWithClient(<CertificateCard runId="r1" />);
-    expect(await screen.findByText("Inconcluso")).toBeInTheDocument();
+    expect(await screen.findByText("Sin confirmar")).toBeInTheDocument();
     expect(screen.getByText("—")).toBeInTheDocument();
     expect(screen.getByText(/no prueba una ejecución completa/i)).toBeInTheDocument();
     expect(screen.getByText(/128 tests · 120 ✓ · 5 ✗ · 3 omitidos/)).toBeInTheDocument();

@@ -65,12 +65,12 @@ export function CertificateCard({ runId }: { runId: string }) {
             <span className="flex items-center gap-1">
               riesgo <InfoTooltip term="risk_score" />
               <strong className="text-zinc-900">
-                {cert.verdict === "inconcluso" ? "—" : `${cert.risk_score}/100`}
+                {cert.verdict === "sin_confirmar" ? "—" : `${cert.risk_score}/100`}
               </strong>
             </span>
           </div>
           <ExecutionManifestLine cert={cert} />
-          {cert.verdict === "inconcluso" && (
+          {cert.verdict === "sin_confirmar" && (
             <p className="text-xs text-slate-600">
               El reporte no prueba una ejecución completa; el acta lo refleja.
             </p>

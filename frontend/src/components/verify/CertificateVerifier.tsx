@@ -137,7 +137,7 @@ export function CertificateVerifier() {
                 {verdict ? <VerdictBadge verdict={verdict} /> : <Badge>—</Badge>}
               </Field>
               <Field label="Riesgo">
-                {verdict === "inconcluso"
+                {verdict === "sin_confirmar"
                   ? "—"
                   : `${String(payload?.canonical_json.risk_score ?? "—")}/100`}
               </Field>
