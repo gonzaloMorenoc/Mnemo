@@ -1170,7 +1170,8 @@ def get_certificate_v2(
         raise HTTPException(status_code=404, detail="certificate not found")
     return CertificateResponse(run_id=cert["run_id"], verdict=cert["verdict"],
                                risk_score=cert["risk_score"], canonical_json=cert["canonical_json"],
-                               signature=cert["signature"], created_at=cert["created_at"])
+                               signature=cert["signature"], created_at=cert["created_at"],
+                               share=cert.get("share", ""))
 
 
 @router.post("/certificates/verify", response_model=CertificateVerifyResponse)

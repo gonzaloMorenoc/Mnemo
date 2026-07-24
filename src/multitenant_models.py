@@ -205,6 +205,7 @@ class CertificateResponse(BaseModel):
     canonical_json: dict
     signature: str
     created_at: Optional[str] = None
+    share: str = ""
 
 
 class CertificateVerifyRequest(BaseModel):
