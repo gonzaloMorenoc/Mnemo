@@ -11,6 +11,10 @@ vi.mock("@/components/providers/org-provider", () => ({
   useActiveOrg: vi.fn(),
 }));
 
+vi.mock("next/link", () => ({
+  default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>,
+}));
+
 vi.mock("@/lib/api/endpoints", () => ({
   getGithubConfig: vi.fn(),
   listRepoTests: vi.fn(),
@@ -19,6 +23,7 @@ vi.mock("@/lib/api/endpoints", () => ({
   listRuns: vi.fn(),
   getCalibrationMetrics: vi.fn(),
   listKnowledgeProposals: vi.fn(),
+  getCertificate: vi.fn(),
 }));
 
 import { useActiveOrg } from "@/components/providers/org-provider";
@@ -30,6 +35,7 @@ import {
   listRuns,
   getCalibrationMetrics,
   listKnowledgeProposals,
+  getCertificate,
 } from "@/lib/api/endpoints";
 import DashboardPage from "@/app/app/page";
 
@@ -39,6 +45,10 @@ function mockOperationalData() {
       created_at: "2026-07-22T10:00:00+00:00", verdict: "no-apto", risk_score: 20,
       failures: 3 },
   ]);
+  (getCertificate as ReturnType<typeof vi.fn>).mockResolvedValue({
+    run_id: "r1", verdict: "no-apto", risk_score: 20, signature: "sig",
+    canonical_json: { execution_manifest: { total: 40, passed: 37, failed: 3, skipped: 0, complete: true, source_format: "junit", artifact_sha256: "x" } },
+  });
   (getCalibrationMetrics as ReturnType<typeof vi.fn>).mockResolvedValue({
     accuracy: 0.6, aciertos: 3, total: 5, familias_calibradas: 4, por_categoria: {},
   });
@@ -76,6 +86,7 @@ describe("DashboardPage", () => {
     (listKnowledge as ReturnType<typeof vi.fn>).mockResolvedValue([]);
     (getGaps as ReturnType<typeof vi.fn>).mockResolvedValue([]);
     mockOperationalData();
+    (getCertificate as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("404"));
 
     renderWithClient(<DashboardPage />);
 
@@ -105,18 +116,57 @@ describe("DashboardPage", () => {
     renderWithClient(<DashboardPage />);
 
     await waitFor(() => {
-      // último run con veredicto semántico (KPI + lista de runs recientes)
       expect(screen.getAllByText("No apto").length).toBeGreaterThan(0);
       expect(screen.getAllByText("checkout-suite").length).toBeGreaterThan(0);
-      // precisión del motor
+      // héroe: manifiesto del acta del último run + CTA a Autopilot
+      expect(screen.getByText(/40 tests · 37 ✓ · 3 ✗/)).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /Ver run/i })).toHaveAttribute("href", "/app/autopilot");
+      // precisión del motor (gauge) al 60%
       expect(screen.getAllByText("60%").length).toBeGreaterThan(0);
-      // propuestas pendientes visibles
       expect(screen.getAllByText(/1 propuesta de la IA por revisar/i).length).toBeGreaterThan(0);
-      // gaps con severidad alta destacada
       expect(screen.getAllByText(/1 de severidad alta/i).length).toBeGreaterThan(0);
-      // checklist completo (pasos 1-4 done) → colapsado a una línea
       expect(screen.getAllByText(/Configuración completa/i).length).toBeGreaterThan(0);
       expect(screen.queryByTestId("step-todo-5")).toBeNull();
+    });
+  });
+
+  it("héroe sin acta (getCertificate 404): muestra los fallos del run, no el manifiesto", async () => {
+    (useActiveOrg as ReturnType<typeof vi.fn>).mockReturnValue({ activeOrgId: "o1", isLoading: false });
+    (getGithubConfig as ReturnType<typeof vi.fn>).mockResolvedValue({ configured: true });
+    (listRepoTests as ReturnType<typeof vi.fn>).mockResolvedValue([{ path: "a" }]);
+    (listKnowledge as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (getGaps as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    mockOperationalData();
+    (getCertificate as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("404"));
+
+    renderWithClient(<DashboardPage />);
+
+    await waitFor(() => {
+      // "3 fallos" aparece tanto en el héroe como en la fila de "Runs recientes"
+      // (mismo run mockeado) → ambiguo con getByText, se usa getAllByText.
+      expect(screen.getAllByText(/3 fallos/).length).toBeGreaterThan(0);
+      expect(screen.queryByText(/acta firmada/i)).toBeNull();
+    });
+  });
+
+  it("muestra 'No se pudo cargar' en vez de un estado vacío cuando las queries fallan (5xx)", async () => {
+    (useActiveOrg as ReturnType<typeof vi.fn>).mockReturnValue({
+      activeOrgId: "o1",
+      isLoading: false,
+    });
+    (getGithubConfig as ReturnType<typeof vi.fn>).mockResolvedValue({ configured: true });
+    (listRepoTests as ReturnType<typeof vi.fn>).mockResolvedValue([{ path: "a" }]);
+    (listKnowledge as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("boom"));
+    (getGaps as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("boom"));
+    (listRuns as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("boom"));
+    (getCalibrationMetrics as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("boom"));
+    (listKnowledgeProposals as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (getCertificate as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("boom"));
+
+    renderWithClient(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/No se pudo cargar/).length).toBeGreaterThan(0);
     });
   });
 
