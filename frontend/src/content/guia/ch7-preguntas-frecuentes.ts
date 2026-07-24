@@ -1,20 +1,11 @@
-import type { Chapter, Section } from "./types";
-import { GLOSSARY } from "@/lib/glossary";
-
-// El glosario se genera desde el GLOSSARY (única fuente) — no se copian definiciones.
-const glossarySection: Section = {
-  heading: "Glosario",
-  blocks: Object.keys(GLOSSARY).map((term) => ({ kind: "term", term })),
-};
+import type { Chapter } from "./types";
 
 export const chapter: Chapter = {
-  slug: "conceptos-y-faq",
-  title: "Conceptos y preguntas frecuentes",
-  summary: "El glosario y las dudas más comunes.",
+  slug: "preguntas-frecuentes",
+  title: "Preguntas frecuentes",
+  summary: "Las dudas más comunes, respondidas.",
   sections: [
-    glossarySection,
     {
-      heading: "Preguntas frecuentes",
       blocks: [
         {
           kind: "p",
