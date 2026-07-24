@@ -71,8 +71,6 @@ def render_html(cert: Dict[str, Any], signature: str, public_url: str = "") -> s
         "<style>"
         "@page { margin: 1.8cm; }"
         "body { font-family: Helvetica, Arial, sans-serif; color: #24292f; font-size: 11pt; }"
-        ".brand { font-size: 9pt; letter-spacing: 2px; color: #57606a; text-transform: uppercase; }"
-        "h1 { font-size: 18pt; margin: 2px 0 10px 0; }"
         "h2 { font-size: 13pt; border-bottom: 1px solid #d0d7de; padding-bottom: 3px; margin-top: 18px; }"
         ".verdict { font-size: 15pt; font-weight: bold; }"
         "table { border-collapse: collapse; width: 100%; font-size: 10pt; }"
