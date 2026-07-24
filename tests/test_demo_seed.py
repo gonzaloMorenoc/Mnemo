@@ -68,6 +68,17 @@ def _commit_exists(commit_sha: str) -> bool:
         return cur.fetchone()[0]
 
 
+def _commit_in_orgs(commit_sha: str, org_ids: list) -> bool:
+    """True si algún run con ese commit pertenece a alguno de esos orgs (aislado de datos ajenos)."""
+    with psycopg.connect(DBURL) as conn, conn.cursor() as cur:
+        cur.execute(
+            "select exists(select 1 from public.test_runs"
+            " where commit_sha=%s and org_id = any(%s)) as ok",
+            (commit_sha, org_ids),
+        )
+        return cur.fetchone()[0]
+
+
 def _org_count(user_id: str) -> int:
     """Número de orgs creadas por un usuario."""
     with psycopg.connect(DBURL) as conn, conn.cursor() as cur:
@@ -103,8 +114,9 @@ def test_seed_creates_two_orgs_with_processed_runs(demo_user):
     from src.config import MNEMO_SIGNING_PRIVATE_KEY
     if MNEMO_SIGNING_PRIVATE_KEY:
         assert _has_certificates(res["org_a"]), "clave presente pero no se emitio ningun certificado"
-    # el run fresco NO esta ingerido (su commit no aparece en BD)
-    assert not _commit_exists("demo-fresh-push"), "fresh_push fue ingerido pero no debia serlo"
+    # el run fresco NO esta ingerido en las orgs de este seed (aislado de datos ajenos en prod)
+    assert not _commit_in_orgs("demo-fresh-push", [res["org_a"], res["org_b"]]), \
+        "fresh_push fue ingerido en las orgs del seed pero no debia serlo"
 
 
 def test_seed_is_idempotent(demo_user):
@@ -113,6 +125,36 @@ def test_seed_is_idempotent(demo_user):
     assert res2.get("skipped") or _org_count(demo_user) == 2, (
         "la segunda llamada duplico orgs o no reporto skipped"
     )
+
+
+def _org_a_runs(org_id: str):
+    with psycopg.connect(DBURL) as conn, conn.cursor() as cur:
+        cur.execute(
+            "select id, (summary->'manifest') as manifest, created_at"
+            " from public.test_runs where org_id=%s order by created_at",
+            (org_id,),
+        )
+        return cur.fetchall()
+
+
+def test_seed_runs_tienen_manifiesto_y_hay_al_menos_10(demo_user):
+    res = seed_demo(db_url=DBURL, demo_user_id=demo_user)
+    rows = _org_a_runs(res["org_a"])
+    assert len(rows) >= 10, f"esperaba >=10 runs en Org A, hay {len(rows)}"
+    # al menos un run con manifiesto de cuerpo (total>0, passed+failed==total)
+    manifests = [r[1] for r in rows if r[1]]
+    assert manifests, "ningún run tiene summary.manifest"
+    m = manifests[0]
+    assert m["total"] > 0 and m["passed"] + m["failed"] == m["total"]
+    # created_at repartido (no todos iguales) → el sparkline tiene tendencia
+    fechas = {r[2] for r in rows}
+    assert len(fechas) >= 5, f"created_at apenas repartido: {len(fechas)} fechas distintas"
+
+
+def test_seed_no_crea_familias_unknown(demo_user):
+    res = seed_demo(db_url=DBURL, demo_user_id=demo_user)
+    cats = _verdict_categories(res["org_a"])
+    assert "unknown" not in cats, f"el seed dejó defectos sin clasificar (ruido): {cats}"
 
 
 @pytest.mark.integration
