@@ -1,5 +1,8 @@
 import json
+import logging
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 
 def _build_context_block(context: List[Dict[str, Any]]) -> str:
@@ -37,12 +40,14 @@ def generate_structured(*, prompt: str, context: List[Dict[str, Any]], schema: D
         try:
             from src.llm.factory import get_llm_provider
             provider = get_llm_provider()
-        except Exception:  # noqa: BLE001 — sin provider → degrada
+        except Exception as exc:  # noqa: BLE001 — sin provider → degrada, pero se loguea
+            logger.warning("LLM no configurado (generate_structured degrada): %s", exc)
             return _fail()
     full = f"{prompt}\n\nContext snippets:\n{_build_context_block(context)}"
     try:
         raw = provider.complete(full)
-    except Exception:  # noqa: BLE001 — LLM caído → degrada
+    except Exception as exc:  # noqa: BLE001 — LLM caído → degrada, pero se loguea
+        logger.warning("LLM no alcanzable (generate_structured degrada): %r", exc)
         return _fail()
     parsed = _parse_json(raw)
     if parsed is None:

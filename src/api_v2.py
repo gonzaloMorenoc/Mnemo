@@ -37,7 +37,7 @@ from src.ci.webhook_auth import verify_signature
 from src.defects.ingestion_service import IngestionService
 from src.defects.repository import AssuranceRepository
 from src.assurance.narrator import LLMNarrator, Narrator
-from src.llm.factory import get_llm_provider, resolved_model_name
+from src.llm.factory import get_llm_provider, llm_status, resolved_model_name
 from src.assurance.verdict import build_verdict
 from src.jira.client import JiraApiError
 from src.jira.integrations_repository import InstallationAlreadyBound, IntegrationsRepository
@@ -499,8 +499,11 @@ def join_org(
 
 
 @router.get("/health")
-def health_v2() -> Dict[str, Any]:
+def health_v2(probe: bool = False) -> Dict[str, Any]:
+    # `?probe=1` hace una llamada mínima real al LLM y reporta el error crudo
+    # (401/429/timeout). Sin probe (p.ej. el keep-warm) solo valida la config.
     return {"status": "active", "model": resolved_model_name(),
+            "llm": llm_status(probe=probe),
             "multi_tenant_enabled": multi_tenant_enabled()}
 
 
