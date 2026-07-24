@@ -1,6 +1,7 @@
 "use client";
 
-import { useLayoutEffect, useState } from "react";
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { CHAPTERS, CHAPTER_SLUGS } from "@/content/guia";
 import { GuiaContent } from "@/components/guia/GuiaContent";
@@ -8,19 +9,15 @@ import { GuiaSidebar } from "@/components/guia/GuiaSidebar";
 
 const CHAPTER_INDEX = new Set(CHAPTER_SLUGS);
 
-export default function GuiaPage() {
-  // Deep-link a un capítulo (?c=slug). useLayoutEffect corre antes del pintado →
-  // sin flash del capítulo por defecto. (window.location, no useSearchParams, para
-  // no forzar Suspense — mismo patrón que knowledge/page.tsx.)
-  const [slug, setSlug] = useState(CHAPTERS[0].slug);
-  useLayoutEffect(() => {
-    const c = new URLSearchParams(window.location.search).get("c");
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (c && CHAPTER_INDEX.has(c)) setSlug(c);
-  }, []);
-
-  const active = CHAPTERS.find((c) => c.slug === slug) ?? CHAPTERS[0];
-  const chapterLinks = CHAPTERS.map((c) => ({ slug: c.slug, title: c.title }));
+function GuiaView() {
+  // El capítulo activo se DERIVA de ?c= (reactivo): al pulsar un capítulo, la
+  // navegación suave cambia la query y useSearchParams re-renderiza sin remontar
+  // — por eso no hace falta refrescar. Slug ausente/desconocido → primer capítulo.
+  const params = useSearchParams();
+  const c = params.get("c");
+  const slug = c && CHAPTER_INDEX.has(c) ? c : CHAPTERS[0].slug;
+  const active = CHAPTERS.find((x) => x.slug === slug) ?? CHAPTERS[0];
+  const chapterLinks = CHAPTERS.map((x) => ({ slug: x.slug, title: x.title }));
 
   return (
     <div className="space-y-6">
@@ -34,5 +31,14 @@ export default function GuiaPage() {
         <GuiaContent chapter={active} />
       </div>
     </div>
+  );
+}
+
+export default function GuiaPage() {
+  // useSearchParams exige un límite de Suspense en el App Router.
+  return (
+    <Suspense fallback={null}>
+      <GuiaView />
+    </Suspense>
   );
 }
