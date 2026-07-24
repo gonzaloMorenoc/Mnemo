@@ -38,6 +38,22 @@ def test_list_orgs_maps_response():
     assert body[0]["role"] == "owner"
 
 
+def test_health_reports_llm_config_error(monkeypatch):
+    # Con OPENAI_API_KEY vacía, el health debe DECIRLO (configured=False + motivo),
+    # en vez de aparentar salud con solo el nombre del modelo.
+    from src import config
+    monkeypatch.setattr(config, "LLM_PROVIDER", "openai")
+    monkeypatch.setattr(config, "OPENAI_API_KEY", "")
+    monkeypatch.setattr(config, "ALLOW_EXTERNAL_LLM", True)
+    client = make_client(with_user=False)
+    resp = client.get("/v2/health")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "active"
+    assert body["llm"]["configured"] is False
+    assert "OPENAI_API_KEY" in body["llm"]["error"]
+
+
 def test_create_org_validation_error():
     repo = MagicMock()
     client = make_client(repo=repo)

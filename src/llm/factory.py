@@ -1,3 +1,5 @@
+from typing import Any, Dict
+
 from src import config
 from src.llm.provider import LLMProvider
 from src.llm.providers.anthropic import AnthropicProvider
@@ -41,3 +43,32 @@ def get_llm_provider() -> LLMProvider:
         return AnthropicProvider(model=model, api_key=config.ANTHROPIC_API_KEY,
                                  max_tokens=config.LLM_MAX_TOKENS)
     raise ValueError(f"LLM_PROVIDER desconocido: {config.LLM_PROVIDER}")
+
+
+def llm_status(*, probe: bool = False) -> Dict[str, Any]:
+    """Diagnóstico del LLM para /v2/health. Distingue dos fallos que hoy se confunden
+    en un mudo "LLM no disponible":
+
+    - `configured=False`: el proveedor no se puede construir (falta OPENAI_API_KEY,
+      ALLOW_EXTERNAL_LLM no es true, LLM_PROVIDER desconocido…). NO llama a la API.
+    - `reachable=False`: el proveedor se construye pero la llamada real falla (401/429/
+      timeout/red). Solo se comprueba con `probe=True` (una llamada mínima), porque el
+      keep-warm pega `/v2/health` cada 15 min y no queremos gastar cuota ahí.
+    """
+    provider_name = (config.LLM_PROVIDER or "ollama").strip().lower()
+    model = resolved_model_name()
+    try:
+        provider = get_llm_provider()
+    except Exception as exc:  # noqa: BLE001 — reportar el motivo, no ocultarlo
+        return {"provider": provider_name, "model": model, "configured": False,
+                "reachable": None, "error": str(exc)}
+    if not probe:
+        return {"provider": provider_name, "model": model, "configured": True,
+                "reachable": None, "error": None}
+    try:
+        provider.complete("ping")
+        return {"provider": provider_name, "model": model, "configured": True,
+                "reachable": True, "error": None}
+    except Exception as exc:  # noqa: BLE001 — el error crudo ES el diagnóstico
+        return {"provider": provider_name, "model": model, "configured": True,
+                "reachable": False, "error": str(exc)}
