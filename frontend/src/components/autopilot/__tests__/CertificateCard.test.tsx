@@ -71,3 +71,41 @@ describe("CertificateCard — sin_confirmar y manifiesto", () => {
     expect(screen.getByText("12/100")).toBeInTheDocument();
   });
 });
+
+describe("CertificateCard enlace de verificación", () => {
+  it("copia el enlace construido desde cert.share", async () => {
+    (getCertificate as ReturnType<typeof vi.fn>).mockResolvedValue({
+      verdict: "apto", risk_score: 12, signature: "SIGSIGSIGSIGSIGSIGSIGSIGSIGSIGSIG",
+      share: "BLOB123" });
+    const writeText = vi.fn(async () => {});
+    Object.assign(navigator, { clipboard: { writeText } });
+
+    renderWithClient(<CertificateCard runId="r1" />);
+    fireEvent.click(await screen.findByRole("button", { name: /copiar enlace/i }));
+
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith(expect.stringContaining("/verify#v1.BLOB123")));
+  });
+
+  it("sin share (acta grande o backend anterior) no ofrece el botón", async () => {
+    (getCertificate as ReturnType<typeof vi.fn>).mockResolvedValue({
+      verdict: "apto", risk_score: 12, signature: "SIGSIGSIGSIGSIGSIGSIGSIGSIGSIGSIG" });
+
+    renderWithClient(<CertificateCard runId="r1" />);
+    await screen.findByRole("button", { name: /descargar pdf/i });
+    expect(screen.queryByRole("button", { name: /copiar enlace/i })).toBeNull();
+  });
+
+  it("si el portapapeles falla, muestra el enlace para copiarlo a mano", async () => {
+    (getCertificate as ReturnType<typeof vi.fn>).mockResolvedValue({
+      verdict: "apto", risk_score: 12, signature: "SIGSIGSIGSIGSIGSIGSIGSIGSIGSIGSIG",
+      share: "BLOB123" });
+    Object.assign(navigator, { clipboard: { writeText: vi.fn(async () => { throw new Error("no"); }) } });
+
+    renderWithClient(<CertificateCard runId="r1" />);
+    fireEvent.click(await screen.findByRole("button", { name: /copiar enlace/i }));
+
+    const campo = await screen.findByLabelText(/enlace de verificación/i);
+    expect((campo as HTMLInputElement).value).toContain("/verify#v1.BLOB123");
+  });
+});

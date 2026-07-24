@@ -1,10 +1,13 @@
 "use client";
 
+import { useState } from "react";
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { useAuth } from "@/components/providers/auth-provider";
 import { generateCertificate, getCertificate, getCertificatePdf } from "@/lib/api/endpoints";
+import { buildShareUrl } from "@/lib/certificate-share";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
@@ -28,6 +31,19 @@ export function CertificateCard({ runId }: { runId: string }) {
   });
 
   const cert = query.data;
+
+  const [enlaceManual, setEnlaceManual] = useState("");
+
+  async function handleCopyLink() {
+    const url = buildShareUrl(window.location.origin, cert!.share!);
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Enlace copiado.");
+    } catch {
+      // Sin contexto seguro o sin permiso: que al menos pueda copiarlo a mano.
+      setEnlaceManual(url);
+    }
+  }
 
   async function handleDownloadPdf() {
     try {
@@ -77,6 +93,26 @@ export function CertificateCard({ runId }: { runId: string }) {
           )}
           <p className="font-mono text-xs text-zinc-400 break-all">firma: {cert.signature.slice(0, 32)}…</p>
           <Button size="sm" variant="outline" onClick={handleDownloadPdf}>Descargar PDF</Button>
+          {cert.share ? (
+            <div className="space-y-1 pt-1">
+              <Button size="sm" variant="outline" onClick={handleCopyLink}>
+                Copiar enlace de verificación
+              </Button>
+              <p className="text-xs text-zinc-400">
+                El enlace lleva el acta completa (proyecto, commit, evidencia y calibración):
+                compartirlo es publicarlo.
+              </p>
+              {enlaceManual ? (
+                <input
+                  readOnly
+                  value={enlaceManual}
+                  aria-label="Enlace de verificación"
+                  onFocus={(e) => e.currentTarget.select()}
+                  className="w-full rounded border border-zinc-200 px-2 py-1 font-mono text-xs text-zinc-600"
+                />
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : (
         <p className="text-sm text-zinc-500">Aún no hay acta para este run.</p>

@@ -215,6 +215,9 @@ export interface Certificate {
   // El manifiesto va DENTRO del acta firmada → se lee de canonical_json.execution_manifest.
   canonical_json: Record<string, unknown>;
   signature: string;
+  // Sobre compartible que emite el backend (base64url del acta + su firma).
+  // Vacío o ausente si el acta no cabe en un enlace usable.
+  share?: string;
   created_at?: string | null;
 }
 
