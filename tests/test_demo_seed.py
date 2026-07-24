@@ -115,6 +115,30 @@ def test_seed_is_idempotent(demo_user):
     )
 
 
+def _org_a_runs(org_id: str):
+    with psycopg.connect(DBURL) as conn, conn.cursor() as cur:
+        cur.execute(
+            "select id, (summary->'manifest') as manifest, created_at"
+            " from public.test_runs where org_id=%s order by created_at",
+            (org_id,),
+        )
+        return cur.fetchall()
+
+
+def test_seed_runs_tienen_manifiesto_y_hay_al_menos_10(demo_user):
+    res = seed_demo(db_url=DBURL, demo_user_id=demo_user)
+    rows = _org_a_runs(res["org_a"])
+    assert len(rows) >= 10, f"esperaba >=10 runs en Org A, hay {len(rows)}"
+    # al menos un run con manifiesto de cuerpo (total>0, passed+failed==total)
+    manifests = [r[1] for r in rows if r[1]]
+    assert manifests, "ningún run tiene summary.manifest"
+    m = manifests[0]
+    assert m["total"] > 0 and m["passed"] + m["failed"] == m["total"]
+    # created_at repartido (no todos iguales) → el sparkline tiene tendencia
+    fechas = {r[2] for r in rows}
+    assert len(fechas) >= 5, f"created_at apenas repartido: {len(fechas)} fechas distintas"
+
+
 @pytest.mark.integration
 def test_fresh_push_is_maintenance_with_baseline(demo_user):
     from src.demo.seed import seed_demo, _load_artifact
