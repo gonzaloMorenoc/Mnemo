@@ -1,9 +1,23 @@
 import { GLOSSARY } from "@/lib/glossary";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
 
+/**
+ * Nombres propios de términos cuyo slug quedaría crudo con solo cambiar "_"→espacio
+ * (acento o gramática). En minúscula para que encajen tanto inline como de título;
+ * el `GLOSSARY` sigue siendo la única fuente de las *definiciones*, esto solo nombra.
+ */
+const TERM_LABELS: Record<string, string> = {
+  calibracion: "calibración",
+  self_heal: "autoreparación",
+  acciones_nivel2: "acciones de Nivel 2",
+  precision_motor: "precisión del motor",
+  familia_defectos: "familia de defectos",
+  tipo_conocimiento: "tipo de conocimiento",
+};
+
 /** Slug del glosario → texto legible ("risk_score" → "risk score"). */
 export function prettyTerm(term: string): string {
-  return term.replace(/_/g, " ");
+  return TERM_LABELS[term] ?? term.replace(/_/g, " ");
 }
 
 /**
