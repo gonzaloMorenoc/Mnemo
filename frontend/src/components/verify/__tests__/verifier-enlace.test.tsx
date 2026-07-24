@@ -12,6 +12,7 @@ vi.mock("@/lib/api/endpoints", () => ({
 
 import { CertificateVerifier } from "@/components/verify/CertificateVerifier";
 import { verifyCertificate } from "@/lib/api/endpoints";
+import { ApiClientError } from "@/lib/api/client";
 import { toast } from "sonner";
 
 const ACTA =
@@ -100,6 +101,20 @@ describe("CertificateVerifier — llegada por enlace", () => {
 
     expect(await screen.findByText(/no se pudo comprobar la firma/i)).toBeInTheDocument();
     expect(screen.queryByText(/no confíes en su contenido/i)).toBeNull();
+  });
+
+  it("error 4xx del backend (acta aplanada, sin canonical_json): muestra el motivo real, sin hablar de conexión ni de manipulación", async () => {
+    // Un 422 de Pydantic no es un fallo de transporte: el servicio SÍ respondió,
+    // solo que rechazó el cuerpo. Atribuirlo a "no hay conexión" es una causa falsa.
+    (verifyCertificate as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new ApiClientError("El campo 'canonical_json' es obligatorio.", 422),
+    );
+    renderConHash(`#v1.${BLOB}`);
+
+    expect(await screen.findByText(/no se pudo comprobar la firma/i)).toBeInTheDocument();
+    expect(screen.getByText(/El campo 'canonical_json' es obligatorio\./)).toBeInTheDocument();
+    expect(screen.queryByText(/no hay conexión/i)).toBeNull();
+    expect(screen.queryByText(/alterada|no confíes/i)).toBeNull();
   });
 
   it("orden visual: por enlace el sello va arriba y el acta queda plegada; verificar a mano restaura el orden normal", async () => {

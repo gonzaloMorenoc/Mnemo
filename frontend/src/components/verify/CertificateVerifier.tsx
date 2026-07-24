@@ -5,6 +5,7 @@ import { ShieldX, KeyRound } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { ApiClientError } from "@/lib/api/client";
 import { getCertificatePubkey, verifyCertificate } from "@/lib/api/endpoints";
 import { decodeShare } from "@/lib/certificate-share";
 import { AuthenticityStamp } from "@/components/verify/AuthenticityStamp";
@@ -125,6 +126,15 @@ export function CertificateVerifier() {
 
   const valido = verify.data?.valido === true;
   const invalido = verify.isSuccess && verify.data?.valido === false;
+  // `verify.isError` salta con CUALQUIER respuesta no-2xx, no solo con un fallo
+  // de transporte: un 4xx significa que el servicio SÍ respondió y rechazó el
+  // cuerpo (p.ej. un acta aplanada sin `canonical_json`). Atribuirlo a "no hay
+  // conexión" es una causa falsa. Solo tratamos como transporte lo que de
+  // verdad lo es: un fallo de red o un 5xx.
+  const motivoBackend =
+    verify.error instanceof ApiClientError && verify.error.status < 500
+      ? verify.error.message
+      : null;
 
   const formulario = (
     <Card>
@@ -158,8 +168,10 @@ export function CertificateVerifier() {
       {verify.isPending && <p className="text-sm text-zinc-500">Comprobando la firma…</p>}
       {verify.isError && (
         <p className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600">
-          No se pudo comprobar la firma ahora mismo: no hay conexión con el servicio de
-          verificación. Vuelve a intentarlo en un momento. Esto no dice nada sobre el acta.
+          {motivoBackend
+            ? `No se pudo comprobar la firma: ${motivoBackend} Revisa el acta pegada y vuelve a intentarlo.`
+            : "No se pudo comprobar la firma ahora mismo: no hay conexión con el servicio de " +
+              "verificación. Vuelve a intentarlo en un momento. Esto no dice nada sobre el acta."}
         </p>
       )}
       {valido && payload && <AuthenticityStamp canonical={payload.canonical_json} />}

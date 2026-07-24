@@ -51,4 +51,15 @@ describe("AuthenticityStamp", () => {
     expect(screen.getByText("Sin confirmar")).toBeInTheDocument();
     expect(screen.queryByText(/0\/100/)).toBeNull();
   });
+
+  it("commit_sha nulo: la etiqueta 'commit' muestra una raya, no queda huérfana", () => {
+    render(
+      <AuthenticityStamp
+        canonical={{ ...BASE, identity: { ...BASE.identity, commit_sha: null } }}
+      />,
+    );
+    expect(screen.getByText("commit")).toBeInTheDocument();
+    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.queryByText(/undefined/i)).toBeNull();
+  });
 });

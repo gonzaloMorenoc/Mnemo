@@ -18,6 +18,8 @@ export function AuthenticityStamp({ canonical }: { canonical: Record<string, unk
   const keyId = typeof identity.key_id === "string" ? identity.key_id : "";
   const manifest = canonical.execution_manifest as ExecutionManifest | null | undefined;
   const str = (v: unknown) => (typeof v === "string" ? v : "");
+  // Campo ausente → raya, nunca una etiqueta huérfana ("commit " sin nada detrás).
+  const conRaya = (v: string) => (v.length > 0 ? v : "—");
 
   return (
     <div className="rounded-xl border-2 border-primary/30 bg-primary/[0.04] p-6">
@@ -49,12 +51,13 @@ export function AuthenticityStamp({ canonical }: { canonical: Record<string, unk
 
       <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-1 text-xs text-zinc-500 sm:grid-cols-2">
         <div>
-          commit <span className="font-mono">{str(identity.commit_sha).slice(0, 12)}</span>
+          commit{" "}
+          <span className="font-mono">{conRaya(str(identity.commit_sha).slice(0, 12))}</span>
         </div>
         <div>
-          run <span className="font-mono break-all">{str(identity.run_id)}</span>
+          run <span className="font-mono break-all">{conRaya(str(identity.run_id))}</span>
         </div>
-        <div>emitida {str(identity.created_at)}</div>
+        <div>emitida {conRaya(str(identity.created_at))}</div>
         {keyId ? (
           <div>
             firmada con la clave <span className="font-mono">{keyId}</span>
