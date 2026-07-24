@@ -35,6 +35,17 @@ describe("Guía — integridad de enlaces internos", () => {
     expect(bad).toEqual([]);
   });
 
+  it("ningún [[termino]] queda dentro de **negrita** (el parser no anida)", () => {
+    const BOLD = /\*\*(.+?)\*\*/g;
+    const bad: string[] = [];
+    for (const text of chapterTexts()) {
+      for (const m of text.matchAll(BOLD)) {
+        if (m[1].includes("[[")) bad.push(m[0]);
+      }
+    }
+    expect(bad).toEqual([]);
+  });
+
   it("hay 7 capítulos con los slugs esperados en orden", () => {
     expect(CHAPTERS.map((c) => c.slug)).toEqual([
       "que-es-mnemo",

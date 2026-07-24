@@ -26,7 +26,7 @@ export const chapter: Chapter = {
         },
         {
           kind: "p",
-          text: "**¿Qué es un [[gate]]?** El estado que Mnemo publica como check de GitHub en tu PR: listo para merge o bloqueado.",
+          text: "**¿Qué es un gate?** El [[gate]] es el estado que Mnemo publica como check de GitHub en tu PR: listo para merge o bloqueado.",
         },
         {
           kind: "p",

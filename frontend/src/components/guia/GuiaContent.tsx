@@ -37,10 +37,10 @@ function BlockView({ block }: { block: Block }) {
       );
     case "term":
       return (
-        <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+        <dl className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
           <dt className="font-medium text-zinc-900">{prettyTerm(block.term)}</dt>
           <dd className="mt-0.5 text-sm text-zinc-600">{GLOSSARY[block.term] ?? ""}</dd>
-        </div>
+        </dl>
       );
   }
 }
