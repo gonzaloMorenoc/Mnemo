@@ -101,4 +101,29 @@ describe("CertificateVerifier — llegada por enlace", () => {
     expect(await screen.findByText(/no se pudo comprobar la firma/i)).toBeInTheDocument();
     expect(screen.queryByText(/no confíes en su contenido/i)).toBeNull();
   });
+
+  it("orden visual: por enlace el sello va arriba y el acta queda plegada; verificar a mano restaura el orden normal", async () => {
+    // Un test anterior puede haber dejado el mock en rechazo/inválido
+    // (mockResolvedValue/mockRejectedValue sobreviven a clearAllMocks): este
+    // test necesita el camino feliz explícitamente.
+    (verifyCertificate as ReturnType<typeof vi.fn>).mockResolvedValue({ valido: true });
+    const { container } = renderConHash(`#v1.${BLOB}`);
+
+    // Llega por enlace: el sello (autenticidad ya validada) se ve arriba, y el
+    // acta queda a un clic dentro de un <details>, no como formulario abierto.
+    expect(await screen.findByText(/acta auténtica/i)).toBeInTheDocument();
+    expect(container.querySelector("details")).not.toBeNull();
+
+    // El usuario pega otra acta a mano y la verifica: esa procedencia "por
+    // enlace" ya no aplica al texto en pantalla, y el reseteo debe notarse en
+    // la disposición, no solo en el aviso ámbar.
+    const textarea = container.querySelector("textarea") as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: ACTA } });
+    fireEvent.click(screen.getByRole("button", { name: /Verificar firma/i }));
+
+    await waitFor(() => expect(verifyCertificate).toHaveBeenCalledTimes(2));
+    await screen.findByText(/acta auténtica/i);
+    // Disposición normal: el formulario ya no está plegado en un <details>.
+    expect(container.querySelector("details")).toBeNull();
+  });
 });

@@ -1,16 +1,14 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ShieldCheck, ShieldX, KeyRound } from "lucide-react";
+import { ShieldX, KeyRound } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { getCertificatePubkey, verifyCertificate } from "@/lib/api/endpoints";
-import type { ExecutionManifest } from "@/lib/api/types";
 import { decodeShare } from "@/lib/certificate-share";
-import { Badge } from "@/components/ui/badge";
+import { AuthenticityStamp } from "@/components/verify/AuthenticityStamp";
 import { Button } from "@/components/ui/button";
-import { VerdictBadge } from "@/components/ui/verdict-badge";
 import {
   Card,
   CardContent,
@@ -52,10 +50,6 @@ function extractPayload(raw: string): Payload {
   return { canonical_json: canonical, signature };
 }
 
-function asString(v: unknown): string | null {
-  return typeof v === "string" ? v : null;
-}
-
 /**
  * Núcleo de verificación (formulario + resultado + clave pública), sin cromo de
  * página. Lo usan la home pública `/verify` (sin cuenta) y `/app/verify` dentro del
@@ -65,9 +59,6 @@ export function CertificateVerifier() {
   const [raw, setRaw] = useState("");
   const [payload, setPayload] = useState<Payload | null>(null);
   const [linkError, setLinkError] = useState("");
-  // Aún no se pinta aquí: lo consumirá la siguiente tarea (el sello visual
-  // antes del formulario cuando el acta llega por enlace).
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [llegaPorEnlace, setLlegaPorEnlace] = useState(false);
   const hashProcesado = useRef("");
 
@@ -132,10 +123,62 @@ export function CertificateVerifier() {
     runVerification(texto, true);
   }, [runVerification]);
 
-  const identity = (payload?.canonical_json.identity ?? {}) as Record<string, unknown>;
-  const verdict = asString(payload?.canonical_json.verdict) ?? "";
   const valido = verify.data?.valido === true;
   const invalido = verify.isSuccess && verify.data?.valido === false;
+
+  const formulario = (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">El acta (JSON)</CardTitle>
+        <CardDescription>
+          Pega el acta completa que recibiste o descargaste; se usan sus campos{" "}
+          <code className="font-mono text-xs">canonical_json</code> y{" "}
+          <code className="font-mono text-xs">signature</code>.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <Textarea
+          value={raw}
+          onChange={(e) => setRaw(e.target.value)}
+          rows={10}
+          spellCheck={false}
+          placeholder='{ "canonical_json": { ... }, "signature": "..." }'
+          className="font-mono text-xs"
+          aria-label="Acta en formato JSON"
+        />
+        <Button onClick={() => runVerification(raw)} disabled={!raw.trim() || verify.isPending}>
+          {verify.isPending ? "Verificando…" : "Verificar firma"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+
+  const resultado = (
+    <div aria-live="polite">
+      {verify.isPending && <p className="text-sm text-zinc-500">Comprobando la firma…</p>}
+      {verify.isError && (
+        <p className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600">
+          No se pudo comprobar la firma ahora mismo: no hay conexión con el servicio de
+          verificación. Vuelve a intentarlo en un momento. Esto no dice nada sobre el acta.
+        </p>
+      )}
+      {valido && payload && <AuthenticityStamp canonical={payload.canonical_json} />}
+      {invalido && (
+        <Card className="border-red-200 bg-red-50/60">
+          <CardContent className="space-y-2 pt-6">
+            <div className="flex items-center gap-2 text-red-800">
+              <ShieldX className="h-6 w-6" />
+              <span className="text-lg font-semibold">Firma NO válida</span>
+            </div>
+            <p className="text-sm text-red-900/80">
+              El acta ha sido alterada, está incompleta, o fue firmada con otra clave. No
+              confíes en su contenido.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
 
   return (
     <>
@@ -148,96 +191,22 @@ export function CertificateVerifier() {
         </div>
       ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">El acta (JSON)</CardTitle>
-          <CardDescription>
-            Pega el acta completa que recibiste o descargaste; se usan sus campos{" "}
-            <code className="font-mono text-xs">canonical_json</code> y{" "}
-            <code className="font-mono text-xs">signature</code>.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Textarea
-            value={raw}
-            onChange={(e) => setRaw(e.target.value)}
-            rows={10}
-            spellCheck={false}
-            placeholder='{ "canonical_json": { ... }, "signature": "..." }'
-            className="font-mono text-xs"
-            aria-label="Acta en formato JSON"
-          />
-          <Button onClick={() => runVerification(raw)} disabled={!raw.trim() || verify.isPending}>
-            {verify.isPending ? "Verificando…" : "Verificar firma"}
-          </Button>
-        </CardContent>
-      </Card>
-
-      <div aria-live="polite">
-        {verify.isPending && (
-          <p className="mt-6 text-sm text-zinc-500">Comprobando la firma…</p>
-        )}
-        {verify.isError && (
-          <p className="mt-6 rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600">
-            No se pudo comprobar la firma ahora mismo: no hay conexión con el servicio de
-            verificación. Vuelve a intentarlo en un momento. Esto no dice nada sobre el acta.
-          </p>
-        )}
-
-        {valido && (
-          <Card className="mt-6 border-emerald-200 bg-emerald-50/60">
-            <CardContent className="space-y-4 pt-6">
-              <div className="flex items-center gap-2 text-emerald-800">
-                <ShieldCheck className="h-6 w-6" />
-                <span className="text-lg font-semibold">Firma válida</span>
-              </div>
-              <p className="text-sm text-emerald-900/80">
-                El acta es auténtica y no ha sido modificada desde su emisión. La firma
-                garantiza integridad y origen; el veredicto (apto / no apto) es el que
-                consta dentro del acta.
-              </p>
-              <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-                <Field label="Veredicto">
-                  {verdict ? <VerdictBadge verdict={verdict} /> : <Badge>—</Badge>}
-                </Field>
-                <Field label="Riesgo">
-                  {verdict === "sin_confirmar"
-                    ? "—"
-                    : `${String(payload?.canonical_json.risk_score ?? "—")}/100`}
-                </Field>
-                <Field label="Proyecto">{asString(identity.project) ?? "—"}</Field>
-                <Field label="Commit">
-                  <span className="font-mono text-xs">
-                    {(asString(identity.commit_sha) ?? "—").slice(0, 12)}
-                  </span>
-                </Field>
-                <Field label="Run">
-                  <span className="font-mono text-xs break-all">
-                    {asString(identity.run_id) ?? "—"}
-                  </span>
-                </Field>
-                <Field label="Emitido">{asString(identity.created_at) ?? "—"}</Field>
-              </dl>
-              <ManifestSummary payload={payload} />
-            </CardContent>
-          </Card>
-        )}
-
-        {invalido && (
-          <Card className="mt-6 border-red-200 bg-red-50/60">
-            <CardContent className="space-y-2 pt-6">
-              <div className="flex items-center gap-2 text-red-800">
-                <ShieldX className="h-6 w-6" />
-                <span className="text-lg font-semibold">Firma NO válida</span>
-              </div>
-              <p className="text-sm text-red-900/80">
-                El acta ha sido alterada, está incompleta, o fue firmada con otra clave. No
-                confíes en su contenido.
-              </p>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+      {llegaPorEnlace ? (
+        <>
+          {resultado}
+          <details className="mt-6">
+            <summary className="cursor-pointer text-sm text-zinc-500">
+              Ver el acta que se ha verificado
+            </summary>
+            <div className="mt-3">{formulario}</div>
+          </details>
+        </>
+      ) : (
+        <>
+          {formulario}
+          <div className="mt-6">{resultado}</div>
+        </>
+      )}
 
       <section className="mt-8">
         <div className="mb-2 flex items-center gap-2 text-sm font-medium text-zinc-700">
@@ -262,26 +231,5 @@ export function CertificateVerifier() {
         )}
       </section>
     </>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <dt className="text-xs uppercase tracking-wide text-zinc-500">{label}</dt>
-      <dd className="text-zinc-900">{children}</dd>
-    </div>
-  );
-}
-
-// Manifiesto de ejecución (acta v3); ausente en actas v2 → no se muestra.
-function ManifestSummary({ payload }: { payload: Payload | null }) {
-  const m = payload?.canonical_json.execution_manifest as ExecutionManifest | null | undefined;
-  if (!m) return null;
-  return (
-    <p className="text-sm text-emerald-900/70">
-      Ejecución: {m.total} tests · {m.passed} ✓ · {m.failed} ✗ · {m.skipped} omitidos
-      {m.flaky ? ` · ${m.flaky} flaky` : ""}
-    </p>
   );
 }
