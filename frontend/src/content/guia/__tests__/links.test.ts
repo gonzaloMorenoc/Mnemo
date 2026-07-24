@@ -54,7 +54,7 @@ describe("Guía — integridad de enlaces internos", () => {
       "el-acta-firmada",
       "la-memoria-de-qa",
       "familias-y-calibracion",
-      "conceptos-y-faq",
+      "preguntas-frecuentes",
     ]);
   });
 });
