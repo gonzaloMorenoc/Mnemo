@@ -66,3 +66,21 @@ def test_render_sin_confirmar_no_muestra_risk_0_y_pinta_manifiesto():
     assert "no prueba una ejecución completa" in html
     # El manifiesto SÍ aparece en el acta descargable
     assert "128 tests" in html and "junit" in html
+
+
+def test_render_lleva_marca_mtp_y_key_id():
+    cert = {**_CERT, "identity": {**_CERT["identity"], "key_id": "946152583e361f1e"}}
+    html = render_html(cert, "sig-b64")
+    assert "#101246" in html          # azul MTP en la cabecera
+    assert "946152583e361f1e" in html  # con qué clave se firmó
+
+
+def test_pie_sin_host_configurado_no_inventa_una_url():
+    html = render_html(_CERT, "sig")
+    assert "https:///" not in html
+    assert "Verificar acta" in html
+
+
+def test_pie_usa_el_host_publico_cuando_esta_configurado():
+    html = render_html(_CERT, "sig", public_url="https://mnemo.app")
+    assert "https://mnemo.app/verify" in html

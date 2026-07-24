@@ -20,8 +20,8 @@ from src.certify.service import CertificateService
 from src.certify.signing import SigningKeyMissing, canonical_json, verify
 from src.config import (CI_MAX_BODY_BYTES, CI_SERVICE_ORG_ID, CI_SERVICE_USER_ID,
                         CI_WEBHOOK_SECRET, INGEST_MAX_BYTES, LLM_MODEL,
-                        MNEMO_SIGNING_PRIVATE_KEY, MNEMO_SIGNING_PUBLIC_KEY,
-                        MNEMO_VERSION, multi_tenant_enabled)
+                        MNEMO_PUBLIC_APP_URL, MNEMO_SIGNING_PRIVATE_KEY,
+                        MNEMO_SIGNING_PUBLIC_KEY, MNEMO_VERSION, multi_tenant_enabled)
 from src.actions.ai_repair import AIRepairActuator
 from src.actions.quarantine import QuarantineActuator
 from src.actions.repository import ActionRepository
@@ -1120,7 +1120,8 @@ def get_certificate_html_v2(
         raise HTTPException(status_code=502, detail="Database error") from exc
     if cert is None:
         raise HTTPException(status_code=404, detail="certificate not found")
-    return HTMLResponse(render_html(cert["canonical_json"], cert["signature"]))
+    return HTMLResponse(render_html(cert["canonical_json"], cert["signature"],
+                                    public_url=MNEMO_PUBLIC_APP_URL))
 
 
 @router.get("/certificates/{run_id}/pdf")
@@ -1136,7 +1137,8 @@ def get_certificate_pdf_v2(
     if cert is None:
         raise HTTPException(status_code=404, detail="certificate not found")
     try:
-        pdf = render_pdf(cert["canonical_json"], cert["signature"])
+        pdf = render_pdf(cert["canonical_json"], cert["signature"],
+                         public_url=MNEMO_PUBLIC_APP_URL)
     except Exception as exc:  # noqa: BLE001 — generación de PDF
         raise HTTPException(status_code=500, detail="No se pudo generar el PDF") from exc
     return Response(

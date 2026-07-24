@@ -65,6 +65,10 @@ MNEMO_VERSION = "0.4.0"
 MNEMO_SIGNING_PRIVATE_KEY = os.getenv("MNEMO_SIGNING_PRIVATE_KEY", "")
 MNEMO_SIGNING_PUBLIC_KEY = os.getenv("MNEMO_SIGNING_PUBLIC_KEY", "")
 
+# URL pública del frontend (para el pie "verificable en …" del acta en PDF).
+# Vacía = el acta no imprime host: nunca una URL inventada en un documento.
+MNEMO_PUBLIC_APP_URL = os.getenv("MNEMO_PUBLIC_APP_URL", "").rstrip("/")
+
 
 def multi_tenant_enabled() -> bool:
     """True solo si hay BD Postgres y Supabase configurados."""

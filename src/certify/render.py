@@ -4,6 +4,7 @@ from typing import Any, Dict
 
 _VERDICT_COLOR = {"apto": "#1a7f37", "apto-con-reservas": "#9a6700", "no-apto": "#cf222e",
                   "sin_confirmar": "#57606a"}
+_MTP_BLUE = "#101246"
 
 
 def _e(v: object) -> str:
@@ -14,7 +15,7 @@ def _rule_label(rule: object) -> str:
     return "real (sin precedente en el histórico)" if rule == "R5_real_novel" else (str(rule) if rule is not None else "")
 
 
-def render_html(cert: Dict[str, Any], signature: str) -> str:
+def render_html(cert: Dict[str, Any], signature: str, public_url: str = "") -> str:
     idn = cert.get("identity", {})
     bd = cert.get("breakdown", {})
     verdict = cert.get("verdict", "")
@@ -56,6 +57,14 @@ def render_html(cert: Dict[str, Any], signature: str) -> str:
         f"(n={_e(cal.get('n_corrections'))} correcciones)</p>"
     ) if se else ""
 
+    key_id = _e(idn.get("key_id"))
+    firma_html = (f"<p>Firmada con la clave <code>{key_id}</code>.</p>" if key_id else "")
+    verificable = (
+        f"<p>Verificable en <code>{_e(public_url)}/verify</code>, sin cuenta.</p>"
+        if public_url else
+        "<p>Verificable en la página pública «Verificar acta» de Mnemo, sin cuenta.</p>"
+    )
+
     return (
         "<!doctype html><html lang='es'><head><meta charset='utf-8'>"
         "<title>Release Assurance Certificate</title>"
@@ -71,8 +80,11 @@ def render_html(cert: Dict[str, Any], signature: str) -> str:
         "code { font-family: Courier, monospace; font-size: 10pt; }"
         "pre { white-space: pre-wrap; font-size: 9pt; background: #f6f8fa; padding: 6px; }"
         "</style></head><body>"
-        "<p class='brand'>Mnemo &middot; Release Assurance</p>"
-        "<h1>Release Assurance Certificate</h1>"
+        f"<table width='100%' cellpadding='10' style='background-color:{_MTP_BLUE}'>"
+        "<tr><td style='color:#ffffff'>"
+        "<span style='font-size:9pt;letter-spacing:2px'>MNEMO &middot; RELEASE ASSURANCE</span>"
+        "<br/><span style='font-size:17pt;font-weight:bold'>Acta de aseguramiento de QA</span>"
+        "</td></tr></table>"
         f"<p><strong>Evaluación del motor:</strong> <span class='verdict' style='color:{color}'>{_e(verdict)}</span>"
         f" &middot; <strong>Risk score:</strong> {risk_html}</p>"
         f"{sin_confirmar_note}"
@@ -87,14 +99,14 @@ def render_html(cert: Dict[str, Any], signature: str) -> str:
         "<tr><th>failure_id</th><th>categoría</th><th>confianza</th><th>regla</th><th>req. aprobación</th></tr>"
         f"{rows}</table>"
         f"<h2>Firma (Ed25519)</h2><pre style='white-space:pre-wrap'>{_e(signature)}</pre>"
-        "<p>Verificable con <code>POST /v2/certificates/verify</code> y la clave pública.</p>"
+        f"{firma_html}{verificable}"
         "</body></html>"
     )
 
 
-def render_pdf(cert: Dict[str, Any], signature: str) -> bytes:
+def render_pdf(cert: Dict[str, Any], signature: str, public_url: str = "") -> bytes:
     from xhtml2pdf import pisa  # import local: solo se carga al generar PDF
-    html = render_html(cert, signature)
+    html = render_html(cert, signature, public_url)
     buffer = BytesIO()
     status = pisa.CreatePDF(html, dest=buffer)
     if status.err:
