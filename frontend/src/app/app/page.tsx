@@ -32,6 +32,10 @@ const quickAccessItems = NAV_ITEMS.filter((item) =>
   (QUICK_ACCESS_HREFS as readonly string[]).includes(item.href),
 );
 
+function KpiError() {
+  return <p className="text-sm text-red-500">No se pudo cargar.</p>;
+}
+
 function tally(items: (string | null | undefined)[]): Record<string, number> {
   const out: Record<string, number> = {};
   for (const it of items) if (it) out[it] = (out[it] ?? 0) + 1;
@@ -114,7 +118,12 @@ export default function DashboardPage() {
 
       {/* ── Héroe + precisión ── */}
       <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
-        {runs.isLoading ? (
+        {runs.isError ? (
+          <Card className="p-5">
+            <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">Última release</p>
+            <KpiError />
+          </Card>
+        ) : runs.isLoading ? (
           <Skeleton className="h-40 rounded-xl" />
         ) : latest ? (
           <LatestReleaseHero run={latest} manifest={manifest} />
@@ -126,7 +135,9 @@ export default function DashboardPage() {
           </Card>
         )}
         <VizCard title="Precisión del motor">
-          {calibration.isLoading ? (
+          {calibration.isError ? (
+            <KpiError />
+          ) : calibration.isLoading ? (
             <Skeleton className="h-16 w-full" />
           ) : accuracy != null ? (
             <div className="space-y-1">
@@ -144,7 +155,9 @@ export default function DashboardPage() {
       {/* ── Tendencia + distribución ── */}
       <div className="grid gap-4 sm:grid-cols-2">
         <VizCard title={`Tendencia de riesgo${riskSeries.length ? ` · últimos ${riskSeries.length}` : ""}`}>
-          {runs.isLoading ? (
+          {runs.isError ? (
+            <KpiError />
+          ) : runs.isLoading ? (
             <Skeleton className="h-8 w-full" />
           ) : riskSeries.length >= 3 ? (
             <Sparkline values={riskSeries} ariaLabel={`Riesgo: de ${riskSeries[0]} a ${riskSeries[riskSeries.length - 1]} en los últimos ${riskSeries.length} runs`} />
@@ -153,27 +166,45 @@ export default function DashboardPage() {
           )}
         </VizCard>
         <VizCard title="Veredictos · últimos 20">
-          {runs.isLoading ? <Skeleton className="h-16 w-full" /> : <VerdictBar counts={verdictCounts} />}
+          {runs.isError ? (
+            <KpiError />
+          ) : runs.isLoading ? (
+            <Skeleton className="h-16 w-full" />
+          ) : (
+            <VerdictBar counts={verdictCounts} />
+          )}
         </VizCard>
       </div>
 
       {/* ── Memoria + gaps ── */}
       <div className="grid gap-4 sm:grid-cols-2">
         <VizCard title="Memoria de QA">
-          <p className="text-3xl font-semibold tracking-tight text-zinc-900">{knowledge.data?.length ?? 0}</p>
-          <p className="text-xs text-zinc-400">
-            lecciones, reglas y riesgos capturados
-            {nPending > 0 && <span className="ml-1 font-medium text-amber-600">· {nPending} propuesta{nPending === 1 ? "" : "s"} de la IA por revisar</span>}
-          </p>
+          {knowledge.isError ? (
+            <KpiError />
+          ) : (
+            <>
+              <p className="text-3xl font-semibold tracking-tight text-zinc-900">{knowledge.data?.length ?? 0}</p>
+              <p className="text-xs text-zinc-400">
+                lecciones, reglas y riesgos capturados
+                {nPending > 0 && <span className="ml-1 font-medium text-amber-600">· {nPending} propuesta{nPending === 1 ? "" : "s"} de la IA por revisar</span>}
+              </p>
+            </>
+          )}
           <Link href="/app/knowledge" className="mt-1 inline-block text-xs font-medium text-zinc-500 hover:text-zinc-900">Conocimiento →</Link>
         </VizCard>
         <VizCard title="Gaps de cobertura">
-          <p className="text-3xl font-semibold tracking-tight text-zinc-900">{gaps.data?.length ?? 0}</p>
-          <p className="text-xs text-zinc-400">
-            {nGapsAlta > 0 ? <span className="font-medium text-red-600">{nGapsAlta} de severidad alta</span> : "sin severidad alta"}
-            {(gapsBySeverity.media ?? 0) > 0 ? ` · ${gapsBySeverity.media} media` : ""}
-            {(gapsBySeverity.baja ?? 0) > 0 ? ` · ${gapsBySeverity.baja} baja` : ""}
-          </p>
+          {gaps.isError ? (
+            <KpiError />
+          ) : (
+            <>
+              <p className="text-3xl font-semibold tracking-tight text-zinc-900">{gaps.data?.length ?? 0}</p>
+              <p className="text-xs text-zinc-400">
+                {nGapsAlta > 0 ? <span className="font-medium text-red-600">{nGapsAlta} de severidad alta</span> : "sin severidad alta"}
+                {(gapsBySeverity.media ?? 0) > 0 ? ` · ${gapsBySeverity.media} media` : ""}
+                {(gapsBySeverity.baja ?? 0) > 0 ? ` · ${gapsBySeverity.baja} baja` : ""}
+              </p>
+            </>
+          )}
           <Link href="/app/graph" className="mt-1 inline-block text-xs font-medium text-zinc-500 hover:text-zinc-900">Ver gaps →</Link>
         </VizCard>
       </div>

@@ -149,6 +149,27 @@ describe("DashboardPage", () => {
     });
   });
 
+  it("muestra 'No se pudo cargar' en vez de un estado vacío cuando las queries fallan (5xx)", async () => {
+    (useActiveOrg as ReturnType<typeof vi.fn>).mockReturnValue({
+      activeOrgId: "o1",
+      isLoading: false,
+    });
+    (getGithubConfig as ReturnType<typeof vi.fn>).mockResolvedValue({ configured: true });
+    (listRepoTests as ReturnType<typeof vi.fn>).mockResolvedValue([{ path: "a" }]);
+    (listKnowledge as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("boom"));
+    (getGaps as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("boom"));
+    (listRuns as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("boom"));
+    (getCalibrationMetrics as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("boom"));
+    (listKnowledgeProposals as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (getCertificate as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("boom"));
+
+    renderWithClient(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/No se pudo cargar/).length).toBeGreaterThan(0);
+    });
+  });
+
   it("muestra empty-state con enlace /app/org cuando no hay orgId", async () => {
     (useActiveOrg as ReturnType<typeof vi.fn>).mockReturnValue({
       activeOrgId: "",
