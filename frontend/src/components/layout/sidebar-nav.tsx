@@ -33,8 +33,8 @@ export function SidebarNav({ mobile = false, onClose }: SidebarNavProps) {
       </div>
 
       <nav aria-label="Principal" className="space-y-4 px-3">
-        {NAV_SECTIONS.map((section) => (
-          <div key={section.title ?? "home"} className="space-y-1">
+        {NAV_SECTIONS.map((section, i) => (
+          <div key={section.title ?? `untitled-${i}`} className="space-y-1">
             {section.title && (
               <p className="px-3 pt-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
                 {section.title}
