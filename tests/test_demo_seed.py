@@ -68,6 +68,17 @@ def _commit_exists(commit_sha: str) -> bool:
         return cur.fetchone()[0]
 
 
+def _commit_in_orgs(commit_sha: str, org_ids: list) -> bool:
+    """True si algún run con ese commit pertenece a alguno de esos orgs (aislado de datos ajenos)."""
+    with psycopg.connect(DBURL) as conn, conn.cursor() as cur:
+        cur.execute(
+            "select exists(select 1 from public.test_runs"
+            " where commit_sha=%s and org_id = any(%s)) as ok",
+            (commit_sha, org_ids),
+        )
+        return cur.fetchone()[0]
+
+
 def _org_count(user_id: str) -> int:
     """Número de orgs creadas por un usuario."""
     with psycopg.connect(DBURL) as conn, conn.cursor() as cur:
@@ -103,8 +114,9 @@ def test_seed_creates_two_orgs_with_processed_runs(demo_user):
     from src.config import MNEMO_SIGNING_PRIVATE_KEY
     if MNEMO_SIGNING_PRIVATE_KEY:
         assert _has_certificates(res["org_a"]), "clave presente pero no se emitio ningun certificado"
-    # el run fresco NO esta ingerido (su commit no aparece en BD)
-    assert not _commit_exists("demo-fresh-push"), "fresh_push fue ingerido pero no debia serlo"
+    # el run fresco NO esta ingerido en las orgs de este seed (aislado de datos ajenos en prod)
+    assert not _commit_in_orgs("demo-fresh-push", [res["org_a"], res["org_b"]]), \
+        "fresh_push fue ingerido en las orgs del seed pero no debia serlo"
 
 
 def test_seed_is_idempotent(demo_user):
