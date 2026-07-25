@@ -62,4 +62,21 @@ describe("AuthenticityStamp", () => {
     expect(screen.getByText("—")).toBeInTheDocument();
     expect(screen.queryByText(/undefined/i)).toBeNull();
   });
+
+  it("flaky > 0: el manifiesto añade '· N flaky'", () => {
+    render(
+      <AuthenticityStamp
+        canonical={{
+          ...BASE,
+          execution_manifest: { ...BASE.execution_manifest, flaky: 3 },
+        }}
+      />,
+    );
+    expect(screen.getByText(/3 flaky/)).toBeInTheDocument();
+  });
+
+  it("flaky = 0: no se pinta '· 0 flaky'", () => {
+    render(<AuthenticityStamp canonical={BASE} />);
+    expect(screen.queryByText(/flaky/)).toBeNull();
+  });
 });

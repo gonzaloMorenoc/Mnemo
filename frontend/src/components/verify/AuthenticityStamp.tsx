@@ -46,6 +46,7 @@ export function AuthenticityStamp({ canonical }: { canonical: Record<string, unk
         <p className="mt-2 text-sm text-zinc-600">
           {manifest.total} tests · {manifest.passed} ✓ · {manifest.failed} ✗ ·{" "}
           {manifest.skipped} omitidos
+          {manifest.flaky ? ` · ${manifest.flaky} flaky` : ""}
         </p>
       ) : null}
 
