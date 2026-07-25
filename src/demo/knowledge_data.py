@@ -280,7 +280,9 @@ FAMILY_LABELS = [
     (("test_perfil",), "maintenance", "Selector #guardar→#guardar-cambios; confirmado con el diff de DOM del push."),
 ]
 
-TEST_ASSETS = [
+from src.demo.demo_test_assets import ASSETS_POR_PROYECTO  # noqa: E402
+
+_TEST_ASSETS_CURADOS = [
     {
         "path": "tests/checkout.spec.ts",
         "framework": "playwright",
@@ -366,3 +368,79 @@ test('exportación CSV del panel admin llega completa', async ({ page, request }
 """,
     },
 ]
+
+# Los 4 curados a mano (checkout, el corazón del guion) + uno por cada fichero
+# donde ocurre un fallo del catálogo.
+TEST_ASSETS = [*_TEST_ASSETS_CURADOS, *ASSETS_POR_PROYECTO]
+
+
+# Propuestas PENDIENTES de revisión: la bandeja de "Conocimiento → Capturar" no
+# puede estar vacía, porque el lazo del producto es justamente ese — el sistema
+# propone una lección a partir de lo que ha visto y una persona la aprueba.
+# Cada una nace de un defecto real del catálogo.
+PROPUESTAS = [
+    {
+        "kind": "leccion",
+        "title": "Los timeouts de la pasarela se concentran en la ventana de conciliación",
+        "challenge": "Tres tests de api-pagos fallaron a la vez por ETIMEDOUT y se abrió "
+                     "incidencia contra el equipo de pagos.",
+        "approach": "Al cruzar las horas de fallo con la ventana de conciliación del "
+                    "proveedor, coinciden. No es el test: es la ventana.",
+        "outcome": "Reprogramar la suite de pagos fuera de esa franja y, si no es posible, "
+                   "marcar los fallos de esa ventana como infraestructura.",
+        "domain": "pagos",
+        "tags": ["infra", "pasarela", "conciliacion"],
+        "family_keywords": ("test_pasarela", "gateway"),
+    },
+    {
+        "kind": "leccion",
+        "title": "Los selectores por id se rompen en cada rediseño del checkout",
+        "challenge": "Tres incidencias distintas de localizador en checkout y perfil tras "
+                     "cambios de maquetación.",
+        "approach": "Los tests que usan data-testid sobrevivieron al rediseño; los que "
+                    "usan id o clases, no.",
+        "outcome": "Migrar los selectores críticos a data-testid antes del próximo "
+                   "rediseño y añadirlo a la revisión de PR.",
+        "domain": "checkout",
+        "tags": ["maintenance", "selectores", "buenas-practicas"],
+        "family_keywords": ("test_boton_finalizar", "finalizar"),
+    },
+    {
+        "kind": "leccion",
+        "title": "El cálculo de días de vacaciones no contempla los festivos locales",
+        "challenge": "El test de vacaciones esperaba 12 días laborables y el sistema "
+                     "calculó 14.",
+        "approach": "El calendario de festivos que usa el cálculo es el nacional; los "
+                    "festivos autonómicos no entran.",
+        "outcome": "Cargar el calendario por centro de trabajo y cubrirlo con un caso "
+                   "por comunidad.",
+        "domain": "rrhh",
+        "tags": ["real", "calculo", "festivos"],
+        "family_keywords": ("test_solicitud_vacaciones", "working days"),
+    },
+    {
+        "kind": "leccion",
+        "title": "Reintentar un cobro con la misma clave de idempotencia lo duplica",
+        "challenge": "Un reintento generó dos cargos con la misma clave de idempotencia.",
+        "approach": "La clave se guarda tras confirmar el cobro, no antes: entre ambos "
+                    "momentos hay ventana para duplicar.",
+        "outcome": "Registrar la clave al recibir la petición, dentro de la misma "
+                   "transacción que el cargo.",
+        "domain": "pagos",
+        "tags": ["real", "idempotencia", "critico"],
+        "family_keywords": ("test_idempotencia", "idempotency"),
+    },
+    {
+        "kind": "leccion",
+        "title": "La sesión sigue aceptando el token después de cerrar sesión",
+        "challenge": "Tras el logout, el token anterior seguía siendo válido contra la API.",
+        "approach": "El cierre de sesión limpia la cookie en el navegador pero no invalida "
+                    "el token en servidor.",
+        "outcome": "Invalidar en servidor al cerrar sesión y cubrirlo con un test de "
+                   "seguridad en cada release.",
+        "domain": "acceso",
+        "tags": ["real", "seguridad", "sesion"],
+        "family_keywords": ("test_cerrar_sesion", "logout"),
+    },
+]
+
