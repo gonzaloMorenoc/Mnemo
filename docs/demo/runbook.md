@@ -57,6 +57,28 @@ Reglas del comando (versión ejecutable con valores reales: `prod.local.md`):
 Respuesta esperada: `"triage": {"maintenance": 1}`, acta `apto-con-reservas`,
 `"gate": null` si la org no tiene GitHub App conectada (esperado).
 
+### 1c-bis. Los dos enlaces de verificación (Acto 2)
+
+El enlace auténtico se obtiene desde la tarjeta del acta → **"Copiar enlace de
+verificación"**; se abre en cualquier ventana sin sesión (incógnito, o el móvil) y se
+verifica solo, sin tocar nada más.
+
+El contraste es lo que convence — el verde solo se cree cuando antes se ha visto el
+rojo —, así que conviene preparar con antelación un **segundo enlace, manipulado**:
+
+1. Copiar el enlace auténtico y decodificar el fragmento tras `#v1.` (base64url) para
+   recuperar el JSON del acta.
+2. Editar el contenido — p.ej. bajar el `risk_score` — y volver a codificar el JSON
+   completo en base64url, dejando la **firma original intacta**.
+3. Montar la URL con ese fragmento nuevo: `/verify#v1.<blob manipulado>`.
+
+**Ojo, es contraintuitivo:** cambiar un carácter suelto del base64 a mano NO sirve —
+corrompe el JSON entero y el enlace cae en el aviso neutro "este enlace está
+incompleto" (`decodeShare` ni siquiera consigue parsearlo), no en el rojo de "Firma NO
+válida". El rojo solo aparece cuando el JSON decodifica bien pero la firma ya no
+cuadra con el contenido — que es además la historia que se cuenta: "alguien retoca el
+acta para que parezca mejor".
+
 ### 1d. Requisitos del backend en producción
 
 Secrets/variables que deben existir en el host del backend (ver `docs/deploy/produccion.md`):
@@ -73,8 +95,11 @@ Secrets/variables que deben existir en el host del backend (ver `docs/deploy/pro
 - [ ] `GET <backend>/v2/health` → 200 (keep-warm activo; si tarda, abrirlo y esperar).
 - [ ] `GET <backend>/v2/certificates/pubkey` → 200 (la firma está encendida).
 - [ ] Login en el frontend y el selector muestra las dos orgs de demo.
-- [ ] Run **real** seleccionado → gate rojo + acta no-apto + el PDF descarga.
-- [ ] `/verify` con un acta pegada → "válido"; alterada → "inválido".
+- [ ] Run **real** seleccionado → gate rojo + acta no-apto + el PDF descarga (con la
+      marca MTP y el pie de verificación).
+- [ ] Los dos enlaces de verificación probados (ver §1c-bis), abiertos en una ventana
+      sin sesión: el auténtico → sello azul "Acta auténtica"; el manipulado → rojo
+      "Firma NO válida".
 - [ ] Terminal con el bloque del push en vivo preparado (`prod.local.md`) y secreto exportado.
 - [ ] Runs de ensayos anteriores podados (§1f) si se quiere la org limpia.
 

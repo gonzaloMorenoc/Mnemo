@@ -82,10 +82,15 @@ curl -X POST "$BACKEND_URL/v2/ci/webhook" \
    `self_heal` con el parche y la evidencia (el DOM contiene `id="guardar-cambios"`).
 2. Clic en **"Aprobar"** → estado `approved`. *"Determinismo donde firmo, IA donde multiplico."*
 3. Abrir **Certificado** (`CertificateCard`): veredicto firmado con **Ed25519**, con evidencia,
-   desglose y `key_id`. Clic en **"Descargar PDF"**.
-4. **El remate — verificación pública** (página `/verify`, sin login):
-   - Pegar el acta (JSON canónico + firma) → **"válido"**.
-   - Cambiar una sola letra del veredicto → **"inválido"**.
+   desglose y `key_id`. Clic en **"Descargar PDF"** — el PDF ya lleva la marca MTP y un pie
+   que dice dónde verificarlo.
+4. **El remate — el enlace que se verifica solo**: clic en **"Copiar enlace de
+   verificación"** y abrirlo en una ventana sin sesión (mejor aún: en el móvil, delante de
+   todos). Sin cuenta, sin instalar nada, el acta se verifica sola y aparece el **sello de
+   autenticidad** con el veredicto y el manifiesto de la ejecución.
+   - Enlace auténtico → sello azul MTP, veredicto tal cual consta en el acta.
+   - Enlace **manipulado** (preparado de antemano, ver `runbook.md` §1c-bis) →
+     **"Firma NO válida"** en rojo. *"El verde solo se cree cuando se ha visto el rojo."*
 
 ### Mensaje clave
 
