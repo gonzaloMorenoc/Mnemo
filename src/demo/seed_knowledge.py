@@ -18,6 +18,7 @@ from src.demo.knowledge_data import (
     KNOWLEDGE_ORG_A,
     KNOWLEDGE_ORG_B,
     PROJECT,
+    PROPUESTAS,
     ROOT_CAUSES,
     TEST_ASSETS,
 )
@@ -136,7 +137,26 @@ def seed_knowledge(*, db_url: str, demo_user_id: str) -> Dict[str, Any]:
         user_id=demo_user_id, org_id=org_a, repo=_DEMO_REPO, assets=TEST_ASSETS
     )
 
+    # Propuestas PENDIENTES: el lazo del producto es que el sistema proponga una
+    # lección y una persona la apruebe. Con la bandeja vacía ese paso no se ve.
+    propuestas = 0
+    with psycopg.connect(db_url) as conn, conn.cursor() as cur:
+        for prop in PROPUESTAS:
+            fam_id = _find_family(families, tuple(prop.get("family_keywords") or ()))
+            cur.execute(
+                "insert into public.knowledge_proposals"
+                " (org_id, defect_family_id, kind, title, challenge, approach, domain,"
+                "  outcome, tags, status, created_by)"
+                " values (%s,%s,%s,%s,%s,%s,%s,%s,%s,'pending',%s)",
+                (org_a, fam_id, prop["kind"], prop["title"], prop.get("challenge"),
+                 prop.get("approach"), prop.get("domain"), prop.get("outcome"),
+                 prop.get("tags") or [], demo_user_id),
+            )
+            propuestas += 1
+        conn.commit()
+
     return {
+        "propuestas": propuestas,
         "org_a": org_a,
         "org_b": org_b,
         "knowledge_org_a": items_a,

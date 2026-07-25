@@ -34,3 +34,35 @@ def test_assets_have_path_and_content():
         assert a["path"].endswith((".spec.ts", ".cy.ts", ".py"))
         assert len(a["content"]) >= 200, f"asset vacío: {a['path']}"
         assert a.get("domain")
+
+
+def test_hay_tests_indexados_para_que_el_grafo_tenga_cuerpo():
+    from src.demo.knowledge_data import TEST_ASSETS
+    assert len(TEST_ASSETS) >= 25
+    rutas = [a["path"] for a in TEST_ASSETS]
+    assert len(rutas) == len(set(rutas)), "dos assets con la misma ruta se pisan al indexar"
+    for a in TEST_ASSETS:
+        assert a["path"].endswith((".spec.ts", ".test.ts", ".cy.ts", ".spec.py", ".py"))
+        assert a["framework"] in ("playwright", "pytest", "cypress")
+        assert len(a["content"]) > 80, f"{a['path']} sin cuerpo suficiente para el embedding"
+
+
+def test_los_tests_indexados_cubren_los_ficheros_donde_ocurren_los_fallos():
+    """Grafo y Defect DNA tienen que hablar del mismo código: si una familia de
+    defectos apunta a un fichero, ese fichero debe existir en el índice."""
+    from src.demo.demo_catalog import FAILURE_CATALOG
+    from src.demo.knowledge_data import TEST_ASSETS
+
+    indexados = {a["path"] for a in TEST_ASSETS}
+    con_fallo = {f.file for fallos in FAILURE_CATALOG.values() for f in fallos}
+    faltan = con_fallo - indexados
+    assert not faltan, f"ficheros con fallos que no están indexados: {sorted(faltan)}"
+
+
+def test_hay_propuestas_pendientes_en_la_bandeja():
+    from src.demo.knowledge_data import PROPUESTAS
+    assert len(PROPUESTAS) >= 4
+    for p in PROPUESTAS:
+        assert p.get("title") and p.get("challenge") and p.get("approach") and p.get("outcome")
+        assert p["kind"] == "leccion"
+        assert p.get("tags")
