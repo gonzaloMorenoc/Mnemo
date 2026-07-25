@@ -38,3 +38,13 @@ def test_la_precision_se_mantiene_por_encima_del_umbral_de_confianza_baja():
     for categoria in _CATEGORIAS:
         aciertos = sum(1 for i in range(100) if etiqueta_humana(categoria, i) == categoria)
         assert aciertos / 100 > 0.60
+
+
+def test_con_pocas_familias_la_precision_sigue_siendo_creible():
+    """Una demo real ronda las 35 familias. Con un reparto mal planteado no habría
+    ni una corrección en ese rango y la precisión saldría del 100%."""
+    for n_familias in (20, 34, 45):
+        decisiones = [etiqueta_humana("real", i) for i in range(n_familias)]
+        aciertos = sum(1 for d in decisiones if d == "real") / n_familias
+        assert 0.70 <= aciertos <= 0.95, (
+            f"con {n_familias} familias la precisión sale {aciertos:.0%}")

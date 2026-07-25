@@ -34,5 +34,9 @@ def etiqueta_humana(engine_category: str, indice: int,
     alternativa = CORRECCION_ALTERNATIVA.get(engine_category, _FALLBACK)
     if engine_category not in CORRECCION_ALTERNATIVA or engine_category == "unknown":
         return alternativa
-    corrige = (indice % 100) >= int(precision * 100)
+    # Se corrige una de cada `paso` familias, repartidas. Con un umbral del tipo
+    # "índice >= 85" no habría ni una corrección hasta la familia 85, y una demo
+    # real ronda las 35: la precisión saldría del 100%, que no se lo cree nadie.
+    paso = max(2, round(1 / max(1e-9, 1 - precision)))
+    corrige = (indice % paso) == paso - 1
     return alternativa if corrige else engine_category

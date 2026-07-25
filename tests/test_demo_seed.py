@@ -178,3 +178,64 @@ def test_fresh_push_is_maintenance_with_baseline(demo_user):
         f"se esperaba categoria 'maintenance' pero se obtuvo: {cats!r} "
         "(verifica que perfil_green.json fue ingerido en seed y comparte project+test_name con fresh_push)"
     )
+
+
+# ---------------------------------------------------------------------------
+# El resultado que hace que la demo se pueda ENSEÑAR: motor calibrado, sin ruido
+# y con al menos un acta verde ganada por calibración (no regalada).
+# ---------------------------------------------------------------------------
+
+def _scalar(sql: str, *args):
+    with psycopg.connect(DBURL) as conn, conn.cursor() as cur:
+        cur.execute(sql, args)
+        return cur.fetchone()[0]
+
+
+def test_la_demo_acaba_calibrada_y_con_actas_verdes(demo_user):
+    res = seed_demo(db_url=DBURL, demo_user_id=demo_user)
+    org_a = res["org_a"]
+
+    correcciones = _scalar("select count(*) from public.triage_corrections where org_id=%s", org_a)
+    sin_etiquetar = _scalar("select count(*) from public.defect_families"
+                            " where org_id=%s and label='unknown'", org_a)
+    verdes = _scalar("select count(*) from public.certificates"
+                     " where org_id=%s and verdict='apto'", org_a)
+    runs = _scalar("select count(*) from public.test_runs where org_id=%s", org_a)
+    ventana = _scalar("select max(created_at)-min(created_at) from public.test_runs"
+                      " where org_id=%s", org_a)
+
+    assert correcciones >= 30, "por debajo de 30 el motor nunca sale de confianza baja"
+    assert sin_etiquetar == 0, "una familia 'unknown' es ruido en el Defect DNA"
+    assert verdes >= 1, "sin un acta 'apto' la demo no puede enseñar un veredicto favorable"
+    assert runs >= 40
+    assert ventana.days >= 80, "la tendencia necesita recorrido"
+
+
+def test_las_actas_antiguas_son_mas_prudentes_que_las_recientes(demo_user):
+    """La evolución del motor: sin calibrar firma con reservas; calibrado, en verde."""
+    res = seed_demo(db_url=DBURL, demo_user_id=demo_user)
+    with psycopg.connect(DBURL) as conn, conn.cursor() as cur:
+        cur.execute(
+            "select c.verdict from public.certificates c"
+            " join public.test_runs r on r.id = c.run_id"
+            " where c.org_id=%s and r.created_at < now() - interval '60 days'", (res["org_a"],))
+        antiguas = [r[0] for r in cur.fetchall()]
+    assert antiguas, "debería haber actas en el tramo antiguo"
+    assert "apto" not in antiguas, "el motor sin calibrar no puede firmar un 'apto' rotundo"
+
+
+def test_la_precision_sembrada_es_creible(demo_user):
+    res = seed_demo(db_url=DBURL, demo_user_id=demo_user)
+    total = _scalar("select count(*) from public.triage_corrections where org_id=%s", res["org_a"])
+    aciertos = _scalar("select count(*) from public.triage_corrections"
+                       " where org_id=%s and engine_category = human_category", res["org_a"])
+    precision = aciertos / total
+    assert 0.65 <= precision <= 0.95, (
+        f"precisión {precision:.0%}: por debajo devuelve el motor a confianza baja, "
+        "por encima del 95% no se la cree nadie")
+
+
+def test_el_panel_de_acciones_no_queda_vacio(demo_user):
+    res = seed_demo(db_url=DBURL, demo_user_id=demo_user)
+    acciones = _scalar("select count(*) from public.actions where org_id=%s", res["org_a"])
+    assert acciones >= 1, "el panel de acciones correctivas de Autopilot se vería vacío"
