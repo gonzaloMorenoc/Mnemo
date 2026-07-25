@@ -1,6 +1,7 @@
 from typing import Any, Dict, Optional
 
 from src.certify.certificate import build_certificate, compute_self_eval
+from src.certify.share import share_blob
 from src.certify.signing import canonical_json, key_id, sign
 from src.ai.judge import compute_ai_eval
 
@@ -60,10 +61,15 @@ class CertificateService:
             model_version=self._model_version,
         )
         return {"run_id": run_id, "verdict": cert["verdict"], "risk_score": cert["risk_score"],
-                "canonical_json": cert, "signature": signature, "created_at": created_at}
+                "canonical_json": cert, "signature": signature, "created_at": created_at,
+                "share": share_blob(cert, signature)}
 
     def get(self, *, user_id: str, run_id: str) -> Optional[Dict[str, Any]]:
-        return self.cert_repo.get_certificate(user_id=user_id, run_id=run_id)
+        cert = self.cert_repo.get_certificate(user_id=user_id, run_id=run_id)
+        if cert is None:
+            return None
+        # Copia nueva (no se muta lo que devuelve el repositorio).
+        return {**cert, "share": share_blob(cert["canonical_json"], cert["signature"])}
 
     def verify_payload(self, *, cert: Dict[str, Any], signature: str) -> bool:
         from src.certify.signing import verify as _verify

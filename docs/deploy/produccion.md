@@ -82,6 +82,12 @@ El diferenciador del producto (acta firmada y verificable) necesita **dos variab
 
 > **Rotación**: cada acta lleva el `key_id` (SHA-256 truncado) de la clave con la que se firmó; los certificados antiguos siguen verificando con su clave. **No pierdas la privada** y no la reutilices en otros entornos.
 
+### Pie de verificación del acta en PDF (opcional)
+
+| Variable | ¿Obligatoria? | Qué es |
+|----------|----------------|--------|
+| `MNEMO_PUBLIC_APP_URL` | No | URL pública del frontend (p. ej. `https://mnemo.vercel.app`). Solo se usa para el pie «verificable en …» del acta en PDF. Sin ella, el acta no imprime host. |
+
 ---
 
 ## Webhook de CI (ingesta automática desde el CI del cliente)

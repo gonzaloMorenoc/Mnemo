@@ -1,15 +1,15 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ShieldCheck, ShieldX, KeyRound } from "lucide-react";
-import { useState } from "react";
+import { ShieldX, KeyRound } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { ApiClientError } from "@/lib/api/client";
 import { getCertificatePubkey, verifyCertificate } from "@/lib/api/endpoints";
-import type { ExecutionManifest } from "@/lib/api/types";
-import { Badge } from "@/components/ui/badge";
+import { decodeShare } from "@/lib/certificate-share";
+import { AuthenticityStamp } from "@/components/verify/AuthenticityStamp";
 import { Button } from "@/components/ui/button";
-import { VerdictBadge } from "@/components/ui/verdict-badge";
 import {
   Card,
   CardContent,
@@ -20,6 +20,10 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 
 type Payload = { canonical_json: Record<string, unknown>; signature: string };
+
+const ENLACE_ROTO =
+  "Este enlace está incompleto: es probable que se cortara al copiarlo o al enviarlo por " +
+  "correo. Pide que te lo reenvíen, o pega el acta aquí abajo.";
 
 /**
  * Acepta o bien el acta completa que devuelve Mnemo ({..., canonical_json, signature})
@@ -47,10 +51,6 @@ function extractPayload(raw: string): Payload {
   return { canonical_json: canonical, signature };
 }
 
-function asString(v: unknown): string | null {
-  return typeof v === "string" ? v : null;
-}
-
 /**
  * Núcleo de verificación (formulario + resultado + clave pública), sin cromo de
  * página. Lo usan la home pública `/verify` (sin cuenta) y `/app/verify` dentro del
@@ -59,6 +59,9 @@ function asString(v: unknown): string | null {
 export function CertificateVerifier() {
   const [raw, setRaw] = useState("");
   const [payload, setPayload] = useState<Payload | null>(null);
+  const [linkError, setLinkError] = useState("");
+  const [llegaPorEnlace, setLlegaPorEnlace] = useState(false);
+  const hashProcesado = useRef("");
 
   const pubkey = useQuery({
     queryKey: ["cert-pubkey"],
@@ -72,95 +75,108 @@ export function CertificateVerifier() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  function onVerify() {
-    let p: Payload;
-    try {
-      p = extractPayload(raw);
-    } catch (e) {
-      toast.error((e as Error).message);
-      setPayload(null);
-      verify.reset();
+  const runVerification = useCallback(
+    (rawActa: string, fromLink = false) => {
+      // Verificar a mano siempre parte de cero: si el acta en pantalla venía de
+      // un enlace (sello de procedencia, aviso ámbar de enlace roto), esa
+      // procedencia ya no aplica al texto que el usuario acaba de pegar.
+      if (!fromLink) {
+        setLlegaPorEnlace(false);
+        setLinkError("");
+      }
+      let p: Payload;
+      try {
+        p = extractPayload(rawActa);
+      } catch (e) {
+        // Un acta ilegible que venía de un ENLACE casi siempre es un enlace
+        // truncado por el correo, no un fraude: no se pinta el rojo de "alterada".
+        if (fromLink) setLinkError(ENLACE_ROTO);
+        else toast.error((e as Error).message);
+        setPayload(null);
+        verify.reset();
+        return;
+      }
+      setLinkError("");
+      setPayload(p);
+      // Parseamos (extractPayload) solo para VALIDAR y pintar el veredicto; para
+      // verificar enviamos el texto CRUDO, sin re-serializar (ver verifyCertificate).
+      verify.mutate(rawActa);
+    },
+    [verify],
+  );
+
+  useEffect(() => {
+    const hash = window.location.hash;
+    // El efecto se remonta en StrictMode (dev) y al recrearse `verify`: un
+    // enlace solo se procesa una vez.
+    if (!hash || hashProcesado.current === hash) return;
+    hashProcesado.current = hash;
+    const texto = decodeShare(hash);
+    if (texto === null) {
+      // Lectura única del fragmento al montar (guardada por `hashProcesado`),
+      // no una sincronización continua con un sistema externo.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (hash.startsWith("#v1.")) setLinkError(ENLACE_ROTO);
       return;
     }
-    setPayload(p);
-    // Parseamos (extractPayload) solo para VALIDAR y pintar el veredicto; para
-    // verificar enviamos el texto CRUDO, sin re-serializar (ver verifyCertificate).
-    verify.mutate(raw);
-  }
+    setRaw(texto);
+    setLlegaPorEnlace(true);
+    runVerification(texto, true);
+  }, [runVerification]);
 
-  const identity = (payload?.canonical_json.identity ?? {}) as Record<string, unknown>;
-  const verdict = asString(payload?.canonical_json.verdict) ?? "";
   const valido = verify.data?.valido === true;
   const invalido = verify.isSuccess && verify.data?.valido === false;
+  // `verify.isError` salta con CUALQUIER respuesta no-2xx, no solo con un fallo
+  // de transporte: un 4xx significa que el servicio SÍ respondió y rechazó el
+  // cuerpo (p.ej. un acta aplanada sin `canonical_json`). Atribuirlo a "no hay
+  // conexión" es una causa falsa. Solo tratamos como transporte lo que de
+  // verdad lo es: un fallo de red o un 5xx.
+  const motivoBackend =
+    verify.error instanceof ApiClientError && verify.error.status < 500
+      ? verify.error.message
+      : null;
 
-  return (
-    <>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">El acta (JSON)</CardTitle>
-          <CardDescription>
-            Pega el acta completa que recibiste o descargaste; se usan sus campos{" "}
-            <code className="font-mono text-xs">canonical_json</code> y{" "}
-            <code className="font-mono text-xs">signature</code>.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Textarea
-            value={raw}
-            onChange={(e) => setRaw(e.target.value)}
-            rows={10}
-            spellCheck={false}
-            placeholder='{ "canonical_json": { ... }, "signature": "..." }'
-            className="font-mono text-xs"
-            aria-label="Acta en formato JSON"
-          />
-          <Button onClick={onVerify} disabled={!raw.trim() || verify.isPending}>
-            {verify.isPending ? "Verificando…" : "Verificar firma"}
-          </Button>
-        </CardContent>
-      </Card>
+  const formulario = (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">El acta (JSON)</CardTitle>
+        <CardDescription>
+          Pega el acta completa que recibiste o descargaste; se usan sus campos{" "}
+          <code className="font-mono text-xs">canonical_json</code> y{" "}
+          <code className="font-mono text-xs">signature</code>.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <Textarea
+          value={raw}
+          onChange={(e) => setRaw(e.target.value)}
+          rows={10}
+          spellCheck={false}
+          placeholder='{ "canonical_json": { ... }, "signature": "..." }'
+          className="font-mono text-xs"
+          aria-label="Acta en formato JSON"
+        />
+        <Button onClick={() => runVerification(raw)} disabled={!raw.trim() || verify.isPending}>
+          {verify.isPending ? "Verificando…" : "Verificar firma"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
 
-      {valido && (
-        <Card className="mt-6 border-emerald-200 bg-emerald-50/60">
-          <CardContent className="space-y-4 pt-6">
-            <div className="flex items-center gap-2 text-emerald-800">
-              <ShieldCheck className="h-6 w-6" />
-              <span className="text-lg font-semibold">Firma válida</span>
-            </div>
-            <p className="text-sm text-emerald-900/80">
-              El acta es auténtica y no ha sido modificada desde su emisión. La firma
-              garantiza integridad y origen; el veredicto (apto / no apto) es el que
-              consta dentro del acta.
-            </p>
-            <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-              <Field label="Veredicto">
-                {verdict ? <VerdictBadge verdict={verdict} /> : <Badge>—</Badge>}
-              </Field>
-              <Field label="Riesgo">
-                {verdict === "sin_confirmar"
-                  ? "—"
-                  : `${String(payload?.canonical_json.risk_score ?? "—")}/100`}
-              </Field>
-              <Field label="Proyecto">{asString(identity.project) ?? "—"}</Field>
-              <Field label="Commit">
-                <span className="font-mono text-xs">
-                  {(asString(identity.commit_sha) ?? "—").slice(0, 12)}
-                </span>
-              </Field>
-              <Field label="Run">
-                <span className="font-mono text-xs break-all">
-                  {asString(identity.run_id) ?? "—"}
-                </span>
-              </Field>
-              <Field label="Emitido">{asString(identity.created_at) ?? "—"}</Field>
-            </dl>
-            <ManifestSummary payload={payload} />
-          </CardContent>
-        </Card>
+  const resultado = (
+    <div aria-live="polite">
+      {verify.isPending && <p className="text-sm text-zinc-500">Comprobando la firma…</p>}
+      {verify.isError && (
+        <p className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600">
+          {motivoBackend
+            ? `No se pudo comprobar la firma: ${motivoBackend} Revisa el acta pegada y vuelve a intentarlo.`
+            : "No se pudo comprobar la firma ahora mismo: no hay conexión con el servicio de " +
+              "verificación. Vuelve a intentarlo en un momento. Esto no dice nada sobre el acta."}
+        </p>
       )}
-
+      {valido && payload && <AuthenticityStamp canonical={payload.canonical_json} />}
       {invalido && (
-        <Card className="mt-6 border-red-200 bg-red-50/60">
+        <Card className="border-red-200 bg-red-50/60">
           <CardContent className="space-y-2 pt-6">
             <div className="flex items-center gap-2 text-red-800">
               <ShieldX className="h-6 w-6" />
@@ -172,6 +188,36 @@ export function CertificateVerifier() {
             </p>
           </CardContent>
         </Card>
+      )}
+    </div>
+  );
+
+  return (
+    <>
+      {linkError ? (
+        <div
+          role="status"
+          className="mb-6 rounded-lg border border-amber-200 bg-amber-50/60 p-4 text-sm text-amber-900"
+        >
+          {linkError}
+        </div>
+      ) : null}
+
+      {llegaPorEnlace ? (
+        <>
+          {resultado}
+          <details className="mt-6">
+            <summary className="cursor-pointer text-sm text-zinc-500">
+              Ver el acta que se ha verificado
+            </summary>
+            <div className="mt-3">{formulario}</div>
+          </details>
+        </>
+      ) : (
+        <>
+          {formulario}
+          <div className="mt-6">{resultado}</div>
+        </>
       )}
 
       <section className="mt-8">
@@ -197,26 +243,5 @@ export function CertificateVerifier() {
         )}
       </section>
     </>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <dt className="text-xs uppercase tracking-wide text-zinc-500">{label}</dt>
-      <dd className="text-zinc-900">{children}</dd>
-    </div>
-  );
-}
-
-// Manifiesto de ejecución (acta v3); ausente en actas v2 → no se muestra.
-function ManifestSummary({ payload }: { payload: Payload | null }) {
-  const m = payload?.canonical_json.execution_manifest as ExecutionManifest | null | undefined;
-  if (!m) return null;
-  return (
-    <p className="text-sm text-emerald-900/70">
-      Ejecución: {m.total} tests · {m.passed} ✓ · {m.failed} ✗ · {m.skipped} omitidos
-      {m.flaky ? ` · ${m.flaky} flaky` : ""}
-    </p>
   );
 }
