@@ -32,6 +32,7 @@ import sys
 
 import psycopg
 from pgvector import Vector
+from pgvector.psycopg import register_vector
 from psycopg.rows import dict_row
 
 from src.config import DATABASE_URL, EMBEDDING_MODEL
@@ -44,7 +45,14 @@ _BATCH = 200  # filas por lote: acota memoria y tamaño de transacción
 def _connect() -> psycopg.Connection:
     if not DATABASE_URL:
         sys.exit("DATABASE_URL no configurada — nada que re-embeber.")
-    return psycopg.connect(DATABASE_URL, row_factory=dict_row)
+    conn = psycopg.connect(DATABASE_URL, row_factory=dict_row)
+    # Imprescindible para ESCRIBIR vectores: sin el adaptador registrado, psycopg
+    # no sabe pasar un Vector como parámetro y el primer UPDATE muere con
+    # "cannot adapt type 'Vector'". El código de producción lo registra en el
+    # configure del pool (src/db/pool.py); aquí conectamos sin pool a propósito
+    # (bypass de RLS), así que hay que registrarlo a mano.
+    register_vector(conn)
+    return conn
 
 
 def _count(cur, sql: str, params=()) -> int:
