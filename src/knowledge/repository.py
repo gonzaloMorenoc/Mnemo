@@ -8,7 +8,11 @@ from src.config import DATABASE_URL, MAX_SEMANTIC_DISTANCE
 from src.db.pool import get_pool
 from src.defects.embedder import LocalEmbedder
 
-_KINDS = {"regla_negocio", "flujo", "riesgo", "glosario", "leccion", "reto", "patron"}
+# Los 7 primeros son conocimiento sobre el PRODUCTO y sus fallos. Los 4 últimos son el
+# OFICIO del proyecto — lo que se va con el senior y antes no tenía dónde vivir
+# (auditoría 12-ago, H3). El CHECK de la BD (migración 027) lleva esta misma lista.
+_KINDS = {"regla_negocio", "flujo", "riesgo", "glosario", "leccion", "reto", "patron",
+          "runbook", "dato_prueba", "contacto", "decision"}
 _STATUSES = {"activo", "obsoleto"}
 # Whitelist de columnas editables (los nombres van al SQL → nunca del cliente sin pasar por aquí)
 _EDITABLE = ("kind", "title", "challenge", "approach", "outcome", "domain",
