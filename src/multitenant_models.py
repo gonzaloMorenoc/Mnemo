@@ -60,6 +60,10 @@ class DefectFamilySummary(BaseModel):
     status: str
     occurrence_count: int
     root_cause: Optional[str] = None
+    # La razón que escribió quien etiquetó (última corrección humana de la familia).
+    # Es el conocimiento tácito del senior; sin esto se quedaba enterrado en
+    # triage_corrections (auditoría 12-ago, H1).
+    label_reason: Optional[str] = None
 
 
 class DefectLineageResponse(BaseModel):

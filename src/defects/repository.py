@@ -6,7 +6,7 @@ from pgvector import Vector
 from psycopg.rows import dict_row
 from psycopg.types.json import Json
 
-from src.config import DATABASE_URL
+from src.config import DATABASE_URL, MAX_SEMANTIC_DISTANCE
 from src.db.pool import get_pool
 from src.defects.centroid import update_centroid
 from src.defects.match import FamilyCandidate, decide_match
@@ -448,8 +448,14 @@ class AssuranceRepository:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    select f.id, f.title, f.status, f.occurrence_count, f.root_cause
+                    select f.id, f.title, f.status, f.occurrence_count, f.root_cause,
+                           c.reason as label_reason
                     from public.defect_families f
+                    left join lateral (
+                        select tc.reason from public.triage_corrections tc
+                        where tc.family_id = f.id and tc.reason is not null and tc.reason <> ''
+                        order by tc.corrected_at desc limit 1
+                    ) c on true
                     where f.id = %s
                       and (
                           f.scope = 'global'
@@ -495,6 +501,7 @@ class AssuranceRepository:
                     "status": fam["status"],
                     "occurrence_count": fam["occurrence_count"],
                     "root_cause": fam["root_cause"],
+                    "label_reason": fam["label_reason"],
                 },
                 "failures": failures,
             }
@@ -1032,7 +1039,11 @@ class AssuranceRepository:
     def search_families_semantic(self, *, user_id: str, org_id: str,
                                  query_embedding: Sequence[float], k: int = 8) -> List[Dict[str, Any]]:
         """Familias del tenant más similares a la consulta (coseno sobre el centroide).
-        Membership-gated; solo familias con centroide. [] si no es miembro."""
+        Membership-gated; solo familias con centroide. [] si no es miembro.
+
+        Incluye la razón de la ÚLTIMA corrección humana (label_reason) — el "por qué"
+        del senior al etiquetar — y corta por distancia: sin umbral, el top-k devolvía
+        ruido cuando no había nada relevante (auditoría 12-ago, H1 y H2)."""
         with self._connect() as conn:
             self._set_claims(conn, user_id)
             with conn.cursor() as cur:
@@ -1040,17 +1051,25 @@ class AssuranceRepository:
                             " where org_id = %s and user_id = %s) as ok", (org_id, user_id))
                 if not cur.fetchone()["ok"]:
                     return []
+                q = Vector(list(query_embedding))
                 cur.execute(
-                    "select id, signature, label, root_cause, occurrence_count, title"
-                    " from public.defect_families"
-                    " where scope = 'org' and org_id = %s and centroid is not null"
-                    " order by centroid <=> %s limit %s",
-                    (org_id, Vector(list(query_embedding)), k),
+                    "select f.id, f.signature, f.label, f.root_cause, f.occurrence_count,"
+                    " f.title, c.reason as label_reason"
+                    " from public.defect_families f"
+                    " left join lateral ("
+                    "   select tc.reason from public.triage_corrections tc"
+                    "   where tc.family_id = f.id and tc.reason is not null and tc.reason <> ''"
+                    "   order by tc.corrected_at desc limit 1"
+                    " ) c on true"
+                    " where f.scope = 'org' and f.org_id = %s and f.centroid is not null"
+                    "   and f.centroid <=> %s < %s"
+                    " order by f.centroid <=> %s limit %s",
+                    (org_id, q, MAX_SEMANTIC_DISTANCE, q, k),
                 )
                 return [
                     {"family_id": str(r["id"]), "signature": r["signature"], "label": r["label"],
                      "root_cause": r["root_cause"], "occurrence_count": r["occurrence_count"],
-                     "title": r["title"]}
+                     "title": r["title"], "label_reason": r["label_reason"]}
                     for r in cur.fetchall()
                 ]
 

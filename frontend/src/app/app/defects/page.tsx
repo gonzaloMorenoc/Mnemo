@@ -150,6 +150,13 @@ export default function DefectsPage() {
           {lineageQuery.data?.family && (
             <div className="space-y-3">
               <p className="text-sm font-medium text-zinc-900">{lineageQuery.data.family.title}</p>
+              {lineageQuery.data.family.label_reason && (
+                // El "por qué" de la etiqueta, escrito por quien la puso: el
+                // conocimiento tácito que un reemplazo necesita leer primero.
+                <p className="rounded-md bg-zinc-50 px-3 py-2 text-sm italic text-zinc-600">
+                  “{lineageQuery.data.family.label_reason}”
+                </p>
+              )}
               <ul className="space-y-1 text-sm text-zinc-600">
                 {lineageQuery.data.failures.map((fl) => (
                   <li key={fl.id} className="flex items-center justify-between">

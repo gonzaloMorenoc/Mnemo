@@ -6,7 +6,21 @@ load_dotenv()
 
 # Model Settings (el modelo LLM por defecto por proveedor vive en src/llm/factory.py)
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+# Embebedor de la memoria. Multilingüe a propósito: el contenido está en español y
+# con all-MiniLM-L6-v2 (inglés) el margen señal/ruido medido en español era 0,05
+# (relacionado 0,43 vs no relacionado 0,38); con el multilingüe es 0,66 — y además
+# una consulta en español encuentra contenido importado en inglés (cross ES-EN 0,69).
+# Misma dimensión (384) que el esquema vector(384): sin migración de columnas.
+# ⚠️ Cambiar de modelo exige re-embeber lo existente: scripts/reembed.py (si no,
+# las distancias mezclan espacios vectoriales y la búsqueda/el merge de familias
+# devuelven basura). Sobreescribible por env para pilotar el despliegue.
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "paraphrase-multilingual-MiniLM-L12-v2")
+# Corte de distancia coseno en la búsqueda semántica (conocimiento y familias).
+# Sin corte, el top-k devolvía SIEMPRE k resultados aunque nada fuese relevante, y
+# el LLM respondía desde ruido. Calibrado con el modelo multilingüe (12-ago-2026):
+# pares relacionados en español ≈ 0,25-0,60 de distancia; ruido ≈ 0,90. El 0,75
+# deja margen a ambos lados. Si se cambia EMBEDDING_MODEL, recalibrar.
+MAX_SEMANTIC_DISTANCE = float(os.getenv("MAX_SEMANTIC_DISTANCE", "0.75"))
 
 # LLM provider intercambiable (ollama local | openai-compatible | anthropic)
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama")

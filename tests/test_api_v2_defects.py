@@ -135,3 +135,27 @@ def test_defect_lineage_not_found_returns_empty_family():
     resp = client.get("/v2/defects/missing")
     assert resp.status_code == 200
     assert resp.json()["family"] is None
+
+
+def test_defect_lineage_exposes_label_reason():
+    """La razón de la etiqueta viaja hasta la UI del lineage (auditoría 12-ago, H1)."""
+    repo = MagicMock()
+    repo.get_lineage.return_value = {
+        "family": {"id": "f1", "title": "Timeout", "status": "open", "occurrence_count": 2,
+                   "label_reason": "Timeouts por runners fríos del sandbox del PSP"},
+        "failures": [],
+    }
+    client = make_client(repo=repo)
+    body = client.get("/v2/defects/f1").json()
+    assert body["family"]["label_reason"] == "Timeouts por runners fríos del sandbox del PSP"
+
+
+def test_defect_lineage_without_reason_backcompat():
+    """Mocks/familias sin label_reason siguen funcionando (campo opcional)."""
+    repo = MagicMock()
+    repo.get_lineage.return_value = {
+        "family": {"id": "f1", "title": "Timeout", "status": "open", "occurrence_count": 2},
+        "failures": [],
+    }
+    client = make_client(repo=repo)
+    assert client.get("/v2/defects/f1").json()["family"]["label_reason"] is None

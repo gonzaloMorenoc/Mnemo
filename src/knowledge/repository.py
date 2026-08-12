@@ -4,7 +4,7 @@ import psycopg
 from pgvector import Vector
 from psycopg.rows import dict_row
 
-from src.config import DATABASE_URL
+from src.config import DATABASE_URL, MAX_SEMANTIC_DISTANCE
 from src.db.pool import get_pool
 from src.defects.embedder import LocalEmbedder
 
@@ -191,11 +191,15 @@ class QaKnowledgeRepository:
         with self._connect() as conn, conn.cursor() as cur:
             if not self._is_member(cur, org_id, user_id):
                 return []
+            q = Vector(list(query_embedding))
+            # Corte por distancia: sin él, el top-k devolvía ruido cuando no había
+            # nada relevante y el LLM respondía desde ese ruido (auditoría 12-ago, H2).
             cur.execute(
                 "select id, kind, title, challenge, approach, outcome, domain, confidence"
                 " from public.qa_knowledge"
                 " where org_id=%s and status = 'activo' and embedding is not null"
+                "   and embedding <=> %s < %s"
                 " order by embedding <=> %s limit %s",
-                (org_id, Vector(list(query_embedding)), k),
+                (org_id, q, MAX_SEMANTIC_DISTANCE, q, k),
             )
             return [dict(r) for r in cur.fetchall()]

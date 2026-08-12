@@ -48,7 +48,14 @@ export interface FailureRef {
 }
 
 export interface DefectLineageResponse {
-  family: { id: string; title: string; status: string; occurrence_count: number } | null;
+  family: {
+    id: string;
+    title: string;
+    status: string;
+    occurrence_count: number;
+    /** Razón de la última etiqueta humana — el "por qué" de quien la puso. */
+    label_reason?: string | null;
+  } | null;
   failures: FailureRef[];
 }
 

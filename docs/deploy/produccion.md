@@ -35,6 +35,21 @@ Render despliega directamente desde el `Dockerfile` con HTTPS y URL estable.
 
 > ⚠️ **RAM**: el embedder local (`sentence-transformers` → `torch`) usa ~1–1.5 GB. El plan **free/starter (512 MB) NO arranca** → `render.yaml` usa `plan: standard`. Si quieres 0 € estricto, ve a "Alternativas".
 
+## Cambio del modelo de embeddings (una sola vez por cambio)
+
+El modelo por defecto es **multilingüe** (`paraphrase-multilingual-MiniLM-L12-v2`, 384 dims —
+mismas columnas `vector(384)`). Si el despliegue venía del modelo antiguo (`all-MiniLM-L6-v2`)
+o se cambia `EMBEDDING_MODEL`, hay que **re-embeber los vectores existentes justo después de
+desplegar** — los espacios vectoriales de dos modelos no son comparables y, hasta re-embeber,
+la búsqueda semántica y el merge de familias devuelven vacío/basura:
+
+```bash
+DATABASE_URL=... python3 -m scripts.reembed --dry-run   # cuenta filas, no escribe
+DATABASE_URL=... python3 -m scripts.reembed             # regenera todo (idempotente)
+```
+
+Cubre `failures`, centroides de `defect_families`, `qa_knowledge` y `test_assets`.
+
 ## Paso 2 — Conectar Vercel al backend
 
 En **Vercel → tu proyecto → Settings → Environment Variables**:

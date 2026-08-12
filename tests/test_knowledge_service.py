@@ -82,3 +82,17 @@ def test_ask_uses_embedder_for_query():
         svc.ask(user_id="u1", org_id="o1", question="mi pregunta")
 
     svc.embedder.embed.assert_called_once_with("mi pregunta")
+
+
+def test_search_unified_defect_content_includes_label_reason():
+    """La razón de la etiqueta (conocimiento tácito del senior) entra en el content
+    buscable del defecto. Auditoría 2026-08-12, H1."""
+    svc = _make_service()
+    svc.assurance.search_families_semantic.return_value = [
+        {"family_id": "f1", "title": "checkout timeout", "label": "flaky",
+         "root_cause": None, "signature": "sig", "occurrence_count": 3,
+         "label_reason": "Timeouts por runners fríos del sandbox del PSP"},
+    ]
+    results = svc.search_unified(user_id="u1", org_id="o1", query="checkout inestable")
+    defect = next(r for r in results if r["type"] == "defect")
+    assert "runners fríos" in defect["content"]

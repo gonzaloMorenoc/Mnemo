@@ -18,9 +18,10 @@ class KnowledgeService:
                 "content": " ".join(str(i.get(x) or "") for x in ("title", "challenge", "approach", "outcome")).strip(),
                 "confidence": i.get("confidence")} for i in items]
         # search_families_semantic devuelve la familia bajo "family_id" (no "id").
+        # family_content incluye la razón de la etiqueta humana (el "por qué" del
+        # senior) cuando existe — ver auditoría 12-ago, H1.
         out += [{"id": str(f["family_id"]), "type": "defect", "title": f.get("title"),
-                 "content": f"defecto={f.get('title')} etiqueta={f.get('label')} causa={f.get('root_cause') or 'n/d'}",
-                 "confidence": "confirmado"} for f in fams]
+                 "content": nl_query.family_content(f), "confidence": "confirmado"} for f in fams]
         return out
 
     def ask(self, *, user_id: str, org_id: str, question: str) -> Dict[str, Any]:
