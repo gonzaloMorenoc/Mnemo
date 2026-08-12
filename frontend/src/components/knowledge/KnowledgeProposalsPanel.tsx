@@ -20,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { KIND_OPTIONS as KINDS } from "@/lib/kinds";
 
 export function KnowledgeProposalsPanel({ orgId }: { orgId: string }) {
   const { accessToken } = useAuth();
@@ -81,16 +82,9 @@ export function KnowledgeProposalsPanel({ orgId }: { orgId: string }) {
   );
 }
 
-// Los 7 tipos del esquema (check de kind en BD) con su etiqueta en español.
-const KIND_OPTIONS: [string, string][] = [
-  ["leccion", "Lección"],
-  ["regla_negocio", "Regla de negocio"],
-  ["flujo", "Flujo"],
-  ["riesgo", "Riesgo"],
-  ["glosario", "Glosario"],
-  ["reto", "Reto"],
-  ["patron", "Patrón"],
-];
+// Los tipos del esquema (check de kind en BD) como pares [valor, etiqueta], que es
+// lo que recorre el selector de abajo. La lista vive en @/lib/kinds.
+const KIND_OPTIONS: [string, string][] = KINDS.map((k) => [k.value, k.label]);
 
 const SOURCE_BADGE: Record<string, { label: string; className: string }> = {
   auto_triage: { label: "Triaje", className: "" },
