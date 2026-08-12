@@ -17,7 +17,7 @@ export const GLOSSARY: Record<string, string> = {
   precision_motor:
     "Porcentaje de tus correcciones en las que el motor de triaje ya había acertado la categoría. Solo cuenta familias etiquetadas por tu equipo.",
   tipo_conocimiento:
-    "Lección: algo aprendido de un fallo. Regla de negocio: cómo debe comportarse el sistema. Flujo: un proceso paso a paso. Riesgo: algo que puede salir mal. Glosario: definición de un término. El tipo decide qué avisos de cobertura puede generar (p. ej. «regla sin test»).",
+    "Sobre el producto — Lección: algo aprendido de un fallo. Regla de negocio: cómo debe comportarse el sistema. Flujo: un proceso paso a paso. Riesgo: algo que puede salir mal. Glosario: definición de un término. Sobre el oficio del proyecto — Runbook: cómo levantar el entorno o ejecutar algo. Dato de prueba: usuarios, tarjetas o datos con los que se prueba. Contacto: qué equipo o canal lleva cada cosa (roles, no personas). Decisión: qué se acordó y por qué. El tipo decide qué avisos de cobertura puede generar (p. ej. «regla sin test»).",
   confianza:
     "Confirmado: escrito o aprobado por una persona. Inferido: deducido automáticamente del triaje de fallos, aún sin validar.",
 };

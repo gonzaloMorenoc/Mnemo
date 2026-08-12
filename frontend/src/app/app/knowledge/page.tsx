@@ -31,18 +31,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-const KIND_OPTIONS = [
-  { value: "regla_negocio", label: "Regla de negocio" },
-  { value: "flujo", label: "Flujo" },
-  { value: "riesgo", label: "Riesgo" },
-  { value: "glosario", label: "Glosario" },
-  { value: "leccion", label: "Lección" },
-  { value: "reto", label: "Reto" },
-  { value: "patron", label: "Patrón" },
-] as const;
-
-type KindValue = (typeof KIND_OPTIONS)[number]["value"];
+import {
+  KIND_HINT,
+  KIND_OPTIONS,
+  looksLikePersonalEmail,
+  type KindValue,
+} from "@/lib/kinds";
 
 const EMPTY_FORM = {
   kind: "regla_negocio" as KindValue,
@@ -218,6 +212,9 @@ export default function KnowledgePage() {
                     ))}
                   </SelectContent>
                 </Select>
+                {KIND_HINT[form.kind] && (
+                  <p className="text-xs text-zinc-500">{KIND_HINT[form.kind]}</p>
+                )}
               </div>
 
               <div className="space-y-1.5">
@@ -264,6 +261,14 @@ export default function KnowledgePage() {
                 value={form.challenge}
                 onChange={(e) => handleFormChange("challenge", e.target.value)}
               />
+              {form.kind === "contacto" && looksLikePersonalEmail(form.challenge) && (
+                // Aviso, no bloqueo: un buzón compartido es legítimo. La idea es que
+                // el conocimiento sobreviva a la persona que ocupa hoy el puesto.
+                <p className="text-xs text-amber-700">
+                  Parece que incluye un email personal. Mejor un equipo o un canal: quien
+                  ocupa el puesto cambia, el rol no.
+                </p>
+              )}
             </div>
 
             <div className="space-y-1.5">

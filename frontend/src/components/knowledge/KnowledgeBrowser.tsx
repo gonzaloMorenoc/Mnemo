@@ -30,16 +30,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-
-const KIND_LABEL: Record<string, string> = {
-  regla_negocio: "Regla de negocio",
-  flujo: "Flujo",
-  riesgo: "Riesgo",
-  glosario: "Glosario",
-  leccion: "Lección",
-  reto: "Reto",
-  patron: "Patrón",
-};
+import { KIND_OPTIONS, kindLabel } from "@/lib/kinds";
 
 export function KnowledgeBrowser({ orgId }: { orgId: string }) {
   const { accessToken } = useAuth();
@@ -81,8 +72,8 @@ export function KnowledgeBrowser({ orgId }: { orgId: string }) {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todos los tipos</SelectItem>
-              {Object.entries(KIND_LABEL).map(([v, l]) => (
-                <SelectItem key={v} value={v}>{l}</SelectItem>
+              {KIND_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -180,7 +171,7 @@ function ItemCard({
   return (
     <div className={`space-y-2 rounded-xl border border-zinc-200 p-3 ${obsoleto ? "bg-zinc-50 opacity-70" : "bg-white"}`}>
       <div className="flex flex-wrap items-center gap-2">
-        <Badge>{KIND_LABEL[item.kind] ?? item.kind}</Badge>
+        <Badge>{kindLabel(item.kind)}</Badge>
         {item.project && (
           <Badge className="border-blue-200 bg-blue-50 text-blue-700">Proyecto: {item.project}</Badge>
         )}
