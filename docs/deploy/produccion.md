@@ -50,6 +50,20 @@ DATABASE_URL=... python3 -m scripts.reembed             # regenera todo (idempot
 
 Cubre `failures`, centroides de `defect_families`, `qa_knowledge` y `test_assets`.
 
+## Migraciones antes del despliegue
+
+Las migraciones de `db/migrations/` se aplican **antes** de desplegar el backend nuevo, no
+después: el código asume el esquema ya migrado. En particular, la **027** (kinds operativos)
+amplía el CHECK de `kind` en `qa_knowledge` y en `knowledge_proposals`; sin ella, capturar un
+`runbook` o refinar una propuesta a un kind nuevo daría `CheckViolation` (500/502).
+
+```bash
+DATABASE_URL=... psql "$DATABASE_URL" -f db/migrations/027_qa_knowledge_kinds_operativos.sql
+```
+
+Todas son idempotentes (`if exists` / `if not exists`) porque `scripts/docker_init.py` las
+re-aplica en cada arranque del contenedor.
+
 ## Paso 2 — Conectar Vercel al backend
 
 En **Vercel → tu proyecto → Settings → Environment Variables**:

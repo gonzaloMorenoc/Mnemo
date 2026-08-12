@@ -28,6 +28,19 @@ function summary(r: KnowledgeImportResult): string {
   return parts.length ? parts.join(" · ") : "Sin propuestas nuevas";
 }
 
+/**
+ * Secciones que no entraron, por página. Un tope silencioso se lee como «se importó
+ * todo»: si algo se queda fuera, hay que decirlo.
+ */
+function sectionsNotice(r: KnowledgeImportResult): string | null {
+  const total = (r.skipped_sections ?? []).reduce((n, s) => n + s.descartadas, 0);
+  if (!total) return null;
+  const paginas = (r.skipped_sections ?? []).length;
+  return `${total} sección${total === 1 ? "" : "es"} de ${paginas} página${
+    paginas === 1 ? "" : "s"
+  } no entraron (tope por página o cupo de esta hora). Vuelve a importarlas más tarde.`;
+}
+
 export function KnowledgeImportPanel({ orgId }: { orgId: string }) {
   const { accessToken } = useAuth();
   const qc = useQueryClient();
@@ -100,6 +113,9 @@ export function KnowledgeImportPanel({ orgId }: { orgId: string }) {
           {result && (
             <div className="space-y-1 rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-sm">
               <p className="font-medium text-zinc-900">{summary(result)}</p>
+              {sectionsNotice(result) && (
+                <p className="text-xs text-amber-700">{sectionsNotice(result)}</p>
+              )}
               {result.errors.map((e) => (
                 <p key={e.ref} className="text-xs text-red-600">
                   {e.ref}: {e.reason}

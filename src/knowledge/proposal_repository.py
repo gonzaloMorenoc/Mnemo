@@ -178,6 +178,37 @@ class KnowledgeProposalRepository:
             row = self._rows_from(raw)[0]
             return {**row, "created": bool(raw[0]["created"])}
 
+    def page_ref_status(self, *, user_id: str, org_id: str,
+                        external_ref: str) -> Optional[str]:
+        """Estado de la propuesta de una ref exacta, o None si no existe.
+
+        Sirve a la transición de los imports ANTERIORES al seccionado, cuyo ref era
+        la página entera (`confluence:123`, sin `#sección`)."""
+        with self._connect() as conn, conn.cursor() as cur:
+            if not self._is_member(cur, org_id, user_id):
+                return None
+            cur.execute("select status from public.knowledge_proposals"
+                        " where org_id=%s and external_ref=%s", (org_id, external_ref))
+            row = cur.fetchone()
+            return row["status"] if row else None
+
+    def delete_pending_by_ref(self, *, user_id: str, org_id: str,
+                              external_ref: str) -> bool:
+        """Borra la propuesta PENDIENTE de una ref exacta. Devuelve si borró algo.
+
+        Se BORRA en vez de marcarse rechazada: un 'rejected' sintético se leería
+        después como decisión humana y bloquearía para siempre el import de esa
+        página, porque la regla de transición salta las rechazadas."""
+        with self._connect() as conn, conn.cursor() as cur:
+            if not self._is_member(cur, org_id, user_id):
+                return False
+            cur.execute("delete from public.knowledge_proposals"
+                        " where org_id=%s and external_ref=%s and status='pending'",
+                        (org_id, external_ref))
+            borradas = cur.rowcount
+            conn.commit()
+            return borradas > 0
+
     def get_proposal(self, *, user_id: str, proposal_id: str) -> Optional[Dict[str, Any]]:
         """Lectura por id, membership vía la org de la propia fila."""
         with self._connect() as conn, conn.cursor() as cur:

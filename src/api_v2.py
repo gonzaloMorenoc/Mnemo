@@ -3,7 +3,16 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import psycopg
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    UploadFile,
+)
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, Response
 from pydantic import ValidationError
@@ -573,6 +582,37 @@ def _post_ingest_pipeline(user_id: str, run_id: str):
     return triage_summary, verdict, gate
 
 
+_PROPOSAL_CAP_POST_INGEST = 3  # familias por ingesta: acota las llamadas LLM del lote
+
+
+def _propose_knowledge_after_ingest(user_id: str, org_id: str) -> None:
+    """Deja propuestas de conocimiento en la bandeja tras una ingesta. Best-effort.
+
+    Corre como BackgroundTask: FastAPI la ejecuta DESPUÉS de enviar la respuesta, así
+    que el CI no espera al LLM. Cierra el lazo que hasta ahora exigía pulsar un botón
+    por familia (auditoría 12-ago, H4a).
+
+    Si el proceso muere a mitad no se corrompe nada: generate commitea por familia y
+    las que se queden sin propuesta siguen siendo candidatas en la próxima ingesta.
+    """
+    try:
+        service = get_knowledge_proposal_service_optional()
+        if service is None:
+            return  # multi-tenant no configurado: nada que hacer
+        if not llm_status().get("configured"):
+            # Sin LLM no hay causa raíz: generate gastaría el lote en fallbacks que
+            # luego descarta, en CADA run. llm_status() sin probe NO llama a la API.
+            logger.info("propuestas post-ingesta omitidas: LLM no configurado")
+            return
+        out = service.generate(user_id=user_id, org_id=org_id,
+                               cap=_PROPOSAL_CAP_POST_INGEST)
+        # El conteo en el log delata una configuración mala (0 candidatas siempre)
+        # en vez de fallar en silencio.
+        logger.info("propuestas post-ingesta org=%s: %s", org_id, out)
+    except Exception:  # noqa: BLE001 — best-effort: la ingesta ya está commiteada
+        logger.exception("propuestas post-ingesta fallaron para org %s", org_id)
+
+
 def _process_ci_artifact(artifact: CiRunArtifact) -> CiWebhookResponse:
     """Pipeline post-validación del webhook: ingesta + triaje + certificado + gate.
 
@@ -599,7 +639,7 @@ def _process_ci_artifact(artifact: CiRunArtifact) -> CiWebhookResponse:
 
 
 @router.post("/ci/webhook", response_model=CiWebhookResponse)
-async def ci_webhook(request: Request) -> CiWebhookResponse:
+async def ci_webhook(request: Request, background: BackgroundTasks) -> CiWebhookResponse:
     declared = request.headers.get("content-length")
     if declared is not None and declared.isdigit() and int(declared) > CI_MAX_BODY_BYTES:
         raise HTTPException(status_code=413, detail="payload too large")
@@ -617,7 +657,13 @@ async def ci_webhook(request: Request) -> CiWebhookResponse:
         raise HTTPException(status_code=422, detail="invalid artifact") from exc
     if CI_SERVICE_ORG_ID and artifact.org_id != CI_SERVICE_ORG_ID:
         raise HTTPException(status_code=403, detail="org_id not allowed for this CI account")
-    return await run_in_threadpool(_process_ci_artifact, artifact)
+    resp = await run_in_threadpool(_process_ci_artifact, artifact)
+    if not resp.deduplicated:
+        # Después de responder al CI: la generación llama al LLM y no debe entrar en
+        # el tiempo de respuesta del webhook.
+        background.add_task(_propose_knowledge_after_ingest,
+                            CI_SERVICE_USER_ID, artifact.org_id)
+    return resp
 
 
 # ---------------------------------------------------------------------------
@@ -671,6 +717,7 @@ def revoke_ingest_token(
 @router.post("/ci/ingest", response_model=Dict[str, Any])
 async def ci_ingest(
     request: Request,
+    background: BackgroundTasks,
     repo: IngestTokenRepository = Depends(get_ingest_token_repo),
     service: IngestionService = Depends(get_ingestion_service),
 ) -> Dict[str, Any]:
@@ -722,13 +769,18 @@ async def ci_ingest(
         return {**result, "triage": triage, "verdict": verdict, "gate": gate}
 
     try:
-        return await run_in_threadpool(_work)
+        result = await run_in_threadpool(_work)
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except (ValueError, OSError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail="Database error") from exc
+    if not result.get("deduplicated"):
+        # Igual que en el webhook: tras responder, no dentro de la respuesta.
+        background.add_task(_propose_knowledge_after_ingest,
+                            info["created_by"], info["org_id"])
+    return result
 
 
 @router.get("/runs", response_model=List[Dict[str, Any]])

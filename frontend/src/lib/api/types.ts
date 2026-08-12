@@ -184,6 +184,8 @@ export interface KnowledgeImportResult {
   created: KnowledgeProposal[];
   refreshed: KnowledgeProposal[];
   skipped: string[];
+  /** Secciones de una página que no entraron (tope por página o cupo horario). */
+  skipped_sections?: { ref: string; descartadas: number }[];
   errors: { ref: string; reason: string }[];
 }
 

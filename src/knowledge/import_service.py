@@ -18,15 +18,17 @@ from src.confluence.client import (
 from src.jira.client import JiraApiClient, JiraApiError
 from src.jira.models import JiraIssue
 from src.jira.safe_url import validate_base_url
+from src.knowledge.sectioning import section_drafts
 from src.sanitizer import sanitize_text
 
 _JIRA_KEY_RE = re.compile(r"^[A-Z][A-Z0-9]+-\d+$")
 _CONFLUENCE_URL_RE = re.compile(r"https?://\S*/pages/\d+")
 _MAX_REFS = 10
-_MAX_IMPORTS_PER_HOUR = 30
+# SECCIONES por hora y org (antes: 30 páginas). Al pasar a contar secciones, 30 serían
+# ~2-3 páginas reales por hora — imposible heredar la wiki de un proyecto. 60 sigue
+# frenando el abuso sin convertir el caso de uso principal en un goteo.
+_MAX_IMPORTS_PER_HOUR = 60
 _FETCH_WORKERS = 4
-_MAX_PAGE_CHARS = 2000
-_TRUNCATION_MARK = "… [contenido truncado — ver original]"
 
 
 class ImportNotConfigured(Exception):
@@ -113,17 +115,21 @@ def _draft_from_issue(issue: JiraIssue, base_url: str) -> Dict[str, Any]:
     }
 
 
-def _draft_from_page(page: ConfluencePage, ref: ParsedRef, base_url: str) -> Dict[str, Any]:
-    text = sanitize_text(page.text)
-    if len(text) > _MAX_PAGE_CHARS:
-        text = text[:_MAX_PAGE_CHARS] + _TRUNCATION_MARK
+def _draft_from_section(page: ConfluencePage, ref: ParsedRef, base_url: str,
+                        draft: Dict[str, Any]) -> Dict[str, Any]:
+    """Una sección de una página → borrador de propuesta.
+
+    `sanitize_text` se aplica POR SECCIÓN: su cota interna son 20.000 caracteres, así
+    que saneando la página entera la cola de un documento largo se quedaría sin
+    redactar (emails, tokens). El cap por sección ya lo aplicó section_drafts.
+    """
     space = page.space_key or ref.space_key
     return {
-        "kind": "leccion",
-        "title": sanitize_text(page.title)[:300] or f"Página {ref.key}",
-        # El texto de la página es el "qué hay que saber" → challenge (entra en el
+        "kind": "leccion",  # el kind lo decide el curador en la bandeja (aquí no hay LLM)
+        "title": sanitize_text(draft["title"])[:300] or f"Página {ref.key}",
+        # El texto de la sección es el "qué hay que saber" → challenge (entra en el
         # embedding); destilarlo en approach/outcome es trabajo del refine/curador.
-        "challenge": text or None,
+        "challenge": sanitize_text(draft["body"]) or None,
         "approach": None,
         "outcome": None,
         "domain": None,
@@ -131,6 +137,20 @@ def _draft_from_page(page: ConfluencePage, ref: ParsedRef, base_url: str) -> Dic
         "project": None,
         "external_url": f"{base_url.rstrip('/')}/wiki/pages/viewpage.action?pageId={ref.key}",
     }
+
+
+def _clasificar(row: Optional[Dict[str, Any]], key: str, created: List[Dict[str, Any]],
+                refreshed: List[Dict[str, Any]], skipped: List[str]) -> None:
+    """Reparte el resultado de un upsert en los tres cubos de la respuesta.
+
+    row None = la propuesta ya estaba aprobada/rechazada (o no es miembro): no
+    resucita. `created` lo marca el xmax=0 del upsert."""
+    if row is None:
+        skipped.append(key)
+    elif row.get("created"):
+        created.append(row)
+    else:
+        refreshed.append(row)
 
 
 class KnowledgeImportService:
@@ -171,6 +191,7 @@ class KnowledgeImportService:
         created: List[Dict[str, Any]] = []
         refreshed: List[Dict[str, Any]] = []
         skipped: List[str] = []
+        skipped_sections: List[Dict[str, Any]] = []
         with ThreadPoolExecutor(max_workers=_FETCH_WORKERS) as pool:
             futures = [(p, pool.submit(fetch, p)) for p in parsed]
             for p, fut in futures:
@@ -183,17 +204,55 @@ class KnowledgeImportService:
                     errors.append(RefError(ref=p.key, reason=f"Confluence: {exc}"))
                     continue
                 if p.source == "confluence":
-                    draft = _draft_from_page(content, p, creds["base_url"])
-                else:
-                    draft = _draft_from_issue(content, creds["base_url"])
+                    self._import_page(user_id=user_id, org_id=org_id, ref=p,
+                                      page=content, base_url=creds["base_url"],
+                                      created=created, refreshed=refreshed,
+                                      skipped=skipped, skipped_sections=skipped_sections)
+                    continue
+                draft = _draft_from_issue(content, creds["base_url"])
                 row = self.repo.upsert_import_proposal(
                     user_id=user_id, org_id=org_id, created_by=user_id,
                     source=p.source, external_ref=p.external_ref, **draft)
-                if row is None:
-                    skipped.append(p.key)      # ya aprobada/rechazada (o no-miembro)
-                elif row.get("created"):
-                    created.append(row)
-                else:
-                    refreshed.append(row)
+                _clasificar(row, p.key, created, refreshed, skipped)
         return {"created": created, "refreshed": refreshed, "skipped": skipped,
+                "skipped_sections": skipped_sections,
                 "errors": [{"ref": e.ref, "reason": e.reason} for e in errors]}
+
+    def _import_page(self, *, user_id: str, org_id: str, ref: ParsedRef,
+                     page: ConfluencePage, base_url: str,
+                     created: List[Dict[str, Any]], refreshed: List[Dict[str, Any]],
+                     skipped: List[str], skipped_sections: List[Dict[str, Any]]) -> None:
+        """Importa UNA página de Confluence como una propuesta por sección.
+
+        Transición desde los imports anteriores al seccionado, cuyo external_ref era
+        la página entera: si el humano ya decidió sobre ella (aprobada o rechazada) no
+        la resucitamos troceada; si solo estaba pendiente, su versión truncada se borra
+        y la sustituyen las secciones.
+        """
+        estado = self.repo.page_ref_status(
+            user_id=user_id, org_id=org_id, external_ref=ref.external_ref)
+        if estado in ("rejected", "approved"):
+            skipped.append(ref.key)
+            return
+        if estado == "pending":
+            self.repo.delete_pending_by_ref(
+                user_id=user_id, org_id=org_id, external_ref=ref.external_ref)
+
+        drafts, descartadas = section_drafts(page.title, page.sections)
+        # El pre-check contó PÁGINAS (las secciones aún no se conocían: hay que
+        # traerlas de la red primero). El cupo de verdad se aplica aquí, en secciones.
+        caben = max(0, _MAX_IMPORTS_PER_HOUR - self.repo.count_recent_imports(
+            user_id=user_id, org_id=org_id))
+        if len(drafts) > caben:
+            descartadas += len(drafts) - caben
+            drafts = drafts[:caben]
+        if descartadas:
+            skipped_sections.append({"ref": ref.key, "descartadas": descartadas})
+
+        for d in drafts:
+            draft = _draft_from_section(page, ref, base_url, d)
+            row = self.repo.upsert_import_proposal(
+                user_id=user_id, org_id=org_id, created_by=user_id,
+                source=ref.source, external_ref=f"{ref.external_ref}#{d['slug']}",
+                **draft)
+            _clasificar(row, ref.key, created, refreshed, skipped)

@@ -28,6 +28,10 @@ class ConfluencePage:
     title: str
     text: str
     space_key: str
+    # [(encabezado, texto)] — la unidad real del import (H4b). `text` se conserva:
+    # lo usan otros consumidores y los tests del cliente. Default para no obligar a
+    # quien construya la dataclass con los cuatro campos de siempre.
+    sections: tuple = ()
 
 
 _PAGE_ID_RE = re.compile(r"/pages/(\d+)(?:/|$)")
@@ -82,12 +86,90 @@ class _TextExtractor(HTMLParser):
             self._chunks.append(data)
 
 
+def _collapse(text: str) -> str:
+    return re.sub(r"\s+", " ", text).strip()
+
+
 def html_to_text(html: str) -> str:
     """HTML (formato storage de Confluence) → texto plano con whitespace colapsado.
     Stdlib html.parser: sin dependencias nuevas."""
     extractor = _TextExtractor()
     extractor.feed(html or "")
-    return re.sub(r"\s+", " ", "".join(extractor._chunks)).strip()
+    return _collapse("".join(extractor._chunks))
+
+
+_HEADINGS = {"h1", "h2", "h3", "h4", "h5", "h6"}
+
+
+class _SectionExtractor(HTMLParser):
+    """Como _TextExtractor, pero cortando en cada <h1>…<h6>.
+
+    Los encabezados son la estructura que el autor ya le dio a la página; usarla
+    como unidad de conocimiento da trozos coherentes y embebibles, en vez de un
+    vector por página entera (que diluye la señal) o un truncado a 2.000 caracteres.
+    """
+
+    _SKIP = _TextExtractor._SKIP
+    _INLINE = _TextExtractor._INLINE
+
+    def __init__(self):
+        super().__init__()
+        self._sections: list = []        # [(encabezado, [chunks del cuerpo])]
+        self._intro: list = []           # texto anterior al primer encabezado
+        self._heading_chunks: list = []  # texto DENTRO del encabezado en curso
+        self._in_heading = False
+        self._skip_depth = 0
+
+    def _target(self) -> list:
+        if self._in_heading:
+            return self._heading_chunks
+        return self._sections[-1][1] if self._sections else self._intro
+
+    def _separator(self, tag):
+        if tag not in self._INLINE and tag not in self._SKIP:
+            self._target().append(" ")
+
+    def handle_starttag(self, tag, attrs):
+        if tag in self._SKIP:
+            self._skip_depth += 1
+        if tag in _HEADINGS:
+            self._in_heading = True
+            self._heading_chunks = []
+            return
+        self._separator(tag)
+
+    def handle_endtag(self, tag):
+        if tag in self._SKIP and self._skip_depth:
+            self._skip_depth -= 1
+        if tag in _HEADINGS and self._in_heading:
+            self._in_heading = False
+            self._sections.append((_collapse("".join(self._heading_chunks)), []))
+            return
+        self._separator(tag)
+
+    def handle_data(self, data):
+        if not self._skip_depth:
+            self._target().append(data)
+
+
+def html_to_sections(html: str) -> "list[tuple[str, str]]":
+    """HTML del formato storage → [(encabezado, texto)] cortando por <h1>…<h6>.
+
+    - El texto anterior al primer encabezado va a una sección "Introducción".
+    - Una página sin encabezados da UNA sección con encabezado vacío.
+    - Las secciones sin cuerpo se descartan: un titular suelto no es conocimiento.
+    """
+    extractor = _SectionExtractor()
+    extractor.feed(html or "")
+    out: list = []
+    intro = _collapse("".join(extractor._intro))
+    if intro:
+        out.append(("Introducción" if extractor._sections else "", intro))
+    for heading, chunks in extractor._sections:
+        cuerpo = _collapse("".join(chunks))
+        if cuerpo:
+            out.append((heading, cuerpo))
+    return out
 
 
 class ConfluenceApiClient:
@@ -109,4 +191,5 @@ class ConfluenceApiClient:
             title=((raw or {}).get("title") or "").strip(),
             text=html_to_text(body),
             space_key=((raw or {}).get("space") or {}).get("key") or "",
+            sections=tuple(html_to_sections(body)),
         )
