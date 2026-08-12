@@ -28,11 +28,22 @@ def answer_over_sources(*, question: str, sources: List[Dict[str, Any]], provide
             "citations": res["citations"] if isinstance(res.get("citations"), list) else []}
 
 
+def family_content(f: Dict[str, Any]) -> str:
+    """Texto de una familia para el contexto del LLM y la búsqueda unificada.
+
+    Incluye la RAZÓN de la etiqueta humana cuando existe: es el "por qué" que el
+    senior escribió al etiquetar (p. ej. "timeouts por runners fríos del sandbox
+    del PSP") — exactamente lo que un reemplazo necesita leer. Se guardaba en
+    triage_corrections y no llegaba a ninguna respuesta (auditoría 12-ago, H1)."""
+    base = (f"defecto={f.get('title')} etiqueta={f.get('label')} "
+            f"ocurrencias={f.get('occurrence_count')} causa={f.get('root_cause') or 'n/d'}")
+    reason = f.get("label_reason")
+    return f"{base} razón={reason}" if reason else base
+
+
 def answer_question(*, question: str, families: List[Dict[str, Any]], provider=None) -> Dict[str, Any]:
     """Responde una pregunta NL sobre el Defect DNA usando las familias recuperadas.
     Degrada (sin LLM) a un listado de las familias relevantes. Nunca lanza."""
-    sources = [{"id": f["family_id"], "type": "defect",
-                "content": (f"familia={f.get('title')} etiqueta={f.get('label')} "
-                            f"ocurrencias={f.get('occurrence_count')} causa={f.get('root_cause') or 'n/d'}")}
+    sources = [{"id": f["family_id"], "type": "defect", "content": family_content(f)}
                for f in families]
     return answer_over_sources(question=question, sources=sources, provider=provider)
