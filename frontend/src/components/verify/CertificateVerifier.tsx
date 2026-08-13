@@ -9,6 +9,7 @@ import { ApiClientError } from "@/lib/api/client";
 import { getCertificatePubkey, verifyCertificate } from "@/lib/api/endpoints";
 import { decodeShare } from "@/lib/certificate-share";
 import { AuthenticityStamp } from "@/components/verify/AuthenticityStamp";
+import { HandoverStamp } from "@/components/verify/HandoverStamp";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -174,7 +175,16 @@ export function CertificateVerifier() {
               "verificación. Vuelve a intentarlo en un momento. Esto no dice nada sobre el acta."}
         </p>
       )}
-      {valido && payload && <AuthenticityStamp canonical={payload.canonical_json} />}
+      {/* Un acta de traspaso y un acta de release viajan por el MISMO enlace y se
+          verifican con la misma firma; solo cambia qué consta dentro, y eso lo
+          dice el campo `schema`. */}
+      {valido &&
+        payload &&
+        (payload.canonical_json.schema === "mnemo.traspaso.v1" ? (
+          <HandoverStamp canonical={payload.canonical_json} />
+        ) : (
+          <AuthenticityStamp canonical={payload.canonical_json} />
+        ))}
       {invalido && (
         <Card className="border-red-200 bg-red-50/60">
           <CardContent className="space-y-2 pt-6">
