@@ -10,6 +10,7 @@ import type {
   Certificate,
   CertificatePubkey,
   CertificateVerifyResponse,
+  ContinuityResponse,
   CoverageGap,
   DefectFamilyResponse,
   DefectLineageResponse,
@@ -19,6 +20,7 @@ import type {
   GeneratedTest,
   GitHubConfigResponse,
   Graph,
+  HandoverAct,
   HealthResponse,
   IngestReportResponse,
   JiraConfigResponse,
@@ -414,4 +416,28 @@ export async function getCertificatePdf(token: string, runId: string): Promise<B
   });
   if (!res.ok) throw new Error(`Descarga fallida (${res.status})`);
   return res.blob();
+}
+
+// --- Continuidad: cuánto de un proyecto sabe Mnemo, y el acta de traspaso ---
+
+export function listContinuityProjects(token: string, orgId: string) {
+  const qs = new URLSearchParams({ org_id: orgId });
+  return apiRequest<{ projects: string[] }>(`/api/v2/continuity?${qs}`, "GET", { token });
+}
+
+export function getContinuity(token: string, orgId: string, project: string) {
+  const qs = new URLSearchParams({ org_id: orgId, project });
+  return apiRequest<ContinuityResponse>(`/api/v2/continuity?${qs}`, "GET", { token });
+}
+
+export function emitHandover(token: string, orgId: string, project: string) {
+  return apiRequest<HandoverAct>("/api/v2/continuity/handover", "POST", {
+    token,
+    body: { org_id: orgId, project },
+  });
+}
+
+export function getLatestHandover(token: string, orgId: string, project: string) {
+  const qs = new URLSearchParams({ org_id: orgId, project });
+  return apiRequest<HandoverAct>(`/api/v2/continuity/handover/latest?${qs}`, "GET", { token });
 }
