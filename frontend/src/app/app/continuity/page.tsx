@@ -135,7 +135,19 @@ export default function ContinuityPage() {
           )}
         </CardHeader>
         <CardContent className="space-y-5">
-          {projects.length === 0 && !projectsQuery.isLoading ? (
+          {projectsQuery.isError ? (
+            // Un 502 o una sesión caducada NO es «no hay proyectos»: disfrazar el
+            // error de vacío manda al usuario a sembrar datos que ya existen.
+            <div className="space-y-2">
+              <p className="text-sm text-red-700">
+                No se pudo cargar la continuidad.{" "}
+                {projectsQuery.error instanceof Error ? projectsQuery.error.message : ""}
+              </p>
+              <Button size="sm" variant="outline" onClick={() => projectsQuery.refetch()}>
+                Reintentar
+              </Button>
+            </div>
+          ) : projects.length === 0 && !projectsQuery.isLoading ? (
             <p className="text-sm text-zinc-500">
               Todavía no hay proyectos con runs ni conocimiento en esta organización.
             </p>
