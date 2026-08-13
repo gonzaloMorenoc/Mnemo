@@ -212,6 +212,12 @@ class CertificateResponse(BaseModel):
     share: str = ""
 
 
+class HandoverEmitRequest(BaseModel):
+    """Emisión de un acta de traspaso: el proyecto cuyo conocimiento se certifica."""
+    org_id: str
+    project: str = Field(min_length=1, max_length=200)
+
+
 class CertificateVerifyRequest(BaseModel):
     canonical_json: dict
     signature: str

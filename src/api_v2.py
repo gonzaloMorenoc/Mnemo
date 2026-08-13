@@ -55,6 +55,9 @@ from src.jira.safe_url import validate_base_url
 from src.graph.service import GraphService
 from src.graph.gaps import detect_gaps
 from src.ci.ingest_tokens import IngestTokenRepository
+from src.continuity.index import compute_index, list_projects
+from src.continuity.repository import ContinuityRepository
+from src.continuity.service import ContinuityService
 from src.knowledge.repository import QaKnowledgeRepository
 from src.knowledge.service import KnowledgeService
 from src.knowledge.proposal_repository import KnowledgeProposalRepository
@@ -83,6 +86,7 @@ from src.multitenant_models import (
     GateResponse,
     CiWebhookResponse,
     CreateOrgRequest,
+    HandoverEmitRequest,
     DefectFamilyResponse,
     DefectFamilySummary,
     DefectLineageResponse,
@@ -148,6 +152,7 @@ _action_repo = None
 _github_auth = None
 _cert_repo = None
 _certificate_service = None
+_continuity_service = None
 _gate_service = None
 _embedder = None
 _knowledge_repo = None
@@ -369,6 +374,19 @@ def get_certificate_service() -> CertificateService:
             llm_provider=_llm,
         )
     return _certificate_service
+
+
+def get_continuity_service() -> ContinuityService:
+    if not multi_tenant_enabled():
+        raise HTTPException(status_code=503, detail="Multi-tenant KB not configured")
+    global _continuity_service
+    if _continuity_service is None:
+        _continuity_service = ContinuityService(
+            repo=ContinuityRepository(),
+            private_key=MNEMO_SIGNING_PRIVATE_KEY, public_key=MNEMO_SIGNING_PUBLIC_KEY,
+            mnemo_version=MNEMO_VERSION,
+        )
+    return _continuity_service
 
 
 def get_gate_service() -> GateService:
@@ -1239,6 +1257,72 @@ def verify_certificate_v2(
     # regulador/cliente que le da valor — es el núcleo del diferenciador.
     valido = service.verify_payload(cert=body.canonical_json, signature=body.signature)
     return CertificateVerifyResponse(valido=valido)
+
+
+# ---------------------------------------------------------------------------
+# Continuidad: ¿cuánto de este proyecto sabe Mnemo? + acta de traspaso firmada
+# ---------------------------------------------------------------------------
+
+@router.get("/continuity", response_model=Dict[str, Any])
+def get_continuity_v2(
+    org_id: str,
+    project: Optional[str] = None,
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Sin `project`: la lista de proyectos. Con él: el índice y su desglose."""
+    try:
+        if project is None:
+            return {"projects": list_projects(user_id=user.user_id, org_id=org_id)}
+        if project not in list_projects(user_id=user.user_id, org_id=org_id):
+            raise HTTPException(status_code=404, detail="proyecto no encontrado")
+        idx = compute_index(user_id=user.user_id, org_id=org_id, project=project)
+        if idx is None:
+            # No es miembro: el MISMO 404 que un proyecto ajeno, para no filtrar
+            # qué organizaciones existen.
+            raise HTTPException(status_code=404, detail="proyecto no encontrado")
+        return idx
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+
+
+@router.post("/continuity/handover", response_model=Dict[str, Any])
+def emit_handover_v2(
+    req: HandoverEmitRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+    service: ContinuityService = Depends(get_continuity_service),
+) -> Dict[str, Any]:
+    """Emite el acta de traspaso del proyecto (owner/admin). created_at lo pone
+    el endpoint: la lógica firmada nunca llama a now()."""
+    created_at = datetime.now(timezone.utc).isoformat()
+    try:
+        return service.emit_handover(user_id=user.user_id, org_id=req.org_id,
+                                     project=req.project, created_at=created_at)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except SigningKeyMissing as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="clave de firma no configurada (MNEMO_SIGNING_PRIVATE_KEY)") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+
+
+@router.get("/continuity/handover/latest", response_model=Dict[str, Any])
+def latest_handover_v2(
+    org_id: str,
+    project: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+    service: ContinuityService = Depends(get_continuity_service),
+) -> Dict[str, Any]:
+    try:
+        act = service.latest_handover(user_id=user.user_id, org_id=org_id, project=project)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    if act is None:
+        raise HTTPException(status_code=404, detail="sin actas de traspaso para este proyecto")
+    return act
 
 
 @router.post("/gate/run/{run_id}", response_model=GateResponse)
