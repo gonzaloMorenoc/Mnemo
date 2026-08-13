@@ -80,3 +80,107 @@ def test_is_org_admin_distingue_roles(org_con_admin):
     org = org_con_admin["org"]
     assert repo.is_org_admin(user_id=org_con_admin["user"], org_id=org) is True
     assert repo.is_org_admin(user_id=str(uuid.uuid4()), org_id=org) is False
+
+
+# ---------------------------------------------------------------------------
+# Servicio de emisión: unit con claves Ed25519 generadas al vuelo (sin BD).
+# ---------------------------------------------------------------------------
+
+from unittest.mock import MagicMock  # noqa: E402
+
+from cryptography.hazmat.primitives import serialization  # noqa: E402
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey  # noqa: E402
+
+from src.certify.share import share_blob  # noqa: E402
+from src.certify.signing import canonical_json  # noqa: E402
+from src.certify.signing import verify as sig_verify  # noqa: E402
+from src.continuity.service import ContinuityService  # noqa: E402
+
+
+def _keys():
+    priv = Ed25519PrivateKey.generate()
+    priv_pem = priv.private_bytes(serialization.Encoding.PEM,
+                                  serialization.PrivateFormat.PKCS8,
+                                  serialization.NoEncryption()).decode()
+    pub_pem = priv.public_key().public_bytes(
+        serialization.Encoding.PEM,
+        serialization.PublicFormat.SubjectPublicKeyInfo).decode()
+    return priv_pem, pub_pem
+
+
+_IDX = {"score": 42,
+        "dimensions": [{"key": "oficio", "label": "Oficio del proyecto",
+                        "num": 2, "den": 4, "ratio": 0.5, "weight": 0.25}],
+        "inventario": {"familias": 3}}
+
+
+def _service(admin=True, projects=("checkout-suite",)):
+    priv, pub = _keys()
+    repo = MagicMock()
+    repo.is_org_admin.return_value = admin
+    repo.save_act.return_value = {"id": "a1"}
+    svc = ContinuityService(repo=repo, private_key=priv, public_key=pub,
+                            mnemo_version="test",
+                            index_fn=lambda **kw: _IDX,
+                            projects_fn=lambda **kw: list(projects))
+    return svc, repo, pub
+
+
+def test_emitir_firma_y_verifica():
+    svc, repo, pub = _service()
+    out = svc.emit_handover(user_id="u", org_id="o", project="checkout-suite",
+                            created_at="2026-08-13T10:00:00Z")
+    cj = out["canonical_json"]
+    assert cj["schema"] == "mnemo.traspaso.v1"
+    assert cj["continuity"]["score"] == 42
+    assert cj["emitted_by"] == "u"
+    assert sig_verify(canonical_json(cj), out["signature"], pub) is True
+    assert out["share"] == share_blob(cj, out["signature"])
+    repo.save_act.assert_called_once()
+    assert repo.save_act.call_args.kwargs["score"] == 42
+
+
+def test_un_byte_cambiado_invalida_la_firma():
+    svc, _, pub = _service()
+    out = svc.emit_handover(user_id="u", org_id="o", project="checkout-suite",
+                            created_at="2026-08-13T10:00:00Z")
+    manipulado = {**out["canonical_json"], "project": "otro"}
+    assert sig_verify(canonical_json(manipulado), out["signature"], pub) is False
+
+
+def test_sin_admin_permission_error():
+    svc, _, _ = _service(admin=False)
+    with pytest.raises(PermissionError):
+        svc.emit_handover(user_id="u", org_id="o", project="checkout-suite",
+                          created_at="2026-08-13T10:00:00Z")
+
+
+def test_proyecto_desconocido_value_error():
+    svc, _, _ = _service(projects=("otro",))
+    with pytest.raises(ValueError):
+        svc.emit_handover(user_id="u", org_id="o", project="checkout-suite",
+                          created_at="2026-08-13T10:00:00Z")
+
+
+def test_el_acta_cabe_en_un_enlace():
+    # share_blob devuelve "" si el sobre pasa de 4096: un acta que no cabe en un
+    # enlace no se puede repartir, que es todo el sentido de firmarla.
+    svc, _, _ = _service()
+    out = svc.emit_handover(user_id="u", org_id="o", project="checkout-suite",
+                            created_at="2026-08-13T10:00:00Z")
+    assert out["share"] != ""
+
+
+def test_latest_regenera_el_share():
+    svc, repo, _ = _service()
+    repo.latest_act.return_value = {
+        "canonical_json": {"schema": "mnemo.traspaso.v1"}, "signature": "sig",
+        "score": 42, "project": "checkout-suite", "created_at": "2026-08-13T10:00:00Z"}
+    out = svc.latest_handover(user_id="u", org_id="o", project="checkout-suite")
+    assert out["share"] == share_blob({"schema": "mnemo.traspaso.v1"}, "sig")
+
+
+def test_latest_sin_acta_none():
+    svc, repo, _ = _service()
+    repo.latest_act.return_value = None
+    assert svc.latest_handover(user_id="u", org_id="o", project="p") is None
