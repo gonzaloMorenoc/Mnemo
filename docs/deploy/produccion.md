@@ -59,6 +59,7 @@ amplía el CHECK de `kind` en `qa_knowledge` y en `knowledge_proposals`; sin ell
 
 ```bash
 DATABASE_URL=... psql "$DATABASE_URL" -f db/migrations/027_qa_knowledge_kinds_operativos.sql
+DATABASE_URL=... psql "$DATABASE_URL" -f db/migrations/028_handover_acts.sql
 ```
 
 Todas son idempotentes (`if exists` / `if not exists`) porque `scripts/docker_init.py` las
