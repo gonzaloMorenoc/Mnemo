@@ -115,6 +115,13 @@ delete from public.organizations
  where name in ('Demo MTP','Cliente Beta') and created_by = '<TU_USER_UUID>';
 ```
 
+- **La semana de la demo**: re-ejecutar la riqueza para que la org llegue viva —
+  `PYTHONPATH=. python3 -c "import os; from src.demo.seed_riqueza import seed_riqueza; print(seed_riqueza(db_url=os.environ['DATABASE_URL'], demo_user_id='<TU_USER_UUID>'))"`.
+  Es idempotente por semana (`run_uid` `riqueza-…`, a salvo de la poda de arriba, que
+  solo toca `demo-%`): añade solo las semanas que falten desde la última vez, y termina
+  verificando el arco del Acto 4 — el resultado debe incluir `arc_ok: True`
+  (checkout-suite=95 y banca-movil=25).
+
 ### 1g. Plan B (si el push en vivo falla)
 
 Los datos pre-sembrados cubren el discurso completo sin el curl:

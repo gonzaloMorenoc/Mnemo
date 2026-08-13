@@ -23,8 +23,10 @@ def test_kb_titulos_unicos_y_kinds_validos():
     assert all(i["kind"] in KINDS for i in KB_ITEMS)
 
 
-def test_triaje_ocho_entradas_todas_con_razon():
-    assert len(FAMILY_TRIAGE) == 8
+def test_triaje_once_entradas_todas_con_razon():
+    # Once objetivos para dejar exactamente DOS unknown en la org real; las entradas
+    # cuyo objetivo ya esté etiquetado no hacen nada (matching solo sobre unknown).
+    assert len(FAMILY_TRIAGE) == 11
     assert all(reason.strip() for _, _, reason in FAMILY_TRIAGE)
     assert all(label in ("real", "flaky", "infra", "maintenance")
                for _, label, _ in FAMILY_TRIAGE)

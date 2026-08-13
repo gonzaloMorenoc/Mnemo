@@ -20,8 +20,10 @@ WEEKLY_PROFILE = {
 }
 
 # Triaje de las familias 'unknown' (matching por keywords sobre título+tests+mensaje,
-# el mecanismo _find_family de seed_knowledge). 8 de 10 — dos quedan sin triar a
-# propósito: una bandeja totalmente vacía parece maqueta.
+# el mecanismo _find_family de seed_knowledge). Once entradas para dejar exactamente
+# DOS familias sin triar (pago_tarjeta y transferencia_sepa) — una bandeja totalmente
+# vacía parece maqueta. Las entradas cuyo objetivo ya esté etiquetado no hacen nada
+# (el matching corre solo sobre unknown): son inofensivas por construcción.
 FAMILY_TRIAGE = [
     (("idempotencia_cobros",), "real",
      "Cargo duplicado reproducible con la misma Idempotency-Key; el PSP confirma que"
@@ -47,6 +49,15 @@ FAMILY_TRIAGE = [
     (("nomina_pdf",), "maintenance",
      "El formato del importe cambió con la librería de PDF (coma decimal); el test"
      " esperaba el formato viejo. Actualizar el fixture."),
+    (("confirmacion_pedido",), "real",
+     "El pedido queda en 'pendiente' con el pago cobrado: el consumidor del webhook"
+     " va atrasado. Ver la lección del webhook — se escala a Plataforma, no a Pagos."),
+    (("historico_movimientos",), "infra",
+     "ECONNRESET al consultar movimientos solo en la franja del backup de la BD de"
+     " staging (02:00-02:30). Reprogramar la suite o excluir la franja."),
+    (("autorizacion_psp",), "infra",
+     "Socket hang up del sandbox del PSP en frío: la primera petición tras el reposo"
+     " siempre cae. Un warm-up antes de la suite lo elimina."),
 ]
 
 # Conocimiento por proyecto — desigual A PROPÓSITO (la distribución hace creíbles
