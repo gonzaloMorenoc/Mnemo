@@ -12,6 +12,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).parent.parent))
 import psycopg  # noqa: E402
 
 from src.demo.seed import seed_demo  # noqa: E402
+from src.demo.seed_continuity import seed_continuity  # noqa: E402
 from src.demo.seed_knowledge import seed_knowledge  # noqa: E402
 
 _ORGS = ["Demo MTP", "Cliente Beta"]
@@ -48,6 +49,7 @@ def main(argv, ask=input) -> int:
     print(f"Borradas {deleted} orgs. Sembrando…")
     print("seed_demo:", seed_demo(db_url=db_url, demo_user_id=demo_user_id))
     print("seed_knowledge:", seed_knowledge(db_url=db_url, demo_user_id=demo_user_id))
+    print("seed_continuity:", seed_continuity(db_url=db_url, demo_user_id=demo_user_id))
     print("Listo.")
     return 0
 
