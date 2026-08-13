@@ -94,6 +94,27 @@ describe("Continuidad", () => {
     expect(await screen.findByText("sin datos")).toBeInTheDocument();
   });
 
+  it("un fallo al cargar muestra el error, no «no hay proyectos»", async () => {
+    (useActiveOrg as ReturnType<typeof vi.fn>).mockReturnValue({
+      orgs: [{ id: "o1", name: "Org", role: "owner" }],
+      activeOrgId: "o1",
+      isLoading: false,
+      setActiveOrgId: vi.fn(),
+    });
+    (listContinuityProjects as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error("HTTP 502"),
+    );
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <ContinuityPage />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText(/no se pudo cargar la continuidad/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /reintentar/i })).toBeInTheDocument();
+    expect(screen.queryByText(/todavía no hay proyectos/i)).not.toBeInTheDocument();
+  });
+
   it("el botón de emitir se deshabilita sin rol owner/admin", async () => {
     setup("member");
     const btn = await screen.findByRole("button", { name: /emitir acta de traspaso/i });
