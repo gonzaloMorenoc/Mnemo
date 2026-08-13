@@ -1,4 +1,5 @@
 import {
+  Activity,
   BadgeCheck,
   BookMarked,
   Bot,
@@ -25,6 +26,7 @@ export const NAV_SECTIONS: NavSection[] = [
     title: "Memoria",
     items: [
       { href: "/app/knowledge", label: "Conocimiento", icon: BrainCircuit },
+      { href: "/app/continuity", label: "Continuidad", icon: Activity },
       { href: "/app/onboarding", label: "Onboarding al proyecto", icon: GraduationCap },
       { href: "/app/graph", label: "Grafo de conocimiento", icon: Network },
       { href: "/app/test-plan", label: "Plan de pruebas", icon: ClipboardList },

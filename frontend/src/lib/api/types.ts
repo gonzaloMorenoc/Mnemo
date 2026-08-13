@@ -180,6 +180,31 @@ export interface KnowledgeProposal {
   project?: string | null;
 }
 
+export interface ContinuityDimension {
+  key: string;
+  label: string;
+  num: number;
+  den: number;
+  /** null cuando den es 0: la dimensión no es medible y se excluye del score. */
+  ratio: number | null;
+  weight: number;
+}
+
+export interface ContinuityResponse {
+  /** null = «sin datos suficientes»: ninguna dimensión medible. Nunca un 0 inventado. */
+  score: number | null;
+  dimensions: ContinuityDimension[];
+  inventario: Record<string, unknown>;
+}
+
+export interface HandoverAct {
+  canonical_json: Record<string, unknown>;
+  signature: string;
+  share: string;
+  score: number | null;
+  created_at: string;
+}
+
 export interface KnowledgeImportResult {
   created: KnowledgeProposal[];
   refreshed: KnowledgeProposal[];
