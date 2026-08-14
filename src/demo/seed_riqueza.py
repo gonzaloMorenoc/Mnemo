@@ -65,8 +65,60 @@ def _haystacks(cur, org_id: str, solo_unknown: bool) -> List[Dict[str, str]]:
     return [{"id": str(r[0]), "haystack": r[1]} for r in cur.fetchall()]
 
 
+def _runs_sin_acta(cur, org_id: str) -> List[Tuple[str, Any, bool]]:
+    """[(run_id, created_at, ya_triado)] de los runs de la org sin certificado,
+    en orden cronológico (el acta hereda la calibración del momento de emitirse)."""
+    cur.execute(
+        "select tr.id, tr.created_at,"
+        " exists(select 1 from public.triage_verdicts tv where tv.run_id = tr.id)"
+        " from public.test_runs tr"
+        " where tr.org_id = %s"
+        "   and not exists (select 1 from public.certificates c where c.run_id = tr.id)"
+        " order by tr.created_at", (org_id,))
+    return [(str(r[0]), r[1], r[2]) for r in cur.fetchall()]
+
+
+def _certificar_runs(db_url: str, *, org_id: str, user_id: str, arepo,
+                     private_key: Optional[str] = None,
+                     public_key: Optional[str] = None) -> int:
+    """Triaje del motor + acta firmada de cada run sin certificado: sin acta el
+    dashboard muestra el run «sin veredicto aún». Solo tría los runs que el motor
+    no vio (no pisa un triaje hecho en vivo) y, como en seed.py, el acta es
+    best-effort: sin clave de firma la siembra sigue. Las claves son inyectables
+    (tests); por defecto las de config — en prod deben ser las REALES o las actas
+    no verificarán en /verify."""
+    from src.certify.repository import CertificateRepository
+    from src.certify.service import CertificateService
+    from src.config import (LLM_MODEL, MNEMO_SIGNING_PRIVATE_KEY,
+                            MNEMO_SIGNING_PUBLIC_KEY, MNEMO_VERSION)
+    from src.triage.service import TriageService
+
+    triage = TriageService(repo=arepo)
+    cert = CertificateService(
+        repo=arepo, cert_repo=CertificateRepository(db_url),
+        private_key=private_key or MNEMO_SIGNING_PRIVATE_KEY,
+        public_key=public_key or MNEMO_SIGNING_PUBLIC_KEY,
+        mnemo_version=MNEMO_VERSION, model_version=LLM_MODEL or "unknown",
+        llm_provider=None)
+    with psycopg.connect(db_url) as conn, conn.cursor() as cur:
+        pendientes = _runs_sin_acta(cur, org_id)
+    emitidas = 0
+    for run_id, run_fecha, triado in pendientes:
+        if not triado:
+            triage.triage_run(user_id=user_id, run_id=run_id)
+        try:
+            # El acta se fecha el día del run: el histórico cuenta una historia coherente.
+            cert.generate(user_id=user_id, run_id=run_id, created_at=run_fecha.isoformat())
+            emitidas += 1
+        except Exception:  # noqa: BLE001 — el acta es opcional (p. ej. sin clave de firma)
+            pass
+    return emitidas
+
+
 def seed_riqueza(*, db_url: str, demo_user_id: str,
-                 until: Optional[date] = None) -> Dict[str, Any]:
+                 until: Optional[date] = None,
+                 signing_private_key: Optional[str] = None,
+                 signing_public_key: Optional[str] = None) -> Dict[str, Any]:
     with psycopg.connect(db_url) as conn, conn.cursor() as cur:
         orgs = _load_orgs(cur, demo_user_id)
         if "Demo MTP" not in orgs:
@@ -157,7 +209,13 @@ def seed_riqueza(*, db_url: str, demo_user_id: str,
         assets=[{"path": a["path"], "framework": a["framework"],
                  "domain": a["domain"], "content": a["content"]} for a in ASSETS])
 
-    # -- 5) Verificación integrada: la regla del arco, ejecutable ----------
+    # -- 5) Actas: cada run sin certificado gana su veredicto firmado ------
+    # Va tras el triaje de familias: el acta lee la calibración al emitirse.
+    actas = _certificar_runs(db_url, org_id=org, user_id=demo_user_id, arepo=arepo,
+                             private_key=signing_private_key,
+                             public_key=signing_public_key)
+
+    # -- 6) Verificación integrada: la regla del arco, ejecutable ----------
     from src.continuity.index import compute_index
     indices: Dict[str, Optional[int]] = {}
     for p in WEEKLY_PROFILE:
@@ -165,4 +223,4 @@ def seed_riqueza(*, db_url: str, demo_user_id: str,
         indices[p] = idx["score"] if idx else None
     arc_ok = indices.get("checkout-suite") == 95 and indices.get("banca-movil") == 25
     return {"runs_creados": runs_creados, "triadas": triadas, "kb_creados": kb_creados,
-            "assets": assets_n, "indices": indices, "arc_ok": arc_ok}
+            "assets": assets_n, "actas": actas, "indices": indices, "arc_ok": arc_ok}

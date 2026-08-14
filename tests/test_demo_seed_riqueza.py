@@ -62,6 +62,43 @@ def test_siembra_y_reejecucion_semanal(org_riqueza):
     assert out3["runs_creados"] == 6            # una semana nueva × 6 proyectos
 
 
+def _par_de_firma_efimero() -> "tuple[str, str]":
+    """Par Ed25519 de usar y tirar: el .env local NO tiene la privada real de
+    prod (placeholder), y el test no debe depender de secretos del despliegue."""
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    priv = Ed25519PrivateKey.generate()
+    priv_pem = priv.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+                                  serialization.NoEncryption()).decode()
+    pub_pem = priv.public_key().public_bytes(
+        serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo).decode()
+    return priv_pem, pub_pem
+
+
+@pytest.mark.integration
+def test_todos_los_runs_quedan_con_acta_y_veredicto(org_riqueza):
+    """Sin acta no hay veredicto en el dashboard: la siembra debe dejar cada run
+    certificado (triaje del motor incluido) y ser idempotente en la segunda pasada."""
+    priv, pub = _par_de_firma_efimero()
+    out1 = seed_riqueza(db_url=DBURL, demo_user_id=org_riqueza["user"],
+                        until=date(2026, 8, 13),
+                        signing_private_key=priv, signing_public_key=pub)
+    assert out1["actas"] > 0
+    with psycopg.connect(DBURL) as conn, conn.cursor() as cur:
+        cur.execute("select count(*) from public.test_runs tr"
+                    " where tr.org_id=%s and not exists"
+                    "  (select 1 from public.certificates c where c.run_id=tr.id)",
+                    (org_riqueza["org"],))
+        assert cur.fetchone()[0] == 0           # ningún run sin acta
+        cur.execute("select count(*) from public.certificates"
+                    " where org_id=%s and verdict is not null", (org_riqueza["org"],))
+        assert cur.fetchone()[0] == out1["actas"]
+    out2 = seed_riqueza(db_url=DBURL, demo_user_id=org_riqueza["user"],
+                        until=date(2026, 8, 13),
+                        signing_private_key=priv, signing_public_key=pub)
+    assert out2["actas"] == 0                   # re-ejecutar no duplica actas
+
+
 @pytest.mark.integration
 def test_los_protegidos_no_ganan_fallos_ni_kb(org_riqueza):
     seed_riqueza(db_url=DBURL, demo_user_id=org_riqueza["user"], until=date(2026, 8, 13))
