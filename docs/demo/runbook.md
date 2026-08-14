@@ -121,6 +121,12 @@ delete from public.organizations
   solo toca `demo-%`): añade solo las semanas que falten desde la última vez, y termina
   verificando el arco del Acto 4 — el resultado debe incluir `arc_ok: True`
   (checkout-suite=95 y banca-movil=25).
+- **Actas de los runs semanales**: la riqueza también emite el acta (triaje del motor
+  + veredicto firmado) de cada run de la org que no la tenga — sin ella el dashboard
+  muestra «sin veredicto aún». Requiere `MNEMO_SIGNING_PRIVATE_KEY`/`_PUBLIC_KEY` de
+  **producción** en el entorno (como §1b; el `.env` local lleva un placeholder): sin
+  clave el resultado sale `actas: 0` y los runs quedan sin veredicto; con una clave
+  distinta las actas NO verificarían en `/verify`.
 
 ### 1g. Plan B (si el push en vivo falla)
 
