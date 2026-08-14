@@ -3,7 +3,12 @@ import { NextRequest } from "next/server";
 import { proxyToBackend } from "@/lib/server/proxy";
 
 export async function POST(request: NextRequest) {
-  return proxyToBackend(request, "/v2/continuity/handover", { method: "POST" });
+  const body = await request.text();
+  return proxyToBackend(request, "/v2/continuity/handover", {
+    method: "POST",
+    body,
+    contentType: "application/json",
+  });
 }
 
 export const maxDuration = 60;
