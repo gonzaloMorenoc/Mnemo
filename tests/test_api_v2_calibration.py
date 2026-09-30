@@ -61,3 +61,51 @@ def test_metrics_non_member_is_404():
 def test_endpoints_require_auth():
     assert _client(repo=MagicMock(), with_user=False).get(
         "/v2/calibration/metrics?org_id=o").status_code == 401
+
+
+class _FakeEmbedder:
+    def __init__(self, fail=False):
+        self.fail, self.calls = fail, []
+
+    def embed(self, text):
+        self.calls.append(text)
+        if self.fail:
+            raise RuntimeError("modelo no disponible")
+        return [0.1] * 384
+
+
+def _client_with_embedder(repo, embedder):
+    client = _client(repo=repo)
+    client.app.dependency_overrides[api_v2.get_embedder] = lambda: embedder
+    return client
+
+
+def test_set_label_embeds_the_reason_so_it_is_searchable():
+    # La razón del senior entra en la búsqueda por su propio vector (no solo por
+    # el centroide de los errores) — auditoría 12-ago, H1.
+    repo, emb = MagicMock(), _FakeEmbedder()
+    repo.set_family_label.return_value = True
+    resp = _client_with_embedder(repo, emb).patch(
+        "/v2/defects/fam-1/label", json={"label": "infra", "reason": "Sandbox del PSP en frío"})
+    assert resp.status_code == 200
+    assert emb.calls == ["Sandbox del PSP en frío"]
+    assert repo.set_family_label.call_args.kwargs["reason_embedding"] == [0.1] * 384
+
+
+def test_set_label_without_reason_does_not_embed():
+    repo, emb = MagicMock(), _FakeEmbedder()
+    repo.set_family_label.return_value = True
+    _client_with_embedder(repo, emb).patch("/v2/defects/fam-1/label", json={"label": "flaky"})
+    assert emb.calls == []
+    assert repo.set_family_label.call_args.kwargs["reason_embedding"] is None
+
+
+def test_set_label_survives_embedder_failure():
+    # Etiquetar es la acción; el vector es un extra. Si el modelo falla, la
+    # etiqueta se guarda igual (el backfill de scripts/reembed.py lo completa).
+    repo, emb = MagicMock(), _FakeEmbedder(fail=True)
+    repo.set_family_label.return_value = True
+    resp = _client_with_embedder(repo, emb).patch(
+        "/v2/defects/fam-1/label", json={"label": "infra", "reason": "r"})
+    assert resp.status_code == 200
+    assert repo.set_family_label.call_args.kwargs["reason_embedding"] is None

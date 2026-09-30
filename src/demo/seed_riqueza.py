@@ -178,7 +178,8 @@ def seed_riqueza(*, db_url: str, demo_user_id: str,
         fam_id = _find_family(unknown, keywords)
         if fam_id:
             arepo.set_family_label(user_id=demo_user_id, family_id=fam_id,
-                                   label=label, reason=reason)
+                                   label=label, reason=reason,
+                                   reason_embedding=embedder.embed(reason))
             unknown = [f for f in unknown if f["id"] != fam_id]
             triadas += 1
 
