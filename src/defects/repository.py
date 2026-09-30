@@ -939,7 +939,7 @@ class AssuranceRepository:
                     engine_category = (
                         ("unknown" if er["llm_assisted"] else er["category"]) if er else None
                     )
-                    reason_vec = Vector(list(reason_embedding)) if reason_embedding else None
+                    reason_vec = Vector(list(reason_embedding)) if reason_embedding is not None else None
                     cur.execute(
                         "insert into public.triage_corrections"
                         " (org_id, family_id, engine_category, human_category, source, reason,"
@@ -1056,7 +1056,9 @@ class AssuranceRepository:
         escribió el humano («sandbox del PSP en frío») y no con el error («socket
         hang up») recupera la familia. Media y no mínima (medido en Demo MTP, 6
         preguntas): con la mínima, las razones genéricas («al reintentar pasa»)
-        ganaban solas y la familia del guion caía del puesto 1 al 7."""
+        ganaban solas y la familia del guion caía del puesto 1 al 7. El corte admite
+        la familia si pasa por la media O por sus errores: sumar la razón reordena,
+        pero nunca quita un resultado que la búsqueda por errores ya daba."""
         with self._connect() as conn:
             self._set_claims(conn, user_id)
             with conn.cursor() as cur:
@@ -1069,6 +1071,7 @@ class AssuranceRepository:
                     "select * from ("
                     "  select f.id, f.signature, f.label, f.root_cause, f.occurrence_count,"
                     "   f.title, c.reason as label_reason,"
+                    "   f.centroid <=> %s as dist_errores,"
                     "   case when c.reason_embedding is null then f.centroid <=> %s"
                     "        else ((f.centroid <=> %s) + (c.reason_embedding <=> %s)) / 2 end as dist"
                     "  from public.defect_families f"
@@ -1078,9 +1081,9 @@ class AssuranceRepository:
                     "    order by tc.corrected_at desc limit 1"
                     "  ) c on true"
                     "  where f.scope = 'org' and f.org_id = %s and f.centroid is not null"
-                    " ) ranked where dist < %s"
+                    " ) ranked where dist < %s or dist_errores < %s"
                     " order by dist limit %s",
-                    (q, q, q, org_id, MAX_SEMANTIC_DISTANCE, k),
+                    (q, q, q, q, org_id, MAX_SEMANTIC_DISTANCE, MAX_SEMANTIC_DISTANCE, k),
                 )
                 return [
                     {"family_id": str(r["id"]), "signature": r["signature"], "label": r["label"],

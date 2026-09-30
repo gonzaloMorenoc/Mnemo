@@ -57,6 +57,18 @@ def org_with_families():
                         " values (%s,'org',%s,%s,%s,'infra',2) returning id",
                         (org, "sig-reason", "socket hang up", Vector(far)))
             reason_id = str(cur.fetchone()[0])
+            # Y al revés: errores que SÍ casan con la consulta (distancia 0,55) y una
+            # razón que no (1,0). Media 0,775 > corte 0,75: la media sola la sacaría.
+            partial = [0.45, 0.0, (1 - 0.45 ** 2) ** 0.5] + [0.0] * 381
+            cur.execute("insert into public.defect_families (org_id, scope, signature, title, centroid, label, occurrence_count)"
+                        " values (%s,'org',%s,%s,%s,'real',1) returning id",
+                        (org, "sig-offreason", "pago duplicado", Vector(partial)))
+            off_id = str(cur.fetchone()[0])
+            cur.execute("insert into public.triage_corrections"
+                        " (org_id, family_id, engine_category, human_category, reason,"
+                        "  reason_embedding, corrected_by)"
+                        " values (%s,%s,'real','real','Confirmado por caja',%s,%s)",
+                        (org, off_id, Vector(far), user))
             cur.execute("insert into public.triage_corrections"
                         " (org_id, family_id, engine_category, human_category, reason,"
                         "  reason_embedding, corrected_by)"
@@ -127,3 +139,12 @@ def test_set_family_label_stores_reason_embedding(org_with_families):
             cur.execute("select reason_embedding from public.triage_corrections"
                         " where family_id=%s order by corrected_at desc limit 1", (fam,))
             assert cur.fetchone()[0] is not None
+
+
+def test_semantic_search_never_drops_what_the_errors_already_match(org_with_families):
+    # Centroide a 0,55 (pasa el corte 0,75), razón a 1,0: media 0,775 (no lo pasa).
+    # Sumar la razón no puede quitar resultados que antes existían.
+    repo = AssuranceRepository(DBURL)
+    ctx = org_with_families
+    res = repo.search_families_semantic(user_id=ctx["user"], org_id=ctx["org"], query_embedding=ctx["near"], k=8)
+    assert "pago duplicado" in [r["title"] for r in res]
