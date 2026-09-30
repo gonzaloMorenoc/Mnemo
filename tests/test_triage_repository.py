@@ -578,6 +578,52 @@ def test_calibration_skips_family_without_independent_prediction(assurance_repo,
 
 
 @pytest.mark.integration
+def test_relabel_during_conflict_is_recorded_as_review(assurance_repo, seeded_family):
+    # R0' pidió revisión; el humano re-etiqueta con el conflicto a la vista →
+    # la corrección queda como 'conflict_review' y el triaje la ve como reafirmación.
+    repo, ctx = assurance_repo, seeded_family
+    repo.set_family_label(user_id=ctx["user_id"], family_id=ctx["family_id"], label="flaky")
+    assert _last_correction(ctx["family_id"])["source"] == "family_label"
+    _set_recent_verdict(ctx, category="unknown", llm_assisted=False, rule="R0_prior_contradicted")
+    repo.set_family_label(user_id=ctx["user_id"], family_id=ctx["family_id"], label="flaky")
+    assert _last_correction(ctx["family_id"])["source"] == "conflict_review"
+    with psycopg.connect(DBURL) as conn, conn.cursor() as cur:
+        cur.execute("select run_id from public.failures where defect_family_id = %s limit 1",
+                    (ctx["family_id"],))
+        run_id = str(cur.fetchone()[0])
+    f = repo.get_triage_inputs(user_id=ctx["user_id"], run_id=run_id)["failures"][0]
+    assert f["family_label"] == "flaky" and f["prior_reaffirmed"] is True
+
+
+@pytest.mark.integration
+def test_prior_not_reaffirmed_by_a_plain_label(assurance_repo, seeded_family):
+    repo, ctx = assurance_repo, seeded_family
+    repo.set_family_label(user_id=ctx["user_id"], family_id=ctx["family_id"], label="flaky")
+    with psycopg.connect(DBURL) as conn, conn.cursor() as cur:
+        cur.execute("select run_id from public.failures where defect_family_id = %s limit 1",
+                    (ctx["family_id"],))
+        run_id = str(cur.fetchone()[0])
+    assert repo.get_triage_inputs(user_id=ctx["user_id"], run_id=run_id)["failures"][0][
+        "prior_reaffirmed"] is False
+
+
+@pytest.mark.integration
+def test_calibration_survives_retriage(assurance_repo, seeded_family):
+    # Re-triar un run borra y reinserta sus veredictos: la predicción independiente
+    # (R4 'real') desaparece y solo queda el eco de R0. La calibración debe usar la
+    # predicción guardada al corregir, no perder la familia (revisión PR #113, MEDIO-1).
+    repo, ctx = assurance_repo, seeded_family
+    repo.set_family_label(user_id=ctx["user_id"], family_id=ctx["family_id"], label="real")
+    with psycopg.connect(DBURL) as conn:
+        with conn.cursor() as cur:
+            cur.execute("update public.triage_verdicts set rule_applied = 'R0_calibrated',"
+                        " created_at = now() where org_id = %s", (ctx["org_id"],))
+        conn.commit()
+    m = repo.get_calibration_metrics(user_id=ctx["user_id"], org_id=ctx["org_id"])
+    assert m["total"] == 1 and m["aciertos"] == 1
+
+
+@pytest.mark.integration
 def test_query_candidates_returns_null_centroid_family(assurance_repo, org):
     """Una familia con firma exacta pero centroid NULL debe ser devuelta por
     _query_candidates para evitar duplicados que romperían uq_defect_families_org_signature."""

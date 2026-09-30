@@ -48,6 +48,12 @@ export function TriageVerdictList({ runId }: { runId: string }) {
                 <CategoryBadge category={v.category} />
                 <span className="text-zinc-500">confianza {(v.confidence * 100).toFixed(0)}%</span>
                 <span className="text-zinc-400">regla: {v.rule_applied}</span>
+                {v.rule_applied === "R0_prior_contradicted" && (
+                  <Badge className="bg-amber-100 text-amber-700"
+                         title="Falla con una aserción sin rastro de intermitencia: revisa la familia y vuelve a etiquetarla">
+                    contradice la etiqueta humana
+                  </Badge>
+                )}
                 {v.requires_approval && <Badge className="bg-amber-100 text-amber-700">requiere aprobación</Badge>}
               </span>
             </li>

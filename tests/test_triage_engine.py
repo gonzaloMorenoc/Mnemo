@@ -7,7 +7,7 @@ def _sig(**over):
         infra_error=False, locator_error=False, assertion_failure=False,
         retry_passed_in_run=False, intermittent_same_sha=False, family_label="unknown",
         mass_cofailure=False, has_green_baseline=False, dom_changed=False,
-        novel=False, recurrent=False,
+        novel=False, recurrent=False, prior_reaffirmed=False,
     )
     base.update(over)
     return Signals(**base)
@@ -138,6 +138,23 @@ def test_r0_holds_for_labels_that_do_not_hide_the_failure():
     for cat in ("real", "maintenance"):
         v = triage(_sig(family_label=cat, assertion_failure=True, recurrent=True))
         assert v.category == cat and v.rule_applied == "R0_calibrated"
+
+
+def test_r0_holds_when_a_human_reviewed_the_conflict():
+    # Sin endpoint para aprobar un veredicto, la salida humana es re-etiquetar la
+    # familia con el conflicto a la vista. Si lo reafirma, el prior manda: si no,
+    # el run quedaría no-apto para siempre (revisión del PR #113, ALTO-1).
+    v = triage(_sig(family_label="flaky", assertion_failure=True, recurrent=True,
+                    prior_reaffirmed=True))
+    assert v.category == "flaky" and v.rule_applied == "R0_calibrated"
+
+
+def test_r0_holds_in_flaky_family_with_locator_or_network_signature():
+    # `expect(locator).toBeVisible()` que agota el tiempo casa como aserción, pero
+    # lleva firma de localizador: es el flaky clásico de Playwright, no un defecto.
+    for extra in ({"locator_error": True}, {"infra_error": True}):
+        v = triage(_sig(family_label="flaky", assertion_failure=True, recurrent=True, **extra))
+        assert v.rule_applied == "R0_calibrated", extra
 
 
 def test_novel_assertion_in_flaky_family_still_goes_to_r5():

@@ -27,12 +27,23 @@ def _prior_contradicho(signals: Signals) -> bool:
     devuelve 'flaky' para siempre (con historia, `novel` es False) y un defecto
     real que aparece en un test ya silenciado queda enterrado — y firmado.
     Solo se cuestionan las etiquetas que silencian el fallo, y solo ante una
-    aserción que falla SIN rastro de intermitencia ni firma de entorno."""
+    aserción pura: sin rastro de intermitencia ni firma de entorno/localizador, y
+    sin que un humano haya reafirmado ya la etiqueta frente a este conflicto."""
     if signals.family_label not in _SILENCING_LABELS or not signals.assertion_failure:
+        return False
+    if signals.prior_reaffirmed:
+        # No hay endpoint para aprobar un veredicto: la salida humana es volver a
+        # etiquetar la familia. Si reafirma, manda él (o el run sería no-apto siempre).
         return False
     if signals.retry_passed_in_run or signals.intermittent_same_sha:
         return False
-    if signals.family_label == "infra" and (signals.infra_error or signals.mass_cofailure):
+    if signals.infra_error or signals.mass_cofailure:
+        return False
+    # `expect(locator)...` que agota el tiempo casa como aserción, pero su firma de
+    # localizador lo delata como el flaky clásico de Playwright. Coste asumido: un
+    # defecto de VALOR en Playwright (toHaveText) tampoco rompe el prior; el caso
+    # cubierto es la aserción pura (AssertionError / expected-got de xUnit).
+    if signals.family_label == "flaky" and signals.locator_error:
         return False
     return True
 

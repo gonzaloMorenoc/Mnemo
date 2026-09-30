@@ -717,6 +717,7 @@ class AssuranceRepository:
                 family_ids = [f["defect_family_id"] for f in failures if f["defect_family_id"]]
 
                 recurrent: set = set()
+                reaffirmed: set = set()
                 lineage: Dict[Any, list] = {}
                 if family_ids:
                     cur.execute(
@@ -734,6 +735,16 @@ class AssuranceRepository:
                         (family_ids, org_id),
                     )
                     lineage = {r["fid"]: list(r["projects"]) for r in cur.fetchall()}
+                    cur.execute(
+                        "select family_id, source from ("
+                        "  select distinct on (family_id) family_id, source"
+                        "  from public.triage_corrections"
+                        "  where family_id = any(%s) and org_id = %s"
+                        "  order by family_id, corrected_at desc"
+                        ") last where source = 'conflict_review'",
+                        (family_ids, org_id),
+                    )
+                    reaffirmed = {r["family_id"] for r in cur.fetchall()}
 
                 cur.execute(
                     "select distinct test_name from public.test_results"
@@ -785,6 +796,7 @@ class AssuranceRepository:
                     "trace": f["trace"],
                     "is_novel": (fam not in recurrent) if fam else True,
                     "family_label": f["family_label"] or "unknown",
+                    "prior_reaffirmed": fam in reaffirmed,
                     "retry_passed_in_run": tn in retry_passed,
                     "intermittent_same_sha": tn in intermittent,
                     "has_green_baseline": tn in green,
@@ -939,11 +951,24 @@ class AssuranceRepository:
                     engine_category = (
                         ("unknown" if er["llm_assisted"] else er["category"]) if er else None
                     )
+                    # ¿Etiqueta con el conflicto R0' a la vista? Entonces es la revisión
+                    # humana que el motor pidió: el triaje la respeta como reafirmación
+                    # (sin endpoint para aprobar un veredicto, es la única salida).
+                    cur.execute(
+                        "select tv.rule_applied from public.triage_verdicts tv"
+                        " join public.failures f on f.id = tv.failure_id"
+                        " where f.defect_family_id = %s order by tv.created_at desc limit 1",
+                        (family_id,),
+                    )
+                    last = cur.fetchone()
+                    source = ("conflict_review"
+                              if last and last["rule_applied"] == "R0_prior_contradicted"
+                              else "family_label")
                     cur.execute(
                         "insert into public.triage_corrections"
                         " (org_id, family_id, engine_category, human_category, source, reason, corrected_by)"
-                        " values (%s, %s, %s, %s, 'family_label', %s, %s)",
-                        (org_id, family_id, engine_category, label, reason, user_id),
+                        " values (%s, %s, %s, %s, %s, %s, %s)",
+                        (org_id, family_id, engine_category, label, source, reason, user_id),
                     )
             conn.commit()
         return True
@@ -1000,22 +1025,24 @@ class AssuranceRepository:
                 # ANTERIOR a ella. Se recalcula desde los veredictos —no desde
                 # engine_category guardado— para que las correcciones históricas
                 # grabadas contra un eco de R0 tampoco cuenten como acierto.
+                # Si re-triar el run borró esa predicción (delete+insert de veredictos),
+                # se usa la guardada al corregir, que ya excluye R0.
                 # Sin predicción independiente (solo R0), la familia no mide nada.
                 cur.execute(
                     "with ultimas as ("
                     "  select distinct on (tc.family_id) tc.family_id, tc.human_category,"
-                    "         tc.corrected_at"
+                    "         tc.corrected_at, tc.engine_category as guardada"
                     "  from public.triage_corrections tc where tc.org_id = %s"
                     "  order by tc.family_id, tc.corrected_at desc"
                     "), medidas as ("
-                    "  select u.human_category, ("
+                    "  select u.human_category, coalesce(("
                     "    select case when tv.llm_assisted then 'unknown' else tv.category end"
                     "    from public.triage_verdicts tv"
                     "    join public.failures f on f.id = tv.failure_id"
                     "    where f.defect_family_id = u.family_id"
                     "      and tv.rule_applied not like 'R0%%' and tv.created_at <= u.corrected_at"
                     "    order by tv.created_at desc limit 1"
-                    "  ) as engine_category from ultimas u"
+                    "  ), u.guardada) as engine_category from ultimas u"
                     ")"
                     " select count(*) filter (where engine_category is not null) as total,"
                     "        count(*) filter (where engine_category = human_category) as aciertos"
