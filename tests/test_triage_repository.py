@@ -458,8 +458,8 @@ def test_set_family_label_invalid_label_raises(assurance_repo, seeded_family):
 # ---------------------------------------------------------------------------
 
 
-def _set_recent_verdict(ctx: dict, *, category: str, llm_assisted: bool) -> None:
-    # rule_applied es irrelevante aquí; solo category/llm_assisted determinan engine_category
+def _set_recent_verdict(ctx: dict, *, category: str, llm_assisted: bool,
+                        rule: str = "R4_real_recurrent") -> None:
     """Inserta (o reemplaza el último) un triage_verdict para la familia del fixture.
 
     El fixture seeded_family ya sembró un failure y un veredicto; aquí insertamos
@@ -479,8 +479,8 @@ def _set_recent_verdict(ctx: dict, *, category: str, llm_assisted: bool) -> None
                 "insert into public.triage_verdicts"
                 " (failure_id, run_id, org_id, category, confidence, rule_applied,"
                 "  requires_approval, llm_assisted, evidence_bundle, status)"
-                " values (%s, %s, %s, %s, 0.8, 'R4_real_recurrent', false, %s, '{}', 'resolved')",
-                (failure_id, run_id, ctx["org_id"], category, llm_assisted),
+                " values (%s, %s, %s, %s, 0.8, %s, false, %s, '{}', 'resolved')",
+                (failure_id, run_id, ctx["org_id"], category, rule, llm_assisted),
             )
         conn.commit()
 
@@ -519,6 +519,62 @@ def test_engine_category_is_verdict_when_not_llm(assurance_repo, seeded_family):
     _set_recent_verdict(ctx, category="real", llm_assisted=False)
     repo.set_family_label(user_id=ctx["user_id"], family_id=ctx["family_id"], label="real")
     assert _last_correction(ctx["family_id"])["engine_category"] == "real"
+
+
+# ---------------------------------------------------------------------------
+# Calibración honesta (auditoría 11-ago, H2): R0 repite la etiqueta humana, así
+# que contarlo como "acierto" inflaba la precisión que decide el veredicto del acta.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+def test_engine_category_ignores_r0_verdicts(assurance_repo, seeded_family):
+    # El motor predijo 'real' (R4, fixture); después R0 repitió 'flaky'. La
+    # corrección debe comparar contra la predicción independiente, no el eco.
+    repo, ctx = assurance_repo, seeded_family
+    _set_recent_verdict(ctx, category="flaky", llm_assisted=False, rule="R0_calibrated")
+    repo.set_family_label(user_id=ctx["user_id"], family_id=ctx["family_id"], label="flaky")
+    assert _last_correction(ctx["family_id"])["engine_category"] == "real"
+
+
+@pytest.mark.integration
+def test_calibration_does_not_count_r0_echo_as_hit(assurance_repo, seeded_family):
+    repo, ctx = assurance_repo, seeded_family
+    repo.set_family_label(user_id=ctx["user_id"], family_id=ctx["family_id"], label="flaky")
+    _set_recent_verdict(ctx, category="flaky", llm_assisted=False, rule="R0_calibrated")
+    repo.set_family_label(user_id=ctx["user_id"], family_id=ctx["family_id"], label="flaky")
+    m = repo.get_calibration_metrics(user_id=ctx["user_id"], org_id=ctx["org_id"])
+    # Una familia, una predicción independiente ('real') frente a 'flaky' → fallo.
+    assert m["total"] == 1 and m["aciertos"] == 0
+
+
+@pytest.mark.integration
+def test_calibration_counts_each_family_once(assurance_repo, seeded_family):
+    # Re-etiquetar igual no es una segunda evidencia del motor.
+    repo, ctx = assurance_repo, seeded_family
+    for _ in range(3):
+        repo.set_family_label(user_id=ctx["user_id"], family_id=ctx["family_id"], label="real")
+    m = repo.get_calibration_metrics(user_id=ctx["user_id"], org_id=ctx["org_id"])
+    assert m["total"] == 1 and m["aciertos"] == 1
+    assert m["por_categoria"] == {"real": 1}
+
+
+@pytest.mark.integration
+def test_calibration_skips_family_without_independent_prediction(assurance_repo, seeded_family):
+    # Solo hay ecos de R0 (incluido el conflicto R0_prior_contradicted): el motor
+    # nunca predijo por su cuenta, así que no hay nada que medir.
+    repo, ctx = assurance_repo, seeded_family
+    with psycopg.connect(DBURL) as conn:
+        with conn.cursor() as cur:
+            cur.execute("update public.triage_verdicts set rule_applied = 'R0_calibrated'"
+                        " where org_id = %s", (ctx["org_id"],))
+        conn.commit()
+    _set_recent_verdict(ctx, category="unknown", llm_assisted=False, rule="R0_prior_contradicted")
+    repo.set_family_label(user_id=ctx["user_id"], family_id=ctx["family_id"], label="real")
+    assert _last_correction(ctx["family_id"])["engine_category"] is None
+    m = repo.get_calibration_metrics(user_id=ctx["user_id"], org_id=ctx["org_id"])
+    assert m["total"] == 0 and m["aciertos"] == 0 and m["accuracy"] == 0.0
+    assert m["familias_calibradas"] == 1
 
 
 @pytest.mark.integration

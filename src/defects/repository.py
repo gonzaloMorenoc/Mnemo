@@ -925,10 +925,14 @@ class AssuranceRepository:
                     return False
                 org_id = row["org_id"]
                 if org_id is not None:
+                    # La predicción INDEPENDIENTE del motor: los veredictos R0 son el
+                    # eco de la etiqueta humana (o su conflicto) y medirlos contra el
+                    # humano inflaba la precisión (auditoría 11-ago, H2).
                     cur.execute(
                         "select tv.category, tv.llm_assisted from public.triage_verdicts tv"
                         " join public.failures f on f.id = tv.failure_id"
-                        " where f.defect_family_id = %s order by tv.created_at desc limit 1",
+                        " where f.defect_family_id = %s and tv.rule_applied not like 'R0%%'"
+                        " order by tv.created_at desc limit 1",
                         (family_id,),
                     )
                     er = cur.fetchone()
@@ -991,17 +995,41 @@ class AssuranceRepository:
                             " where org_id = %s and user_id = %s) as ok", (org_id, user_id))
                 if not cur.fetchone()["ok"]:
                     return None
+                # Una evidencia por familia: la última etiqueta humana (la verdad
+                # asentada) contra la última predicción independiente del motor
+                # ANTERIOR a ella. Se recalcula desde los veredictos —no desde
+                # engine_category guardado— para que las correcciones históricas
+                # grabadas contra un eco de R0 tampoco cuenten como acierto.
+                # Sin predicción independiente (solo R0), la familia no mide nada.
                 cur.execute(
-                    "select count(*) as total,"
-                    " count(*) filter (where engine_category = human_category) as aciertos"
-                    " from public.triage_corrections where org_id = %s", (org_id,))
+                    "with ultimas as ("
+                    "  select distinct on (tc.family_id) tc.family_id, tc.human_category,"
+                    "         tc.corrected_at"
+                    "  from public.triage_corrections tc where tc.org_id = %s"
+                    "  order by tc.family_id, tc.corrected_at desc"
+                    "), medidas as ("
+                    "  select u.human_category, ("
+                    "    select case when tv.llm_assisted then 'unknown' else tv.category end"
+                    "    from public.triage_verdicts tv"
+                    "    join public.failures f on f.id = tv.failure_id"
+                    "    where f.defect_family_id = u.family_id"
+                    "      and tv.rule_applied not like 'R0%%' and tv.created_at <= u.corrected_at"
+                    "    order by tv.created_at desc limit 1"
+                    "  ) as engine_category from ultimas u"
+                    ")"
+                    " select count(*) filter (where engine_category is not null) as total,"
+                    "        count(*) filter (where engine_category = human_category) as aciertos"
+                    " from medidas", (org_id,))
                 agg = cur.fetchone()
                 total, aciertos = agg["total"], agg["aciertos"]
                 cur.execute("select count(*) as n from public.defect_families"
                             " where org_id = %s and label is not null and label <> 'unknown'", (org_id,))
                 familias_calibradas = cur.fetchone()["n"]
-                cur.execute("select human_category, count(*) as n from public.triage_corrections"
-                            " where org_id = %s group by human_category", (org_id,))
+                cur.execute("select human_category, count(*) as n from ("
+                            "  select distinct on (family_id) human_category"
+                            "  from public.triage_corrections where org_id = %s"
+                            "  order by family_id, corrected_at desc"
+                            ") u group by human_category", (org_id,))
                 por_categoria = {r["human_category"]: r["n"] for r in cur.fetchall()}
         return {"total": total, "aciertos": aciertos,
                 "accuracy": (aciertos / total) if total else 0.0,
