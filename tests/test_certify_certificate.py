@@ -69,6 +69,12 @@ def test_compute_verdict_no_apto_on_novel_real():
     assert compute_verdict([_vv("real", rule="R5_real_novel")]) == "no-apto"
 
 
+def test_contradicted_prior_blocks_green_until_a_human_reviews():
+    # R0 cedió (flaky con aserción determinista): el run no puede firmarse verde.
+    v = _v("unknown", rule="R0_prior_contradicted", approval=True)
+    assert _cert([v])["verdict"] == "no-apto"
+
+
 def test_compute_verdict_no_apto_on_pending_approval():
     assert compute_verdict([_vv("flaky", approval=True)]) == "no-apto"
 

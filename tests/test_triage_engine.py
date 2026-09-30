@@ -81,10 +81,69 @@ def test_r0_does_not_fire_on_unknown_label():
     assert triage(_sig(family_label="unknown", assertion_failure=True, novel=True)).rule_applied == "R5_real_novel"
 
 
-def test_r0_recurrent_real_in_flaky_family_stays_calibrated():
-    # aserción recurrente (no novel) en familia flaky → la red solo protege lo NOVEDOSO → R0 flaky
+# ---------------------------------------------------------------------------
+# El prior humano cede ante evidencia determinista en su contra (auditoría 11-ago, H1).
+#
+# Antes, R0 devolvía la etiqueta humana salvo "aserción + novedoso". Como `novel`
+# es False en cuanto la familia tiene historia, una familia etiquetada `flaky`
+# salía `flaky` para siempre — también cuando empezaba a fallar por un defecto
+# real — y eso quedaba firmado en el acta.
+#
+# Al ceder, el motor NO decide solo: `unknown` + aprobación humana obligatoria.
+# `expect(` de Playwright cuenta como aserción incluso en los timeouts flaky, así
+# que declarar `real` en silencio cambiaría un bug escondido por ruido; la
+# aprobación pendiente bloquea el verde (no-apto) hasta que alguien lo mire.
+# ---------------------------------------------------------------------------
+
+def test_r0_yields_when_assertion_is_deterministic_in_flaky_family():
     v = triage(_sig(family_label="flaky", assertion_failure=True, recurrent=True))
+    assert v.rule_applied == "R0_prior_contradicted"
+    assert v.category == "unknown" and v.requires_approval is True
+    # No es ambigüedad para el LLM: es un conflicto que decide un humano.
+    assert v.ambiguous is False and v.llm_assisted is False
+
+
+def test_r0_holds_when_retry_passed_in_run():
+    v = triage(_sig(family_label="flaky", assertion_failure=True, recurrent=True,
+                    retry_passed_in_run=True))
     assert v.category == "flaky" and v.rule_applied == "R0_calibrated"
+
+
+def test_r0_holds_when_intermittent_same_sha():
+    v = triage(_sig(family_label="flaky", assertion_failure=True, recurrent=True,
+                    intermittent_same_sha=True))
+    assert v.category == "flaky" and v.rule_applied == "R0_calibrated"
+
+
+def test_r0_holds_in_flaky_family_without_assertion():
+    # Un timeout de red sin aserción no contradice 'flaky'.
+    v = triage(_sig(family_label="flaky", infra_error=True, recurrent=True))
+    assert v.category == "flaky" and v.rule_applied == "R0_calibrated"
+
+
+def test_r0_yields_in_infra_family_when_infra_signature_is_gone():
+    v = triage(_sig(family_label="infra", assertion_failure=True, recurrent=True))
+    assert v.rule_applied == "R0_prior_contradicted" and v.requires_approval is True
+
+
+def test_r0_holds_in_infra_family_while_infra_signature_persists():
+    assert triage(_sig(family_label="infra", assertion_failure=True, recurrent=True,
+                       infra_error=True)).rule_applied == "R0_calibrated"
+    assert triage(_sig(family_label="infra", assertion_failure=True, recurrent=True,
+                       mass_cofailure=True)).rule_applied == "R0_calibrated"
+
+
+def test_r0_holds_for_labels_that_do_not_hide_the_failure():
+    # `real` y `maintenance` ya fuerzan "apto-con-reservas": el prior no esconde nada.
+    for cat in ("real", "maintenance"):
+        v = triage(_sig(family_label=cat, assertion_failure=True, recurrent=True))
+        assert v.category == cat and v.rule_applied == "R0_calibrated"
+
+
+def test_novel_assertion_in_flaky_family_still_goes_to_r5():
+    # La red previa (aserción + novedoso) sigue teniendo prioridad.
+    v = triage(_sig(family_label="flaky", assertion_failure=True, novel=True))
+    assert v.rule_applied == "R5_real_novel"
 
 
 def test_priority_infra_over_maintenance():
