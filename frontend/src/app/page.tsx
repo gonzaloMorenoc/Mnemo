@@ -5,21 +5,21 @@ import { Card } from "@/components/ui/card";
 
 const highlights = [
   {
-    title: "Acta firmada verificable",
+    title: "Continuidad medida y firmada",
     description:
-      "El veredicto de cada run, sellado criptográficamente. Cliente y auditor pueden comprobar su integridad y origen — sin cuenta.",
+      "Un índice por proyecto dice cuánto sabe Mnemo de él, con su desglose. Cuando alguien rota, un acta de traspaso firmada que el cliente verifica sin cuenta.",
     icon: ShieldCheck,
   },
   {
-    title: "Memoria que aprende",
+    title: "Memoria que se llena trabajando",
     description:
-      "Cada corrección de tu equipo calibra el motor de triaje. Lo aprendido responde preguntas, alimenta planes de prueba y detecta huecos de cobertura.",
+      "Cada fallo, agrupado con su historia y con la razón con la que el equipo lo etiquetó; y el oficio del proyecto: entorno, datos de prueba, contactos y decisiones. Quien llega pregunta y recibe la fuente.",
     icon: BrainCircuit,
   },
   {
     title: "Se enchufa a tu CI",
     description:
-      "JUnit, Playwright, Allure y cuatro formatos más, con un token. Sin instalar nada en el repositorio.",
+      "JUnit, Playwright, Allure y cuatro formatos más, con un token. Cada run se clasifica con reglas deterministas y sale con su acta firmada.",
     icon: Plug,
   },
 ];
@@ -38,15 +38,15 @@ export default function HomePage() {
         }}
       >
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-sky-300">
-          Mnemo · QA Memory
+          Mnemo · Memoria de QA
         </p>
         <h1 className="mt-4 max-w-[18ch] text-balance text-4xl font-semibold leading-[1.12] tracking-tight md:text-5xl">
-          Cada release, con su acta firmada.
+          Cuando un consultor rota, el conocimiento se queda.
         </h1>
         <p className="mt-5 max-w-xl text-base leading-relaxed text-white/75 md:text-lg">
-          Mnemo clasifica los fallos de tus tests con reglas deterministas, aprende de cada
-          corrección de tu equipo y emite un acta criptográfica que cualquiera puede verificar
-          — sin cuenta.
+          Mnemo convierte el día a día de QA —los runs del CI y lo que el equipo explica al
+          etiquetar un fallo— en la memoria del proyecto, mide cuánto sabe de cada uno y
+          firma el traspaso cuando alguien se va.
         </p>
 
         <div className="mt-8 flex flex-wrap gap-3">

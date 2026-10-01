@@ -20,7 +20,7 @@ import {
 // Valores de la API (no cambian) → etiqueta visible en español
 const LABELS: Array<[string, string]> = [
   ["unknown", "Sin etiquetar"],
-  ["flaky", "Flaky"],
+  ["flaky", "Inestable"],
   ["real", "Fallo real"],
   ["maintenance", "Mantenimiento"],
   ["infra", "Infraestructura"],
@@ -57,7 +57,7 @@ export function FamilyLabelControl({ familyId, currentLabel }: { familyId: strin
           </SelectContent>
         </Select>
         <p className="text-xs text-zinc-400">
-          Real = bug del producto · Flaky = test inestable · Mantenimiento = test desactualizado · Infra = fallo de entorno/CI.
+          Real = bug del producto · Inestable = el test falla y pasa sin cambios · Mantenimiento = test desactualizado · Infra = fallo de entorno/CI.
         </p>
       </div>
       <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="motivo (opcional)" aria-label="Motivo" />

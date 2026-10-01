@@ -28,7 +28,10 @@ describe("TriageVerdictList", () => {
     // Human label visible (may appear in legend + badge)
     const falloRealEls = await screen.findAllByText("Fallo real");
     expect(falloRealEls.length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText(/R4_real_recurrent/)).toBeInTheDocument();
+    // La regla en lenguaje humano; el código queda en el title para auditarlo.
+    const regla = screen.getByText(/Aserción que ya había fallado antes/);
+    expect(regla).toHaveAttribute("title", "R4_real_recurrent");
+    expect(screen.queryByText(/R4_real_recurrent/)).not.toBeInTheDocument();
     // Raw "real" value should not appear as text
     expect(screen.queryByText("real")).not.toBeInTheDocument();
   });
@@ -48,7 +51,7 @@ describe("TriageVerdictList", () => {
     renderWithClient(<TriageVerdictList runId="r1" />);
     // The color legend renders all category labels
     expect(await screen.findAllByText("Fallo real")).not.toHaveLength(0);
-    expect(screen.getByText("Flaky")).toBeInTheDocument();
+    expect(screen.getByText("Inestable")).toBeInTheDocument();
     expect(screen.getByText("Mantenimiento")).toBeInTheDocument();
     expect(screen.getByText("Infraestructura")).toBeInTheDocument();  // etiqueta unificada con CategoryBadge
     expect(screen.getByText("Sin etiquetar")).toBeInTheDocument();

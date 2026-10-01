@@ -44,7 +44,7 @@ describe("FamilyLabelControl", () => {
     await user.click(within(container).getByRole("combobox", { name: /categoría/i }));
 
     // Click the "flaky" option
-    const flakyOption = await screen.findByRole("option", { name: "Flaky" });
+    const flakyOption = await screen.findByRole("option", { name: "Inestable" });
     await user.click(flakyOption);
 
     // Submit

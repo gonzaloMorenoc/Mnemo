@@ -13,13 +13,12 @@ export default function VerifyPage() {
 
       <header className="mt-4 space-y-2">
         <h1 className="text-2xl font-semibold text-zinc-900 sm:text-3xl">
-          Verificar un acta de calidad
+          Verificar un acta firmada
         </h1>
         <p className="max-w-2xl text-sm text-zinc-600">
-          Pega el acta de aseguramiento de QA firmada por Mnemo. Comprobamos la firma{" "}
-          <span className="font-medium">Ed25519</span> contra la clave pública, sin
-          necesidad de cuenta. Si la firma es válida, el acta no ha sido alterada desde
-          que se emitió.
+          Comprueba que un acta de Mnemo —la de un run de tests o la de un traspaso— la
+          emitió Mnemo y nadie la ha tocado desde entonces. Sin cuenta: la firma (Ed25519)
+          se comprueba contra la clave pública.
         </p>
       </header>
 
