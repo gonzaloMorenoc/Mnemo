@@ -3,6 +3,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ShieldX, KeyRound } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { motion } from "framer-motion";
 import { toast } from "sonner";
 
 import { ApiClientError } from "@/lib/api/client";
@@ -190,18 +191,23 @@ export function CertificateVerifier() {
           <AuthenticityStamp canonical={payload.canonical_json} />
         ))}
       {invalido && (
-        <Card className="border-red-200 bg-red-50/60">
-          <CardContent className="space-y-2 pt-6">
-            <div className="flex items-center gap-2 text-red-800">
-              <ShieldX className="h-6 w-6" />
-              <span className="text-lg font-semibold">Firma NO válida</span>
-            </div>
-            <p className="text-sm text-red-900/80">
-              El acta ha sido alterada, está incompleta, o fue firmada con otra clave. No
-              confíes en su contenido.
-            </p>
-          </CardContent>
-        </Card>
+        // Tiembla al aparecer: el rojo tiene que verse tan rotundo como el sello.
+        <motion.div
+          role="alert"
+          initial={{ x: 0 }}
+          animate={{ x: [0, -8, 8, -5, 5, 0] }}
+          transition={{ duration: 0.4 }}
+          className="rounded-xl border-2 border-red-300 bg-red-50 p-6"
+        >
+          <div className="flex items-center gap-2 text-red-800">
+            <ShieldX className="h-7 w-7" />
+            <span className="text-xl font-semibold">Firma NO válida</span>
+          </div>
+          <p className="mt-2 text-sm text-red-900/90">
+            El contenido no coincide con lo que se firmó: alguien lo ha modificado después
+            de emitirse, está incompleto o lo firmó otra clave. No confíes en su contenido.
+          </p>
+        </motion.div>
       )}
     </div>
   );

@@ -15,15 +15,11 @@ import {
 } from "@/lib/api/endpoints";
 import { Button } from "@/components/ui/button";
 import { buildShareUrl } from "@/lib/certificate-share";
+import { continuityBand, deltaDesdeActa } from "@/lib/continuity-band";
+import { fechaActa } from "@/lib/acta-format";
+import { RotationRiskMap } from "@/components/continuity/RotationRiskMap";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 /**
  * A dónde se va a ARREGLAR cada dimensión. El índice no es una nota, es un mapa:
@@ -144,98 +140,130 @@ export default function ContinuityPage() {
     <div className="space-y-8">
       <PageHeader />
 
-      <Card className="max-w-2xl">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-base">Índice de continuidad</CardTitle>
-          {projects.length > 0 && (
-            <Select value={activeProject} onValueChange={elegirProyecto}>
-              <SelectTrigger className="w-[220px]" aria-label="Proyecto">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((p) => (
-                  <SelectItem key={p} value={p}>
-                    {p}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-        </CardHeader>
-        <CardContent className="space-y-5">
-          {projectsQuery.isError ? (
-            // Un 502 o una sesión caducada NO es «no hay proyectos»: disfrazar el
-            // error de vacío manda al usuario a sembrar datos que ya existen.
-            <div className="space-y-2">
-              <p className="text-sm text-red-700">
-                No se pudo cargar la continuidad.{" "}
-                {projectsQuery.error instanceof Error ? projectsQuery.error.message : ""}
-              </p>
-              <Button size="sm" variant="outline" onClick={() => projectsQuery.refetch()}>
-                Reintentar
-              </Button>
-            </div>
-          ) : projects.length === 0 && !projectsQuery.isPending ? (
-            <p className="text-sm text-zinc-500">
-              Todavía no hay proyectos con ejecuciones ni conocimiento en esta organización.
+      {projectsQuery.isError ? (
+        // Un 502 o una sesión caducada NO es «no hay proyectos»: disfrazar el
+        // error de vacío manda al usuario a sembrar datos que ya existen.
+        <Card className="max-w-3xl p-5">
+          <div className="space-y-2">
+            <p role="alert" className="text-sm text-red-700">
+              No se pudo cargar la continuidad.{" "}
+              {projectsQuery.error instanceof Error ? projectsQuery.error.message : ""}
             </p>
-          ) : indexQuery.isError ? (
-            <div className="space-y-2">
-              <p className="text-sm text-red-700">No se pudo calcular el índice de este proyecto.</p>
-              <Button size="sm" variant="outline" onClick={() => indexQuery.refetch()}>
-                Reintentar
-              </Button>
-            </div>
-          ) : idx ? (
-            <>
-              <div className="flex items-baseline gap-3">
-                {idx.score === null ? (
-                  <p className="text-sm text-zinc-500">Sin datos suficientes.</p>
-                ) : (
-                  <>
-                    <span className="text-5xl font-semibold tracking-tight text-zinc-900">
-                      {idx.score}
-                    </span>
-                    <span className="text-sm text-zinc-500">
-                      / 100 · cuánto de este proyecto sabe Mnemo
-                    </span>
-                  </>
-                )}
-              </div>
-              <div className="space-y-3">
-                {idx.dimensions.map((d) => (
-                  <div key={d.key} className="space-y-1">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="font-medium text-zinc-900">{d.label}</span>
-                      <span className="text-zinc-500">
-                        {d.den > 0 ? `${d.num} / ${d.den}` : "sin datos"}
-                      </span>
-                    </div>
-                    <div className="h-2 rounded-full bg-zinc-100">
-                      <div
-                        className="h-2 rounded-full bg-primary"
-                        style={{ width: `${d.ratio === null ? 0 : Math.round(d.ratio * 100)}%` }}
-                      />
-                    </div>
-                    {DIMENSION_LINK[d.key] && d.ratio !== null && d.ratio < 1 && (
-                      <Link
-                        href={DIMENSION_LINK[d.key].href}
-                        className="text-xs font-medium text-primary hover:underline"
-                      >
-                        {DIMENSION_LINK[d.key].cta} →
-                      </Link>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <Skeleton className="h-40 rounded-xl" />
-          )}
-        </CardContent>
-      </Card>
+            <Button size="sm" variant="outline" onClick={() => projectsQuery.refetch()}>
+              Reintentar
+            </Button>
+          </div>
+        </Card>
+      ) : projects.length === 0 && !projectsQuery.isPending ? (
+        <Card className="max-w-3xl p-5">
+          <p className="text-sm text-zinc-500">
+            Todavía no hay proyectos con ejecuciones ni conocimiento en esta organización.
+          </p>
+        </Card>
+      ) : (
+        <>
+          <Card className="max-w-3xl">
+            <CardHeader>
+              <CardTitle className="text-base">Riesgo de rotación por proyecto</CardTitle>
+              <p className="text-sm text-zinc-500">
+                Del proyecto más expuesto al más cubierto. Pulsa uno para ver qué le falta.
+              </p>
+            </CardHeader>
+            <CardContent>
+              {accessToken && (
+                <RotationRiskMap
+                  accessToken={accessToken}
+                  orgId={activeOrgId}
+                  activeProject={activeProject}
+                  onSelect={elegirProyecto}
+                />
+              )}
+            </CardContent>
+          </Card>
 
-      <Card className="max-w-2xl">
+          <Card className="max-w-3xl">
+            <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
+              <CardTitle className="text-base">
+                Índice de continuidad{activeProject ? ` · ${activeProject}` : ""}
+              </CardTitle>
+              {idx && (
+                <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${continuityBand(idx.score).chip}`}>
+                  {continuityBand(idx.score).label}
+                </span>
+              )}
+            </CardHeader>
+            <CardContent className="space-y-5">
+              {indexQuery.isError ? (
+                <div className="space-y-2">
+                  <p role="alert" className="text-sm text-red-700">No se pudo calcular el índice de este proyecto.</p>
+                  <Button size="sm" variant="outline" onClick={() => indexQuery.refetch()}>
+                    Reintentar
+                  </Button>
+                </div>
+              ) : idx ? (
+                <>
+                  <div className="space-y-1">
+                    {idx.score === null ? (
+                      <p className="text-sm text-zinc-500">Sin datos suficientes.</p>
+                    ) : (
+                      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                        <span className={`text-5xl font-semibold tracking-tight tabular-nums ${continuityBand(idx.score).text}`}>
+                          {idx.score}
+                        </span>
+                        <span className="text-sm text-zinc-500">/ 100 · cuánto de este proyecto sabe Mnemo</span>
+                        {deltaDesdeActa(idx.score, acta?.score ?? null) && (
+                          <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700">
+                            {deltaDesdeActa(idx.score, acta?.score ?? null)}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    <p className="text-sm font-medium text-zinc-800">{continuityBand(idx.score).headline}</p>
+                  </div>
+                  <div className="space-y-3">
+                    {idx.dimensions.map((d) => {
+                      const medible = d.ratio !== null;
+                      const banda = continuityBand(medible ? Math.round(d.ratio! * 100) : null);
+                      return (
+                        <div key={d.key} className="space-y-1">
+                          <div className="flex items-center justify-between gap-2 text-sm">
+                            <span className={medible ? "font-medium text-zinc-900" : "font-medium text-zinc-500"}>
+                              {d.label}
+                            </span>
+                            <span className="text-zinc-500">
+                              {medible ? `${d.num} / ${d.den}` : "sin datos · no cuenta en el índice"}
+                            </span>
+                          </div>
+                          {medible && (
+                            <div className="h-2 rounded-full bg-zinc-100">
+                              <div
+                                className={`h-2 rounded-full ${banda.bar}`}
+                                style={{ width: `${Math.round(d.ratio! * 100)}%` }}
+                              />
+                            </div>
+                          )}
+                          {DIMENSION_LINK[d.key] && medible && d.ratio! < 1 && (
+                            <Link
+                              href={DIMENSION_LINK[d.key].href}
+                              className="text-xs font-medium text-primary hover:underline"
+                            >
+                              {DIMENSION_LINK[d.key].cta} →
+                            </Link>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : (
+                <Skeleton className="h-40 rounded-xl" />
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      <Card className="max-w-3xl">
         <CardHeader>
           <CardTitle className="text-base">Acta de traspaso</CardTitle>
         </CardHeader>
@@ -249,7 +277,7 @@ export default function ContinuityPage() {
             <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-sm">
               <p className="text-zinc-900">
                 Última acta: <strong>{acta.score ?? "—"}</strong> / 100 ·{" "}
-                {new Date(acta.created_at).toLocaleString("es-ES")}
+                {fechaActa(acta.created_at)}
               </p>
               {acta.share && (
                 <div className="mt-2 space-y-2">

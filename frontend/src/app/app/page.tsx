@@ -14,6 +14,7 @@ import {
   getCertificate,
 } from "@/lib/api/endpoints";
 import { SetupChecklist, type SetupStep } from "@/components/dashboard/SetupChecklist";
+import { RotationRiskMap } from "@/components/continuity/RotationRiskMap";
 import { LatestReleaseHero } from "@/components/dashboard/LatestReleaseHero";
 import { Sparkline } from "@/components/dashboard/charts/Sparkline";
 import { RadialGauge } from "@/components/dashboard/charts/RadialGauge";
@@ -27,7 +28,7 @@ import { VerdictBadge } from "@/components/ui/verdict-badge";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import type { ExecutionManifest } from "@/lib/api/types";
 
-const QUICK_ACCESS_HREFS = ["/app/knowledge", "/app/graph", "/app/test-plan"] as const;
+const QUICK_ACCESS_HREFS = ["/app/continuity", "/app/onboarding", "/app/knowledge"] as const;
 const quickAccessItems = NAV_ITEMS.filter((item) =>
   (QUICK_ACCESS_HREFS as readonly string[]).includes(item.href),
 );
@@ -116,8 +117,29 @@ export default function DashboardPage() {
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Panel de control</h1>
-        <p className="text-sm text-zinc-500">El estado de tu memoria y aseguramiento de QA, de un vistazo.</p>
+        <p className="text-sm text-zinc-500">Cuánto sabe Mnemo de cada proyecto y cómo van sus ejecuciones.</p>
       </div>
+
+      {/* ── Continuidad: lo primero, es la tesis del producto ── */}
+      {accessToken && orgId && (
+        <Card className="p-5">
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-semibold text-zinc-900">Riesgo de rotación</h2>
+              <p className="text-xs text-zinc-500">Los proyectos más expuestos si rota quien los lleva.</p>
+            </div>
+            <Link href="/app/continuity" className="text-xs font-medium text-primary hover:underline">
+              Ver continuidad →
+            </Link>
+          </div>
+          <RotationRiskMap
+            accessToken={accessToken}
+            orgId={orgId}
+            limit={3}
+            hrefFor={(p) => `/app/continuity?project=${encodeURIComponent(p)}`}
+          />
+        </Card>
+      )}
 
       {/* ── Héroe + precisión ── */}
       <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
@@ -241,8 +263,9 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      {/* ── Setup ── */}
-      {checklistLoading ? null : setupComplete ? (
+      {/* ── Setup: solo para una organización que aún no está en uso. En una con
+          runs y memoria, «Pon Mnemo en marcha» transmitía «a medio configurar». ── */}
+      {checklistLoading || (recentRuns.length > 0 && (knowledge.data?.length ?? 0) > 0) ? null : setupComplete ? (
         <p className="text-xs text-zinc-500">✓ Configuración completa — GitHub conectado, tests indexados, memoria y gaps activos.</p>
       ) : (
         <div className="space-y-3">
