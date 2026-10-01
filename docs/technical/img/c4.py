@@ -121,7 +121,7 @@ def context():
     box(sv, *ci, "Sistema de CI del cliente", "[Sistema externo]", "GitHub Actions · Jenkins · Azure DevOps…", "ext")
     box(sv, *gh, "GitHub", "[Sistema externo]", "Repos, Pull Requests y commit status", "ext")
     box(sv, *jx, "Jira / Xray / Confluence", "[Sistema externo]", "Bugs, historias de usuario, casos y páginas", "ext")
-    box(sv, *llm, "Proveedor LLM (opcional)", "[Sistema externo]", "Por defecto ninguno · Gemini · Groq · Ollama · Anthropic", "ext")
+    box(sv, *llm, "Proveedor LLM (opcional)", "[Sistema externo]", "Por defecto ninguno · Groq (demo) · Ollama · Anthropic · Gemini", "ext")
     box(sv, *sup, "Supabase", "[Sistema externo]", "Auth (identidad) + Postgres gestionado", "ext")
     box(sv, *mn, "Mnemo", "[Software System]",
         "Continuidad del conocimiento de QA: memoria del proyecto, triaje de CI y actas firmadas", "system")
@@ -167,7 +167,7 @@ def container():
     box(sv, *ci, "CI del cliente", "[Sistema externo]", "GitHub Actions · Jenkins…", "ext")
     box(sv, *gh, "GitHub", "[Sistema externo]", "PRs · commit status · repos", "ext")
     box(sv, *jx, "Jira / Xray / Confluence", "[Sistema externo]", "Bugs · HU · casos · páginas", "ext")
-    box(sv, *llm, "Proveedor LLM", "[Sistema externo]", "Opcional · Gemini · Ollama…", "ext")
+    box(sv, *llm, "Proveedor LLM", "[Sistema externo]", "Opcional · Groq (demo) · Ollama…", "ext")
     box(sv, *sup, "Supabase Auth", "[Sistema externo]", "GoTrue · JWT · JWKS", "ext")
 
     box(sv, *web, "Aplicación Web", "[Contenedor: Next.js / React, Vercel]",

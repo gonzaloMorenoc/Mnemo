@@ -140,7 +140,8 @@ Revisar esta tabla antes de cada ensayo: si el producto cambia, el guion tambié
 | Las preguntas recuperan la lección del PSP, la razón de la familia, el contacto y el runbook | `search_unified` sobre Demo MTP en prod (fuentes, sin LLM) | 2026-10-01 |
 | La razón tecleada al etiquetar se vuelve buscable | PR #114 (vector propio de la razón; media con el centroide) | prod, 2026-10-01 |
 | Cada respuesta cita sus fuentes; sin LLM degrada a fuentes | `src/ai/nl_query.py::answer_over_sources` | código |
-| Texto exacto de la respuesta del LLM | Gemini en prod — **no determinista: ensayar en la app** | pendiente |
+| Las tres preguntas responden en español y citan la fuente correcta (PSP → lección del rate-limit; contacto → equipo de Pagos; entorno → runbook) | Ensayo contra Groq `gpt-oss-120b` con `KnowledgeService.ask` sobre Demo MTP; requiere el fix de PR #124 (`generate_structured` exige JSON) | 2026-10-01 |
+| Texto exacto de la respuesta del LLM | Groq `gpt-oss-120b` en prod — **no determinista: ensayar en la app el día antes** | pendiente |
 | «Contradice la etiqueta humana» | PR #113 (`R0_prior_contradicted`) | en prod (01-10) |
 | El acta firma la huella del contenido y quién se va/llega; Mnemo detecta si cambió | `src/continuity/manifest.py`, `service.py::_integridad` | código |
 | Rotar la clave no invalida actas | `CertificateService.verify_payload` (anillo por `key_id`) | código |
@@ -174,7 +175,7 @@ traspaso» de la auditoría del 12-ago **no está medida**: no decirla como dato
 
 - Narrar la historia de María y Pablo, no las pantallas: cada transición responde a una
   pregunta de Pablo.
-- La demo corre en la nube con un LLM de API (Gemini). El proveedor es configurable; no
+- La demo corre en la nube con un LLM de API (`gpt-oss-120b` en Groq). El proveedor es configurable; no
   afirmar dónde viajan los datos más allá de eso.
 - Plan B y checklist previa: `runbook.md`. Si el acta de traspaso falla en vivo, enseñar la
   última emitida (`handover/latest`) desde el ensayo.

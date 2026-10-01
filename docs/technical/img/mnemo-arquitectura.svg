@@ -206,7 +206,7 @@
 <rect x="50.0" y="976" width="528.0" height="74" rx="12" ry="12" fill="#fff7ed" stroke="#fdba74" stroke-width="1.4" opacity="1"/>
 <rect x="50.0" y="976" width="5" height="74" rx="2" ry="2" fill="#ea580c" stroke="none" stroke-width="0" opacity="1"/>
 <text x="66.0" y="1002" font-size="13.5" fill="#9a3412" font-weight="700" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">🧠  Proveedor LLM (opcional)</text>
-<text x="66.0" y="1021" font-size="10.3" fill="#7c5230" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">prod: Gemini (OpenAI-compat) · Groq · Ollama · Anthropic</text>
+<text x="66.0" y="1021" font-size="10.3" fill="#7c5230" font-weight="400" text-anchor="start" font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif">prod: Groq gpt-oss-120b (OpenAI-compat) · Ollama · Anthropic · Gemini</text>
 <rect x="66.0" y="1029" width="122.0" height="18" rx="9.0" ry="9.0" fill="#ffedd5" stroke="none" stroke-width="0" opacity="1"/>
 <text x="73.0" y="1039.5" font-size="10" fill="#9a3412" font-weight="500" text-anchor="start" font-family="'Menlo','SF Mono','DejaVu Sans Mono',monospace">ALLOW_EXTERNAL_LLM</text>
 <rect x="194.0" y="1029" width="116.0" height="18" rx="9.0" ry="9.0" fill="#ffedd5" stroke="none" stroke-width="0" opacity="1"/>
