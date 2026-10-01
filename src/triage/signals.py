@@ -19,6 +19,7 @@ class FailureInput:
     has_green_baseline: bool        # existe snapshot last_green del test
     dom_changed: bool               # DOM de fallo != last_green (normalizado)
     trace: Optional[str] = None     # Playwright call log / stack trace completo
+    prior_reaffirmed: bool = False  # un humano re-etiquetó la familia con el conflicto R0' a la vista
 
 
 @dataclass
@@ -34,6 +35,7 @@ class Signals:
     dom_changed: bool
     novel: bool
     recurrent: bool
+    prior_reaffirmed: bool = False
 
 
 def compute_signals(failure: FailureInput) -> Signals:
@@ -50,4 +52,5 @@ def compute_signals(failure: FailureInput) -> Signals:
         dom_changed=failure.dom_changed,
         novel=failure.is_novel,
         recurrent=not failure.is_novel,
+        prior_reaffirmed=failure.prior_reaffirmed,
     )

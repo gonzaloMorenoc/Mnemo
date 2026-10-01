@@ -143,8 +143,8 @@ def _etiquetar_familias(db_url: str, *, org_id: str, user_id: str, repo,
     `solo_sin_etiquetar` es para la pasada final: recoge las familias que hayan
     nacido después (sin volver a corregir las ya revisadas, que duplicaría
     correcciones y falsearía la precisión)."""
-    # Se lee la categoría que puso EL MOTOR en el último veredicto de la familia,
-    # no `defect_families.label` (que vale 'unknown' hasta que alguien etiqueta).
+    # Se lee la categoría que puso EL MOTOR en su última predicción independiente
+    # (sin los ecos de R0, igual que la calibración), no `defect_families.label` (que vale 'unknown' hasta que alguien etiqueta).
     # Es la misma que compara `set_family_label` al registrar la corrección: si se
     # tomara la otra, todas las familias acabarían con la misma etiqueta y la
     # precisión se desplomaría por debajo del umbral de confianza.
@@ -154,7 +154,8 @@ def _etiquetar_familias(db_url: str, *, org_id: str, user_id: str, repo,
             "select f.id,"
             " (select tv.category from public.triage_verdicts tv"
             "  join public.failures fa on fa.id = tv.failure_id"
-            "  where fa.defect_family_id = f.id order by tv.created_at desc limit 1)"
+            "  where fa.defect_family_id = f.id and tv.rule_applied not like 'R0%%'"
+            "  order by tv.created_at desc limit 1)"
             " from public.defect_families f"
             f" where f.org_id = %s{filtro} order by f.first_seen", (org_id,))
         familias = cur.fetchall()
