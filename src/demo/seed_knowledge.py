@@ -129,7 +129,8 @@ def seed_knowledge(*, db_url: str, demo_user_id: str) -> Dict[str, Any]:
     for keywords, label, reason in FAMILY_LABELS:
         fam_id = _find_family(families, keywords)
         if fam_id and arepo.set_family_label(
-            user_id=demo_user_id, family_id=fam_id, label=label, reason=reason
+            user_id=demo_user_id, family_id=fam_id, label=label, reason=reason,
+            reason_embedding=embedder.embed(reason),
         ):
             labels += 1
 

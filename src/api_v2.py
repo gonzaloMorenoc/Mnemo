@@ -989,16 +989,32 @@ def defect_lineage_v2(
     return DefectLineageResponse(family=family, failures=[FailureRef(**f) for f in data["failures"]])
 
 
+def _embed_reason(embedder, reason: Optional[str]) -> Optional[List[float]]:
+    """Vector de la razón del etiquetador, para que la búsqueda la encuentre por
+    sí misma (auditoría 12-ago, H1). Best-effort: etiquetar es la acción y el
+    vector un extra; si el modelo falla, la fila queda a NULL y el backfill de
+    scripts/reembed.py la completa."""
+    if not reason or not reason.strip():
+        return None
+    try:
+        return embedder.embed(reason)
+    except Exception:  # noqa: BLE001 — el modelo no puede tumbar el etiquetado
+        logger.warning("no se pudo embeber la razón de la etiqueta", exc_info=True)
+        return None
+
+
 @router.patch("/defects/{family_id}/label", response_model=FamilyLabelResponse)
 def set_family_label_v2(
     family_id: str,
     body: SetFamilyLabelRequest,
     user: AuthenticatedUser = Depends(get_current_user),
     repo: AssuranceRepository = Depends(get_assurance_repo),
+    embedder=Depends(get_embedder),
 ) -> FamilyLabelResponse:
     try:
         ok = repo.set_family_label(user_id=user.user_id, family_id=family_id,
-                                   label=body.label, reason=body.reason)
+                                   label=body.label, reason=body.reason,
+                                   reason_embedding=_embed_reason(embedder, body.reason))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except psycopg.Error as exc:

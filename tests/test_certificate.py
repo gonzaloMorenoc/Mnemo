@@ -28,7 +28,9 @@ def test_self_eval_shape_and_run_composition():
     verdicts = [{"llm_assisted": True}, {"llm_assisted": False}, {"llm_assisted": False}]
     cal = {"tenant_accuracy": 0.9, "n_corrections": 200, "por_categoria_humana": {"real": 10}}
     se = compute_self_eval(calibration=cal, verdicts=verdicts, created_at="2026-06-26T00:00:00Z")
-    assert se["method"] == "deterministic_v1"
+    # v2 = R0 cede ante evidencia contraria a un prior silenciador: el marcador
+    # versiona el CONJUNTO DE REGLAS para que un acta siga siendo recalculable.
+    assert se["method"] == "deterministic_v2"
     assert se["engine_calibration"] == {"tenant_accuracy": 0.9, "n_corrections": 200, "por_categoria_humana": {"real": 10}}
     assert se["run_composition"] == {"total": 3, "deterministic": 2, "llm_assisted": 1}
     assert se["confidence"] == "high" and se["evaluated_at"] == "2026-06-26T00:00:00Z"

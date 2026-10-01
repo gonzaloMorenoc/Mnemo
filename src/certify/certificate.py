@@ -29,14 +29,18 @@ def compute_confidence(calibration: Dict[str, Any]) -> str:
 
 def compute_self_eval(*, calibration: Dict[str, Any], verdicts: List[Dict[str, Any]],
                       created_at: str, ai_eval: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """Auto-evaluación del motor (deterministic_v1) + ai_eval opcional del LLM-judge. Pura.
+    """Auto-evaluación del motor (deterministic_v2) + ai_eval opcional del LLM-judge. Pura.
     ai_eval es INFORMATIVO: se firma dentro del self_eval pero NO modula el veredicto
-    (el confidence depende solo de la calibración determinista — "determinismo donde firmo")."""
+    (el confidence depende solo de la calibración determinista — "determinismo donde firmo").
+
+    `method` versiona el CONJUNTO DE REGLAS: si cambian, dos actas con el mismo marcador
+    dejarían de ser recalculables al mismo resultado. v2 = R0 cede ante evidencia que
+    contradice un prior silenciador (ver src/triage/engine.py:_prior_contradicho)."""
     total = len(verdicts)
     llm_assisted = sum(1 for v in verdicts if v.get("llm_assisted"))
     confidence = compute_confidence(calibration)
     return {
-        "method": "deterministic_v1",
+        "method": "deterministic_v2",
         "engine_calibration": {
             "tenant_accuracy": calibration.get("tenant_accuracy", 0.0),
             "n_corrections": calibration.get("n_corrections", 0),

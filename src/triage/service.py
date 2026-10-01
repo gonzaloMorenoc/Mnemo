@@ -42,6 +42,7 @@ class TriageService:
                 intermittent_same_sha=f["intermittent_same_sha"],
                 mass_cofailure=mass,
                 has_green_baseline=f["has_green_baseline"], dom_changed=f["dom_changed"],
+                prior_reaffirmed=f.get("prior_reaffirmed", False),
             ))
             verdict = triage(signals)
             evidence = build_evidence(

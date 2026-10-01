@@ -717,6 +717,7 @@ class AssuranceRepository:
                 family_ids = [f["defect_family_id"] for f in failures if f["defect_family_id"]]
 
                 recurrent: set = set()
+                reaffirmed: set = set()
                 lineage: Dict[Any, list] = {}
                 if family_ids:
                     cur.execute(
@@ -734,6 +735,16 @@ class AssuranceRepository:
                         (family_ids, org_id),
                     )
                     lineage = {r["fid"]: list(r["projects"]) for r in cur.fetchall()}
+                    cur.execute(
+                        "select family_id, source from ("
+                        "  select distinct on (family_id) family_id, source"
+                        "  from public.triage_corrections"
+                        "  where family_id = any(%s) and org_id = %s"
+                        "  order by family_id, corrected_at desc"
+                        ") last where source = 'conflict_review'",
+                        (family_ids, org_id),
+                    )
+                    reaffirmed = {r["family_id"] for r in cur.fetchall()}
 
                 cur.execute(
                     "select distinct test_name from public.test_results"
@@ -785,6 +796,7 @@ class AssuranceRepository:
                     "trace": f["trace"],
                     "is_novel": (fam not in recurrent) if fam else True,
                     "family_label": f["family_label"] or "unknown",
+                    "prior_reaffirmed": fam in reaffirmed,
                     "retry_passed_in_run": tn in retry_passed,
                     "intermittent_same_sha": tn in intermittent,
                     "has_green_baseline": tn in green,
@@ -903,10 +915,14 @@ class AssuranceRepository:
         return updated
 
     def set_family_label(self, *, user_id: str, family_id: str, label: str,
-                         reason: Optional[str] = None) -> bool:
+                         reason: Optional[str] = None,
+                         reason_embedding: Optional[Sequence[float]] = None) -> bool:
         """Etiqueta una familia (lazo de aprendizaje) y registra la corrección
         (motor vs humano) en triage_corrections. Devuelve False si no es miembro /
-        no existe. Lanza ValueError si el label no es válido."""
+        no existe. Lanza ValueError si el label no es válido.
+
+        `reason_embedding` (opcional) hace buscable la razón por su propio vector;
+        sin él la fila queda a NULL y scripts/reembed.py la completa."""
         if label not in ("flaky", "real", "maintenance", "infra", "unknown"):
             raise ValueError(f"invalid label: {label!r}")
         with self._connect() as conn:
@@ -925,21 +941,41 @@ class AssuranceRepository:
                     return False
                 org_id = row["org_id"]
                 if org_id is not None:
+                    # La predicción INDEPENDIENTE del motor: los veredictos R0 son el
+                    # eco de la etiqueta humana (o su conflicto) y medirlos contra el
+                    # humano inflaba la precisión (auditoría 11-ago, H2).
                     cur.execute(
                         "select tv.category, tv.llm_assisted from public.triage_verdicts tv"
                         " join public.failures f on f.id = tv.failure_id"
-                        " where f.defect_family_id = %s order by tv.created_at desc limit 1",
+                        " where f.defect_family_id = %s and tv.rule_applied not like 'R0%%'"
+                        " order by tv.created_at desc limit 1",
                         (family_id,),
                     )
                     er = cur.fetchone()
                     engine_category = (
                         ("unknown" if er["llm_assisted"] else er["category"]) if er else None
                     )
+                    # ¿Etiqueta con el conflicto R0' a la vista? Entonces es la revisión
+                    # humana que el motor pidió: el triaje la respeta como reafirmación
+                    # (sin endpoint para aprobar un veredicto, es la única salida).
+                    cur.execute(
+                        "select tv.rule_applied from public.triage_verdicts tv"
+                        " join public.failures f on f.id = tv.failure_id"
+                        " where f.defect_family_id = %s order by tv.created_at desc limit 1",
+                        (family_id,),
+                    )
+                    last = cur.fetchone()
+                    source = ("conflict_review"
+                              if last and last["rule_applied"] == "R0_prior_contradicted"
+                              else "family_label")
+                    reason_vec = Vector(list(reason_embedding)) if reason_embedding is not None else None
                     cur.execute(
                         "insert into public.triage_corrections"
-                        " (org_id, family_id, engine_category, human_category, source, reason, corrected_by)"
-                        " values (%s, %s, %s, %s, 'family_label', %s, %s)",
-                        (org_id, family_id, engine_category, label, reason, user_id),
+                        " (org_id, family_id, engine_category, human_category, source, reason,"
+                        "  reason_embedding, corrected_by)"
+                        " values (%s, %s, %s, %s, %s, %s, %s, %s)",
+                        (org_id, family_id, engine_category, label, source, reason, reason_vec,
+                         user_id),
                     )
             conn.commit()
         return True
@@ -991,17 +1027,43 @@ class AssuranceRepository:
                             " where org_id = %s and user_id = %s) as ok", (org_id, user_id))
                 if not cur.fetchone()["ok"]:
                     return None
+                # Una evidencia por familia: la última etiqueta humana (la verdad
+                # asentada) contra la última predicción independiente del motor
+                # ANTERIOR a ella. Se recalcula desde los veredictos —no desde
+                # engine_category guardado— para que las correcciones históricas
+                # grabadas contra un eco de R0 tampoco cuenten como acierto.
+                # Si re-triar el run borró esa predicción (delete+insert de veredictos),
+                # se usa la guardada al corregir, que ya excluye R0.
+                # Sin predicción independiente (solo R0), la familia no mide nada.
                 cur.execute(
-                    "select count(*) as total,"
-                    " count(*) filter (where engine_category = human_category) as aciertos"
-                    " from public.triage_corrections where org_id = %s", (org_id,))
+                    "with ultimas as ("
+                    "  select distinct on (tc.family_id) tc.family_id, tc.human_category,"
+                    "         tc.corrected_at, tc.engine_category as guardada"
+                    "  from public.triage_corrections tc where tc.org_id = %s"
+                    "  order by tc.family_id, tc.corrected_at desc"
+                    "), medidas as ("
+                    "  select u.human_category, coalesce(("
+                    "    select case when tv.llm_assisted then 'unknown' else tv.category end"
+                    "    from public.triage_verdicts tv"
+                    "    join public.failures f on f.id = tv.failure_id"
+                    "    where f.defect_family_id = u.family_id"
+                    "      and tv.rule_applied not like 'R0%%' and tv.created_at <= u.corrected_at"
+                    "    order by tv.created_at desc limit 1"
+                    "  ), u.guardada) as engine_category from ultimas u"
+                    ")"
+                    " select count(*) filter (where engine_category is not null) as total,"
+                    "        count(*) filter (where engine_category = human_category) as aciertos"
+                    " from medidas", (org_id,))
                 agg = cur.fetchone()
                 total, aciertos = agg["total"], agg["aciertos"]
                 cur.execute("select count(*) as n from public.defect_families"
                             " where org_id = %s and label is not null and label <> 'unknown'", (org_id,))
                 familias_calibradas = cur.fetchone()["n"]
-                cur.execute("select human_category, count(*) as n from public.triage_corrections"
-                            " where org_id = %s group by human_category", (org_id,))
+                cur.execute("select human_category, count(*) as n from ("
+                            "  select distinct on (family_id) human_category"
+                            "  from public.triage_corrections where org_id = %s"
+                            "  order by family_id, corrected_at desc"
+                            ") u group by human_category", (org_id,))
                 por_categoria = {r["human_category"]: r["n"] for r in cur.fetchall()}
         return {"total": total, "aciertos": aciertos,
                 "accuracy": (aciertos / total) if total else 0.0,
@@ -1043,7 +1105,16 @@ class AssuranceRepository:
 
         Incluye la razón de la ÚLTIMA corrección humana (label_reason) — el "por qué"
         del senior al etiquetar — y corta por distancia: sin umbral, el top-k devolvía
-        ruido cuando no había nada relevante (auditoría 12-ago, H1 y H2)."""
+        ruido cuando no había nada relevante (auditoría 12-ago, H1 y H2).
+
+        Con razón embebida, la distancia es la MEDIA entre la del centroide de los
+        errores y la del vector de esa razón: una pregunta que coincide con lo que
+        escribió el humano («sandbox del PSP en frío») y no con el error («socket
+        hang up») recupera la familia. Media y no mínima (medido en Demo MTP, 6
+        preguntas): con la mínima, las razones genéricas («al reintentar pasa»)
+        ganaban solas y la familia del guion caía del puesto 1 al 7. El corte admite
+        la familia si pasa por la media O por sus errores: sumar la razón reordena,
+        pero nunca quita un resultado que la búsqueda por errores ya daba."""
         with self._connect() as conn:
             self._set_claims(conn, user_id)
             with conn.cursor() as cur:
@@ -1053,18 +1124,22 @@ class AssuranceRepository:
                     return []
                 q = Vector(list(query_embedding))
                 cur.execute(
-                    "select f.id, f.signature, f.label, f.root_cause, f.occurrence_count,"
-                    " f.title, c.reason as label_reason"
-                    " from public.defect_families f"
-                    " left join lateral ("
-                    "   select tc.reason from public.triage_corrections tc"
-                    "   where tc.family_id = f.id and tc.reason is not null and tc.reason <> ''"
-                    "   order by tc.corrected_at desc limit 1"
-                    " ) c on true"
-                    " where f.scope = 'org' and f.org_id = %s and f.centroid is not null"
-                    "   and f.centroid <=> %s < %s"
-                    " order by f.centroid <=> %s limit %s",
-                    (org_id, q, MAX_SEMANTIC_DISTANCE, q, k),
+                    "select * from ("
+                    "  select f.id, f.signature, f.label, f.root_cause, f.occurrence_count,"
+                    "   f.title, c.reason as label_reason,"
+                    "   f.centroid <=> %s as dist_errores,"
+                    "   case when c.reason_embedding is null then f.centroid <=> %s"
+                    "        else ((f.centroid <=> %s) + (c.reason_embedding <=> %s)) / 2 end as dist"
+                    "  from public.defect_families f"
+                    "  left join lateral ("
+                    "    select tc.reason, tc.reason_embedding from public.triage_corrections tc"
+                    "    where tc.family_id = f.id and tc.reason is not null and tc.reason <> ''"
+                    "    order by tc.corrected_at desc limit 1"
+                    "  ) c on true"
+                    "  where f.scope = 'org' and f.org_id = %s and f.centroid is not null"
+                    " ) ranked where dist < %s or dist_errores < %s"
+                    " order by dist limit %s",
+                    (q, q, q, q, org_id, MAX_SEMANTIC_DISTANCE, MAX_SEMANTIC_DISTANCE, k),
                 )
                 return [
                     {"family_id": str(r["id"]), "signature": r["signature"], "label": r["label"],
