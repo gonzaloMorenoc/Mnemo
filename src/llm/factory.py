@@ -16,14 +16,17 @@ _DEFAULT_MODELS = {
 def resolved_model_name() -> str:
     """Nombre del modelo LLM realmente en uso (mismo cálculo que get_llm_provider).
     En prod con Gemini vía OpenAI-compatible, LLM_MODEL viene fijado por env."""
-    provider = (config.LLM_PROVIDER or "ollama").strip().lower()
+    provider = (config.LLM_PROVIDER or "none").strip().lower()
     return config.LLM_MODEL or _DEFAULT_MODELS.get(provider, provider)
 
 
 def get_llm_provider() -> LLMProvider:
     """Construye el proveedor LLM segun la config de entorno (lazy clients)."""
-    provider = (config.LLM_PROVIDER or "ollama").strip().lower()
+    provider = (config.LLM_PROVIDER or "none").strip().lower()
     model = config.LLM_MODEL or _DEFAULT_MODELS.get(provider, "")
+    if provider == "none":
+        raise RuntimeError("LLM no configurado (LLM_PROVIDER=none): las funciones de IA "
+                           "degradan a su vía determinista")
     if provider == "ollama":
         return OllamaProvider(model=model, base_url=config.OLLAMA_BASE_URL)
     if provider in ("openai", "anthropic") and not config.ALLOW_EXTERNAL_LLM:
@@ -55,7 +58,7 @@ def llm_status(*, probe: bool = False) -> Dict[str, Any]:
       timeout/red). Solo se comprueba con `probe=True` (una llamada mínima), porque el
       keep-warm pega `/v2/health` cada 15 min y no queremos gastar cuota ahí.
     """
-    provider_name = (config.LLM_PROVIDER or "ollama").strip().lower()
+    provider_name = (config.LLM_PROVIDER or "none").strip().lower()
     model = resolved_model_name()
     try:
         provider = get_llm_provider()

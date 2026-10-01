@@ -6,7 +6,7 @@ def test_llm_config_defaults(monkeypatch):
         monkeypatch.delenv(k, raising=False)
     import src.config as config
     importlib.reload(config)
-    assert config.LLM_PROVIDER == "ollama"
+    assert config.LLM_PROVIDER == "none"  # sin configurar no se presupone un Ollama local
     assert config.LLM_MODEL == ""
     assert config.OPENAI_API_KEY == ""
     assert config.ANTHROPIC_API_KEY == ""
