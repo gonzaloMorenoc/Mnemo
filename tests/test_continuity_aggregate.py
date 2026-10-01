@@ -4,10 +4,21 @@ from src.continuity.index import _aggregate
 
 def test_agregacion_renormaliza_sin_denominador():
     dims = [
-        {"key": "a", "num": 1, "den": 2, "ratio": 0.5, "weight": 0.5},
-        {"key": "b", "num": 0, "den": 0, "ratio": None, "weight": 0.5},
+        {"key": "a", "num": 1, "den": 2, "ratio": 0.5, "weight": 0.4},
+        {"key": "b", "num": 1, "den": 1, "ratio": 1.0, "weight": 0.4},
+        {"key": "c", "num": 0, "den": 0, "ratio": None, "weight": 0.2},
     ]
-    assert _aggregate(dims) == 50  # b se excluye; a manda con todo el peso
+    assert _aggregate(dims) == 75  # c se excluye; a y b renormalizan sobre 0,8
+
+
+def test_una_sola_dimension_medible_no_da_indice():
+    # Con una sola dimensión, el «índice» sería esa dimensión disfrazada de nota
+    # global: cuatro notas de oficio en un proyecto sin runs daban 100.
+    dims = [
+        {"key": "oficio", "num": 4, "den": 4, "ratio": 1.0, "weight": 0.25},
+        {"key": "b", "num": 0, "den": 0, "ratio": None, "weight": 0.75},
+    ]
+    assert _aggregate(dims) is None
 
 
 def test_agregacion_sin_datos_devuelve_none():

@@ -25,6 +25,16 @@ LABELS = {"memoria_defectos": "Memoria de defectos",
 
 OFICIO_KINDS = ("runbook", "dato_prueba", "contacto", "decision")
 
+# Calidad mínima para contar (el índice no puede inflarse con notas vacías):
+#  - una razón de etiqueta explica algo a partir de ~20 caracteres («prueba» no);
+#  - un tipo de oficio cuenta si al menos un item tiene contenido (reto o enfoque),
+#    no solo un título;
+#  - con menos de 2 dimensiones medibles no hay índice: sería una dimensión
+#    disfrazada de nota global (4 notas de oficio en un proyecto sin runs daban 100).
+MIN_RAZON_CHARS = 20
+MIN_CONTENIDO_CHARS = 40
+MIN_DIMENSIONES_MEDIBLES = 2
+
 # Valor por defecto de defect_families.label: la familia existe pero nadie la ha
 # triado todavía. No cuenta como etiqueta humana.
 UNLABELED = "unknown"
@@ -38,7 +48,7 @@ _Q_FAMILIAS = """
                      and k.status = 'activo') as con_conocimiento,
            exists (select 1 from public.triage_corrections tc
                    where tc.family_id = df.id
-                     and tc.reason is not null and tc.reason <> '') as con_razon
+                     and length(btrim(coalesce(tc.reason, ''))) >= %(min_razon)s) as con_razon
     from public.defect_families df
     where df.scope = 'org' and df.org_id = %(org)s
       and exists (select 1 from public.failures fl
@@ -48,7 +58,10 @@ _Q_FAMILIAS = """
 """
 
 _Q_KINDS = """
-    select kind, count(*) as n from public.qa_knowledge
+    select kind, count(*) as n,
+           count(*) filter (where length(btrim(coalesce(challenge, '') || coalesce(approach, '')))
+                                  >= %(min_contenido)s) as con_contenido
+    from public.qa_knowledge
     where org_id = %(org)s and project = %(proj)s and status = 'activo'
     group by kind
 """
@@ -96,6 +109,8 @@ def _aggregate(dimensions: List[Dict[str, Any]]) -> Optional[int]:
     """Media ponderada sobre las dimensiones CON denominador; sin ninguna → None
     («sin datos suficientes»), nunca un 0 ni un 100 inventados."""
     usables = [d for d in dimensions if d["den"] > 0]
+    if len(usables) < MIN_DIMENSIONES_MEDIBLES:
+        return None
     total = sum(d["weight"] for d in usables)
     if total == 0:
         return None
@@ -124,14 +139,17 @@ def compute_index(*, user_id: str, org_id: str, project: str) -> Optional[Dict[s
     número (por eso puede ir dentro de un acta firmada)."""
     from src.knowledge.repository import KINDS  # import local: evita un ciclo
 
-    params = {"org": org_id, "proj": project}
+    params = {"org": org_id, "proj": project, "min_razon": MIN_RAZON_CHARS,
+              "min_contenido": MIN_CONTENIDO_CHARS}
     with get_pool().connection() as conn, conn.cursor() as cur:
         if not _is_member(cur, org_id, user_id):
             return None
         cur.execute(_Q_FAMILIAS, params)
         fams = cur.fetchall()
         cur.execute(_Q_KINDS, params)
-        por_kind = {r["kind"]: r["n"] for r in cur.fetchall()}
+        kinds_rows = cur.fetchall()
+        por_kind = {r["kind"]: r["n"] for r in kinds_rows}
+        con_contenido = {r["kind"]: r["con_contenido"] for r in kinds_rows}
         cur.execute(_Q_REGLAS, params)
         reglas = cur.fetchone()
         cur.execute(_Q_DOMINIOS, params)
@@ -149,7 +167,7 @@ def compute_index(*, user_id: str, org_id: str, project: str) -> Optional[Dict[s
         _dim("razon_etiquetas",
              sum(1 for f in etiquetadas if f["con_razon"]), len(etiquetadas)),
         _dim("oficio",
-             sum(1 for k in OFICIO_KINDS if por_kind.get(k, 0) > 0), len(OFICIO_KINDS)),
+             sum(1 for k in OFICIO_KINDS if con_contenido.get(k, 0) > 0), len(OFICIO_KINDS)),
         _dim("reglas_respaldadas", reglas["num"], reglas["den"]),
     ]
     return {

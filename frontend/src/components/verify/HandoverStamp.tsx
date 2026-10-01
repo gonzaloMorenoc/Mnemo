@@ -30,6 +30,11 @@ export function HandoverStamp({ canonical }: { canonical: Record<string, unknown
     ? (continuity.dimensions as Dimension[])
     : [];
   const fecha = str(canonical.created_at);
+  // v2: quién se va / quién llega y la huella del contenido depositado (firmados).
+  const traspaso = (canonical.traspaso ?? {}) as Record<string, unknown>;
+  const de = str(traspaso.de);
+  const para = str(traspaso.para);
+  const contenido = (canonical.contenido ?? null) as { n?: number; sha256?: string } | null;
 
   return (
     // Entra «estampándose» (~300 ms): el momento en que el acta se da por buena.
@@ -65,6 +70,21 @@ export function HandoverStamp({ canonical }: { canonical: Record<string, unknown
           {conRaya(str(canonical.project))}
         </span>
       </div>
+
+      {(de || para) && (
+        <p className="mt-3 text-sm text-zinc-700">
+          Se va <strong className="font-semibold text-zinc-900">{conRaya(de)}</strong>
+          {" · "}llega <strong className="font-semibold text-zinc-900">{conRaya(para)}</strong>
+        </p>
+      )}
+
+      {contenido && typeof contenido.n === "number" && (
+        <p className="mt-2 text-sm text-zinc-700">
+          {contenido.n} elementos de conocimiento depositados, con su huella firmada{" "}
+          <span className="font-mono text-xs text-zinc-500">{str(contenido.sha256).slice(0, 12)}…</span>
+          . Si se cambia o borra uno solo, la huella deja de coincidir.
+        </p>
+      )}
 
       {dimensions.length > 0 && (
         <ul className="mt-3 space-y-1 text-sm text-zinc-600">

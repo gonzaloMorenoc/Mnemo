@@ -29,6 +29,17 @@ def _parse_json(raw: Any) -> Optional[Dict[str, Any]]:
     return parsed if isinstance(parsed, dict) else None
 
 
+def _format_instruction(schema: Dict[str, Any]) -> str:
+    """Exige el formato al final del prompt. Sin esto, modelos como gpt-oss (Groq)
+    responden en prosa y la respuesta, buena, se descarta como no parseable."""
+    keys = ", ".join(f'"{k}"' for k in schema)
+    texto = ("Devuelve SOLO un objeto JSON válido, sin texto antes ni después ni bloques "
+             f"de código, con exactamente estas claves: {keys}.")
+    if "citations" in schema:
+        texto += " Los ids citados van en \"citations\", no dentro del texto."
+    return texto
+
+
 def generate_structured(*, prompt: str, context: List[Dict[str, Any]], schema: Dict[str, Any],
                         provider=None, on_failure: str = "fallback") -> Optional[Dict[str, Any]]:
     """Genera JSON estructurado con el provider híbrido; degrada según on_failure
@@ -43,7 +54,8 @@ def generate_structured(*, prompt: str, context: List[Dict[str, Any]], schema: D
         except Exception as exc:  # noqa: BLE001 — sin provider → degrada, pero se loguea
             logger.warning("LLM no configurado (generate_structured degrada): %s", exc)
             return _fail()
-    full = f"{prompt}\n\nContext snippets:\n{_build_context_block(context)}"
+    full = (f"{prompt}\n\nContext snippets:\n{_build_context_block(context)}"
+            f"\n\n{_format_instruction(schema)}")
     try:
         raw = provider.complete(full)
     except Exception as exc:  # noqa: BLE001 — LLM caído → degrada, pero se loguea

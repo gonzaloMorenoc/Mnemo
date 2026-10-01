@@ -26,12 +26,13 @@ if TYPE_CHECKING:
 from src.certify.gate import GateService
 from src.certify.repository import CertificateRepository
 from src.certify.render import render_html, render_pdf
-from src.certify.service import CertificateService
+from src.certify.service import CertificateService, parse_public_keys
 from src.certify.signing import SigningKeyMissing, canonical_json, verify
 from src.config import (CI_MAX_BODY_BYTES, CI_SERVICE_ORG_ID, CI_SERVICE_USER_ID,
                         CI_WEBHOOK_SECRET, INGEST_MAX_BYTES, LLM_MODEL,
                         MNEMO_PUBLIC_APP_URL, MNEMO_SIGNING_PRIVATE_KEY,
-                        MNEMO_SIGNING_PUBLIC_KEY, MNEMO_VERSION, multi_tenant_enabled)
+                        MNEMO_SIGNING_PUBLIC_KEY, MNEMO_SIGNING_RETIRED_PUBLIC_KEYS,
+                        MNEMO_VERSION, multi_tenant_enabled)
 from src.actions.ai_repair import AIRepairActuator
 from src.actions.quarantine import QuarantineActuator
 from src.actions.repository import ActionRepository
@@ -383,6 +384,7 @@ def get_certificate_service() -> CertificateService:
             private_key=MNEMO_SIGNING_PRIVATE_KEY, public_key=MNEMO_SIGNING_PUBLIC_KEY,
             mnemo_version=MNEMO_VERSION, model_version=LLM_MODEL or "unknown",
             llm_provider=_llm,
+            retired_public_keys=parse_public_keys(MNEMO_SIGNING_RETIRED_PUBLIC_KEYS),
         )
     return _certificate_service
 
@@ -1363,7 +1365,9 @@ def emit_handover_v2(
     created_at = datetime.now(timezone.utc).isoformat()
     try:
         return service.emit_handover(user_id=user.user_id, org_id=req.org_id,
-                                     project=req.project, created_at=created_at)
+                                     project=req.project, created_at=created_at,
+                                     de=(req.de or "").strip() or None,
+                                     para=(req.para or "").strip() or None)
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except SigningKeyMissing as exc:

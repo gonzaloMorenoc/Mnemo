@@ -1,4 +1,5 @@
-from typing import Any, Dict, Optional
+import re
+from typing import Any, Dict, List, Optional, Sequence
 
 from src.certify.certificate import build_certificate, compute_self_eval
 from src.certify.share import share_blob
@@ -6,15 +7,34 @@ from src.certify.signing import canonical_json, key_id, sign
 from src.ai.judge import compute_ai_eval
 
 
+_PEM = re.compile(r"-----BEGIN PUBLIC KEY-----.+?-----END PUBLIC KEY-----", re.S)
+
+
+def parse_public_keys(text: str) -> List[str]:
+    """Varias claves públicas PEM pegadas en una sola variable de entorno."""
+    return [m.group(0).strip() for m in _PEM.finditer(text or "")]
+
+
+def _key_id_de(cert: Dict[str, Any]) -> str:
+    """El key_id que va DENTRO del acta firmada (release: identity.key_id; traspaso:
+    key_id en la raíz)."""
+    identidad = cert.get("identity") if isinstance(cert.get("identity"), dict) else {}
+    return str(identidad.get("key_id") or cert.get("key_id") or "")
+
+
 class CertificateService:
     """Genera y recupera Release Assurance Certificates. Determinista; firma Ed25519."""
 
     def __init__(self, *, repo, cert_repo, private_key: str, public_key: str,
-                 mnemo_version: str, model_version: str, llm_provider=None):
+                 mnemo_version: str, model_version: str, llm_provider=None,
+                 retired_public_keys: Sequence[str] = ()):
         self.repo = repo               # AssuranceRepository (get_triage_for_run)
         self.cert_repo = cert_repo     # CertificateRepository
         self._private_key = private_key
         self._public_key = public_key
+        # Anillo de claves: la actual + las retiradas, indexadas por key_id. Rotar la
+        # clave ya no invalida las actas emitidas con la anterior.
+        self._keyring = {key_id(k): k for k in [*retired_public_keys, public_key] if k}
         self._mnemo_version = mnemo_version
         self._model_version = model_version
         self._llm_provider = llm_provider
@@ -72,5 +92,9 @@ class CertificateService:
         return {**cert, "share": share_blob(cert["canonical_json"], cert["signature"])}
 
     def verify_payload(self, *, cert: Dict[str, Any], signature: str) -> bool:
+        """Verifica con la clave cuyo key_id declara el acta (la actual o una
+        retirada). El key_id va firmado: cambiarlo para elegir otra clave rompe la
+        firma. Sin key_id conocido, se prueba la clave actual."""
         from src.certify.signing import verify as _verify
-        return _verify(canonical_json(cert), signature, self._public_key)
+        clave = self._keyring.get(_key_id_de(cert), self._public_key)
+        return _verify(canonical_json(cert), signature, clave)

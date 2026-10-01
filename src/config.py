@@ -72,6 +72,9 @@ GITHUB_APP_PRIVATE_KEY = os.getenv("GITHUB_APP_PRIVATE_KEY", "")
 MNEMO_VERSION = "0.4.0"
 MNEMO_SIGNING_PRIVATE_KEY = os.getenv("MNEMO_SIGNING_PRIVATE_KEY", "")
 MNEMO_SIGNING_PUBLIC_KEY = os.getenv("MNEMO_SIGNING_PUBLIC_KEY", "")
+# Claves públicas RETIRADAS (varios PEM seguidos): las actas firmadas con ellas siguen
+# verificando tras una rotación. Al rotar, mover aquí la pública saliente.
+MNEMO_SIGNING_RETIRED_PUBLIC_KEYS = os.getenv("MNEMO_SIGNING_RETIRED_PUBLIC_KEYS", "")
 
 # URL pública del frontend (para el pie "verificable en …" del acta en PDF).
 # Vacía = el acta no imprime host: nunca una URL inventada en un documento.

@@ -215,9 +215,12 @@ class CertificateResponse(BaseModel):
 
 
 class HandoverEmitRequest(BaseModel):
-    """Emisión de un acta de traspaso: el proyecto cuyo conocimiento se certifica."""
+    """Emisión de un acta de traspaso: el proyecto cuyo conocimiento se certifica y,
+    opcionalmente, quién se va y quién llega (van firmados dentro del acta)."""
     org_id: str
     project: str = Field(min_length=1, max_length=200)
+    de: Optional[str] = Field(default=None, max_length=120)
+    para: Optional[str] = Field(default=None, max_length=120)
 
 
 class CertificateVerifyRequest(BaseModel):

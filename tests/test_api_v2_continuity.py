@@ -70,6 +70,25 @@ def test_emitir_feliz(monkeypatch):
     assert kwargs["created_at"].endswith("+00:00")
 
 
+def test_emitir_pasa_quien_se_va_y_quien_llega(monkeypatch):
+    svc = MagicMock()
+    svc.emit_handover.return_value = {"canonical_json": {}, "signature": "s", "share": "b",
+                                      "score": 50, "created_at": "2026-10-01T10:00:00Z"}
+    client = make_client(monkeypatch, svc=svc)
+    r = client.post("/v2/continuity/handover",
+                    json={"org_id": "o1", "project": "checkout", "de": "María", "para": "Pablo"})
+    assert r.status_code == 200
+    kwargs = svc.emit_handover.call_args.kwargs
+    assert kwargs["de"] == "María" and kwargs["para"] == "Pablo"
+
+
+def test_emitir_rechaza_un_de_desmesurado(monkeypatch):
+    client = make_client(monkeypatch, svc=MagicMock())
+    r = client.post("/v2/continuity/handover",
+                    json={"org_id": "o1", "project": "checkout", "de": "x" * 500})
+    assert r.status_code == 422
+
+
 def test_emitir_sin_admin_403(monkeypatch):
     svc = MagicMock()
     svc.emit_handover.side_effect = PermissionError("requiere owner/admin")

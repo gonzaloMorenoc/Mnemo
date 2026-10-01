@@ -206,6 +206,8 @@ export interface HandoverAct {
   share: string;
   score: number | null;
   created_at: string;
+  /** ¿Sigue intacto lo depositado? null en actas v1 (no firmaban contenido). */
+  integridad?: { intacto: boolean; n_acta: number; n_actual: number | null } | null;
 }
 
 export interface KnowledgeImportResult {

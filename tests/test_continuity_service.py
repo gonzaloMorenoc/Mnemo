@@ -114,7 +114,10 @@ _IDX = {"score": 42,
         "inventario": {"familias": 3}}
 
 
-def _service(admin=True, projects=("checkout-suite",)):
+_DEPOSITO = {"n": 3, "sha256": "a" * 64, "por_tipo": {"runbook": 2, "razon_etiqueta": 1}}
+
+
+def _service(admin=True, projects=("checkout-suite",), deposito=_DEPOSITO):
     priv, pub = _keys()
     repo = MagicMock()
     repo.is_org_admin.return_value = admin
@@ -122,7 +125,8 @@ def _service(admin=True, projects=("checkout-suite",)):
     svc = ContinuityService(repo=repo, private_key=priv, public_key=pub,
                             mnemo_version="test",
                             index_fn=lambda **kw: _IDX,
-                            projects_fn=lambda **kw: list(projects))
+                            projects_fn=lambda **kw: list(projects),
+                            deposit_fn=lambda **kw: deposito)
     return svc, repo, pub
 
 
@@ -131,7 +135,7 @@ def test_emitir_firma_y_verifica():
     out = svc.emit_handover(user_id="u", org_id="o", project="checkout-suite",
                             created_at="2026-08-13T10:00:00Z")
     cj = out["canonical_json"]
-    assert cj["schema"] == "mnemo.traspaso.v1"
+    assert cj["schema"] == "mnemo.traspaso.v2"
     assert cj["continuity"]["score"] == 42
     assert cj["emitted_by"] == "u"
     assert sig_verify(canonical_json(cj), out["signature"], pub) is True
@@ -184,3 +188,52 @@ def test_latest_sin_acta_none():
     svc, repo, _ = _service()
     repo.latest_act.return_value = None
     assert svc.latest_handover(user_id="u", org_id="o", project="p") is None
+
+
+def test_el_acta_firma_la_huella_de_lo_depositado_y_quien_se_va_y_llega():
+    # Antes firmaba solo recuentos: si se borraba la memoria, el acta seguía igual.
+    svc, _, pub = _service()
+    out = svc.emit_handover(user_id="u", org_id="o", project="checkout-suite",
+                            created_at="2026-10-01T10:00:00Z",
+                            de="María (QA senior)", para="Pablo")
+    cj = out["canonical_json"]
+    assert cj["contenido"] == _DEPOSITO
+    assert cj["traspaso"] == {"de": "María (QA senior)", "para": "Pablo"}
+    assert sig_verify(canonical_json(cj), out["signature"], pub) is True
+    assert out["share"] != ""   # sigue cabiendo en un enlace
+
+
+def test_de_y_para_son_opcionales():
+    svc, _, _ = _service()
+    out = svc.emit_handover(user_id="u", org_id="o", project="checkout-suite",
+                            created_at="2026-10-01T10:00:00Z")
+    assert out["canonical_json"]["traspaso"] == {"de": None, "para": None}
+
+
+def test_latest_dice_si_lo_depositado_sigue_intacto():
+    svc, repo, _ = _service()
+    repo.latest_act.return_value = {
+        "canonical_json": {"schema": "mnemo.traspaso.v2", "contenido": _DEPOSITO},
+        "signature": "sig", "score": 42, "project": "checkout-suite",
+        "created_at": "2026-10-01T10:00:00Z"}
+    out = svc.latest_handover(user_id="u", org_id="o", project="checkout-suite")
+    assert out["integridad"] == {"intacto": True, "n_acta": 3, "n_actual": 3}
+
+
+def test_latest_detecta_que_la_memoria_cambio_desde_el_acta():
+    # «¿Y si borro la memoria mañana?» → Mnemo lo detecta al recalcular la huella.
+    svc, repo, _ = _service(deposito={"n": 2, "sha256": "b" * 64, "por_tipo": {"runbook": 2}})
+    repo.latest_act.return_value = {
+        "canonical_json": {"schema": "mnemo.traspaso.v2", "contenido": _DEPOSITO},
+        "signature": "sig", "score": 42, "project": "checkout-suite",
+        "created_at": "2026-10-01T10:00:00Z"}
+    out = svc.latest_handover(user_id="u", org_id="o", project="checkout-suite")
+    assert out["integridad"] == {"intacto": False, "n_acta": 3, "n_actual": 2}
+
+
+def test_un_acta_v1_sin_huella_no_tiene_integridad_que_comprobar():
+    svc, repo, _ = _service()
+    repo.latest_act.return_value = {
+        "canonical_json": {"schema": "mnemo.traspaso.v1"}, "signature": "sig",
+        "score": 42, "project": "checkout-suite", "created_at": "2026-08-13T10:00:00Z"}
+    assert svc.latest_handover(user_id="u", org_id="o", project="checkout-suite")["integridad"] is None

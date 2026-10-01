@@ -30,7 +30,8 @@ El seed (`src/demo/seed.py`) ya está aplicado en producción:
 - **Escenario María→Pablo** (`src/demo/seed_continuity.py`, idempotente por título): el
   oficio de `checkout-suite` (runbooks, datos de prueba, contactos, decisiones, lección
   del PSP) + la riqueza semanal (`seed_riqueza.py`) que deja el arco del índice:
-  `checkout-suite`=95 frente a `banca-movil`=25.
+  `checkout-suite`=85 frente a `banca-movil`=25. La memoria de defectos de checkout
+  (familias recurrentes con su lección) la siembra `src/demo/seed_recurrencia.py`.
 - Actas firmadas con la clave de producción → verifican en la página pública `/verify`.
 
 Para re-sembrar desde cero: borrar las dos orgs (SQL en §1f) y ejecutar el seed **con
@@ -105,7 +106,7 @@ Secrets/variables que deben existir en el host del backend (ver `docs/deploy/pro
 - [ ] `/v2/health` → `llm.configured: true` (el Acto 3 lo usa; sin él degrada a fuentes).
 - [ ] Login en el frontend: el selector muestra **solo** las orgs de demo (retirar
       cualquier org de pruebas de la cuenta antes del día).
-- [ ] **Acto 1**: `/app/continuity?project=checkout-suite` = 95 y `banca-movil` = 25 (si no, ver la
+- [ ] **Acto 1**: `/app/continuity?project=checkout-suite` = 85 y `banca-movil` = 25 (si no, ver la
       riqueza en §1f: `arc_ok`).
 - [ ] **Acto 2**: «Emitir acta de traspaso» de `checkout-suite` ensayado la víspera (queda
       como `handover/latest` para el plan B) y sus dos enlaces probados en una ventana sin
@@ -117,7 +118,7 @@ Secrets/variables que deben existir en el host del backend (ver `docs/deploy/pro
       veredictos y su acta.
 - [ ] (Opcional) terminal con el push en vivo preparado (`prod.local.md`). **Hacerlo después
       del Acto 2**: `fresh_push.json` mete un fallo en `checkout-suite` y puede mover su
-      índice. Si se ensaya antes, comprobar de nuevo el 95.
+      índice. Si se ensaya antes, comprobar de nuevo el 85.
 - [ ] Runs de ensayos anteriores podados (§1f) si se quiere la org limpia.
 
 ### 1f. Mantenimiento de los datos de demo
@@ -137,7 +138,7 @@ delete from public.organizations
   Es idempotente por semana (`run_uid` `riqueza-…`, a salvo de la poda de arriba, que
   solo toca `demo-%`): añade solo las semanas que falten desde la última vez, y termina
   verificando el arco del índice (Actos 1-2) — el resultado debe incluir `arc_ok: True`
-  (checkout-suite=95 y banca-movil=25).
+  (checkout-suite=85 y banca-movil=25).
 - **Actas de los runs semanales**: la riqueza también emite el acta (triaje del motor
   + veredicto firmado) de cada run de la org que no la tenga — sin ella el dashboard
   muestra «sin veredicto aún». Requiere `MNEMO_SIGNING_PRIVATE_KEY`/`_PUBLIC_KEY` de

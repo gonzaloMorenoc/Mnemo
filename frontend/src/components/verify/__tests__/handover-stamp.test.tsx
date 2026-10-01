@@ -48,4 +48,27 @@ describe("HandoverStamp", () => {
     render(<HandoverStamp canonical={{ schema: "mnemo.traspaso.v1" }} />);
     expect(screen.getAllByText("—").length).toBeGreaterThan(0);
   });
+
+  it("v2: dice quién se va, quién llega y cuánto contenido quedó firmado", () => {
+    render(
+      <HandoverStamp
+        canonical={{
+          ...CANONICAL,
+          schema: "mnemo.traspaso.v2",
+          traspaso: { de: "María (QA senior)", para: "Pablo" },
+          contenido: { n: 23, sha256: "ab12cd34".padEnd(64, "0"), por_tipo: { runbook: 2 } },
+        }}
+      />,
+    );
+    expect(screen.getByText("María (QA senior)")).toBeInTheDocument();
+    expect(screen.getByText("Pablo")).toBeInTheDocument();
+    expect(screen.getByText(/23 elementos de conocimiento/)).toBeInTheDocument();
+    expect(screen.getByText(/ab12cd34/)).toBeInTheDocument();
+  });
+
+  it("v1 (sin traspaso ni contenido) se sigue pintando sin huecos", () => {
+    render(<HandoverStamp canonical={CANONICAL} />);
+    expect(screen.queryByText(/elementos de conocimiento/)).toBeNull();
+    expect(screen.queryByText(/Se va/)).toBeNull();
+  });
 });
