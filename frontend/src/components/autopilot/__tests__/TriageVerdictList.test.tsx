@@ -46,6 +46,18 @@ describe("TriageVerdictList", () => {
     expect(screen.getByText("requiere aprobación")).toBeInTheDocument();
   });
 
+  it("cada fallo se identifica por su test y su error, no por un trozo de UUID", async () => {
+    (getTriageVerdicts as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: "v1", failure_id: "a26e7dfe-0000-0000-0000-000000000000", category: "real", confidence: 0.85,
+        rule_applied: "R4_real_recurrent", requires_approval: false, llm_assisted: false, status: "resolved",
+        test_name: "test_aplicar_cupon_descuento", message: "expected total 84.15 but got 99.00" },
+    ]);
+    renderWithClient(<TriageVerdictList runId="r1" />);
+    expect(await screen.findByText("test_aplicar_cupon_descuento")).toBeInTheDocument();
+    expect(screen.getByText("expected total 84.15 but got 99.00")).toBeInTheDocument();
+    expect(screen.queryByText(/a26e7dfe/)).not.toBeInTheDocument();
+  });
+
   it("muestra etiquetas humanas para todas las categorías en la leyenda de colores", async () => {
     (getTriageVerdicts as ReturnType<typeof vi.fn>).mockResolvedValue([]);
     renderWithClient(<TriageVerdictList runId="r1" />);

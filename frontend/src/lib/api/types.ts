@@ -113,6 +113,9 @@ export interface TriageVerdict {
   llm_assisted: boolean;
   status: string;
   evidence_bundle?: Record<string, unknown> | null;
+  /** Qué test falló y un extracto del error (backend ≥ ux-errores). */
+  test_name?: string | null;
+  message?: string | null;
 }
 
 export interface ActionItem {

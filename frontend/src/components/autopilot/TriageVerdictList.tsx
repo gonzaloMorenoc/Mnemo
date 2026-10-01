@@ -41,7 +41,7 @@ export function TriageVerdictList({ runId }: { runId: string }) {
         <h2 className="text-sm font-medium text-zinc-700">Veredictos de triaje</h2>
         <InfoTooltip term="triaje" />
       </div>
-      <p className="text-xs text-zinc-400">Paso 1 — qué dice el motor de cada fallo.</p>
+      <p className="text-xs text-zinc-500">Paso 1 — qué dice el motor de cada fallo.</p>
       {/* Leyenda de colores (paleta única de category-badge: el color ES información) */}
       <div className="flex flex-wrap gap-2 text-xs">
         {Object.keys(CATEGORY_STYLE).map((cat) => (
@@ -56,7 +56,16 @@ export function TriageVerdictList({ runId }: { runId: string }) {
         <ul className="space-y-2">
           {verdicts.map((v) => (
             <li key={v.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm">
-              <span className="font-mono text-xs text-zinc-500">fallo {v.failure_id.slice(0, 8)}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-mono text-xs font-medium text-zinc-800">
+                  {v.test_name || `fallo ${v.failure_id.slice(0, 8)}`}
+                </span>
+                {v.message && (
+                  <span className="block truncate text-xs text-zinc-500" title={v.message}>
+                    {v.message}
+                  </span>
+                )}
+              </span>
               <span className="flex flex-wrap items-center gap-2">
                 <CategoryBadge category={v.category} />
                 <span className="text-zinc-500">confianza {(v.confidence * 100).toFixed(0)}%</span>

@@ -155,6 +155,9 @@ def test_save_and_get_triage_verdicts_idempotent(repo, org):
     assert len(got) == 1
     assert got[0]["category"] == "real" and got[0]["confidence"] == 0.9
     assert got[0]["evidence_bundle"] == {"k": "v"}
+    # Qué test falló y con qué: la UI enseñaba «fallo a26e7dfe» (un trozo de UUID).
+    assert got[0]["test_name"] == "t1"
+    assert got[0]["message"].startswith("TimeoutError")
 
 
 def test_save_triage_verdicts_rejects_non_member(repo, org):
