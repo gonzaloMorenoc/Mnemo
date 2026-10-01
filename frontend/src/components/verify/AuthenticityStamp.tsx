@@ -1,3 +1,4 @@
+import { motion } from "framer-motion";
 import { ShieldCheck } from "lucide-react";
 import { fechaActa, refCommit } from "@/lib/acta-format";
 
@@ -23,7 +24,14 @@ export function AuthenticityStamp({ canonical }: { canonical: Record<string, unk
   const conRaya = (v: string) => (v.length > 0 ? v : "—");
 
   return (
-    <div className="rounded-xl border-2 border-primary/30 bg-primary/[0.04] p-6">
+    // Entra «estampándose» (~300 ms): el momento en que el acta se da por buena.
+    // MotionConfig reducedMotion="user" (AppProviders) lo anula si se pide.
+    <motion.div
+      initial={{ opacity: 0, scale: 1.06, rotate: -1.5 }}
+      animate={{ opacity: 1, scale: 1, rotate: 0 }}
+      transition={{ type: "spring", stiffness: 420, damping: 26 }}
+      className="rounded-xl border-2 border-primary/30 bg-primary/[0.04] p-6"
+    >
       <div className="flex items-center gap-2 text-primary">
         <ShieldCheck className="h-6 w-6" />
         <span className="text-lg font-semibold">Acta auténtica · firmada · íntegra</span>
@@ -68,6 +76,6 @@ export function AuthenticityStamp({ canonical }: { canonical: Record<string, unk
           </div>
         ) : null}
       </dl>
-    </div>
+    </motion.div>
   );
 }
