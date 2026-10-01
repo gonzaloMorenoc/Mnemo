@@ -22,7 +22,7 @@ export function OrgSwitcher() {
         aria-label={`${orgs[0].name} — gestionar organización`}
         className="flex min-w-0 items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100 hover:text-zinc-900"
       >
-        <Building2 size={14} className="shrink-0 text-zinc-400" />
+        <Building2 size={14} className="shrink-0 text-zinc-500" />
         <span className="max-w-[35vw] truncate">{orgs[0].name}</span>
       </Link>
     );

@@ -138,7 +138,7 @@ export default function OnboardingPage() {
           </div>
           {domains.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-xs text-zinc-400">Dominios del proyecto:</span>
+              <span className="text-xs text-zinc-500">Dominios del proyecto:</span>
               {domains.map((d) => (
                 <button
                   key={d}
@@ -166,7 +166,7 @@ export default function OnboardingPage() {
               {pathMutation.isPending ? "Generando ruta…" : "Ruta de aprendizaje"}
             </Button>
           </div>
-          <p className="text-xs text-zinc-400">
+          <p className="text-xs text-zinc-500">
             Ambos se generan con IA a partir de la memoria del equipo y citan sus fuentes.
           </p>
         </CardContent>

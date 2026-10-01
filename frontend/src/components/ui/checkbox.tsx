@@ -11,7 +11,7 @@ export function Checkbox({ className, label, hint, ...props }: CheckboxProps) {
       <input
         type="checkbox"
         className={cn(
-          "mt-1 h-4 w-4 rounded border-zinc-300 accent-primary focus:ring-primary/30",
+          "mt-1 h-4 w-4 rounded border-zinc-300 accent-primary focus:ring-primary/60",
           className,
         )}
         {...props}

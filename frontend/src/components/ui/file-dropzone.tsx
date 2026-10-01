@@ -90,13 +90,13 @@ export function FileDropzone({
         <div className="flex w-full items-center gap-2 text-zinc-800">
           <FileText size={16} className="shrink-0 text-zinc-500" />
           <span className="truncate font-medium">{file.name}</span>
-          <span className="text-xs text-zinc-400">
+          <span className="text-xs text-zinc-500">
             {(file.size / 1024).toFixed(0)} KB
           </span>
           <button
             type="button"
             aria-label="Quitar archivo"
-            className="ml-auto rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
+            className="ml-auto rounded p-1 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
             onClick={(e) => {
               e.stopPropagation();
               if (inputRef.current) inputRef.current.value = "";
@@ -108,14 +108,14 @@ export function FileDropzone({
         </div>
       ) : (
         <div className="flex flex-col items-center gap-1 text-zinc-500">
-          <UploadCloud size={20} className="text-zinc-400" />
+          <UploadCloud size={20} className="text-zinc-500" />
           <span>
             Arrastra el archivo aquí o <span className="font-medium text-zinc-800">haz clic para elegirlo</span>
           </span>
           {rejected ? (
             <span className="text-xs text-red-600">{rejected}</span>
           ) : (
-            hint && <span className="text-xs text-zinc-400">{hint}</span>
+            hint && <span className="text-xs text-zinc-500">{hint}</span>
           )}
         </div>
       )}

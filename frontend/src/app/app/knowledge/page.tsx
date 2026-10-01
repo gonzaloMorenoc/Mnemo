@@ -226,7 +226,7 @@ export default function KnowledgePage() {
                   value={form.domain}
                   onChange={(e) => handleFormChange("domain", e.target.value)}
                 />
-                <p className="text-xs text-zinc-400">
+                <p className="text-xs text-zinc-500">
                   Área funcional (el grafo y el onboarding se organizan por dominio);
                   el proyecto es el cliente/encargo; las etiquetas son libres.
                 </p>

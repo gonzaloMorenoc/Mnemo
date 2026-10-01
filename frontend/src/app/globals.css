@@ -78,3 +78,12 @@ body {
 .react-flow__node.node-dimmed {
   opacity: 0.3;
 }
+
+/* Quien pide menos movimiento al sistema no ve pulsos ni transiciones. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

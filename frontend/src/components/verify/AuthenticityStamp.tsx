@@ -1,4 +1,5 @@
 import { ShieldCheck } from "lucide-react";
+import { fechaActa, refCommit } from "@/lib/acta-format";
 
 import { VerdictBadge } from "@/components/ui/verdict-badge";
 import type { ExecutionManifest } from "@/lib/api/types";
@@ -55,12 +56,12 @@ export function AuthenticityStamp({ canonical }: { canonical: Record<string, unk
       <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-1 text-xs text-zinc-500 sm:grid-cols-2">
         <div>
           commit{" "}
-          <span className="font-mono">{conRaya(str(identity.commit_sha).slice(0, 12))}</span>
+          <span className="font-mono">{conRaya(refCommit(str(identity.commit_sha)))}</span>
         </div>
         <div>
           run <span className="font-mono break-all">{conRaya(str(identity.run_id))}</span>
         </div>
-        <div>emitida {conRaya(str(identity.created_at))}</div>
+        <div>emitida el {conRaya(fechaActa(str(identity.created_at)))}</div>
         {keyId ? (
           <div>
             firmada con la clave <span className="font-mono">{keyId}</span>

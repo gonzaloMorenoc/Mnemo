@@ -26,7 +26,7 @@ export function SidebarNav({ mobile = false, onClose }: SidebarNavProps) {
           <span className="font-semibold tracking-tight text-zinc-900">Mnemo</span>
         </Link>
         {mobile && (
-          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close menu">
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar menú">
             <X size={16} />
           </Button>
         )}
@@ -36,7 +36,7 @@ export function SidebarNav({ mobile = false, onClose }: SidebarNavProps) {
         {NAV_SECTIONS.map((section, i) => (
           <div key={section.title ?? `untitled-${i}`} className="space-y-1">
             {section.title && (
-              <p className="px-3 pt-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
+              <p className="px-3 pt-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
                 {section.title}
               </p>
             )}
@@ -48,8 +48,9 @@ export function SidebarNav({ mobile = false, onClose }: SidebarNavProps) {
                   key={item.href}
                   href={item.href}
                   onClick={onClose}
+                  aria-current={active ? "page" : undefined}
                   className={cn(
-                    "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition",
+                    "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2",
                     active
                       ? "bg-primary text-white"
                       : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900",
@@ -65,7 +66,7 @@ export function SidebarNav({ mobile = false, onClose }: SidebarNavProps) {
       </nav>
 
       <p className="mt-auto px-5 py-4 text-xs text-zinc-500">
-        Mnemo · QA Memory
+        Mnemo · Memoria de QA
       </p>
     </div>
   );

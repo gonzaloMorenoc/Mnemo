@@ -32,7 +32,7 @@ export function KnowledgeGraphView({ graph, onNodeClick }: Props) {
 
   if (graph.nodes.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center text-muted-foreground">
+      <div className="flex h-full items-center justify-center text-zinc-500">
         sin datos
       </div>
     );
@@ -87,7 +87,10 @@ export function KnowledgeGraphView({ graph, onNodeClick }: Props) {
       >
         {selectedLabel ? `Nodo seleccionado: ${selectedLabel}` : ""}
       </span>
-      <ReactFlow nodes={nodes} edges={edges} fitView onNodeClick={handleNodeClick}>
+      {/* minZoom bajo: con decenas de nodos el anillo mide miles de px y, con el
+          mínimo por defecto (0,5), fitView no podía encuadrarlo (solo se veían líneas). */}
+      <ReactFlow nodes={nodes} edges={edges} fitView minZoom={0.05}
+                 fitViewOptions={{ padding: 0.1 }} onNodeClick={handleNodeClick}>
         <Background />
         <Controls />
       </ReactFlow>

@@ -127,7 +127,7 @@ export default function AssurancePage() {
             <span><strong className="text-zinc-900">{v.novel}</strong> nuevos</span>
             <span><strong className="text-zinc-900">{v.ingested}</strong> totales</span>
           </div>
-          <div className="text-xs text-zinc-400">
+          <div className="text-xs text-zinc-500">
             Conocidos = ya estaban en una familia de defectos; nuevos = primera vez que los vemos.
           </div>
           {v.top_families.length > 0 && (

@@ -43,7 +43,7 @@ export function SetupChecklist({
               className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
                 s.done
                   ? "bg-emerald-100 text-emerald-700"
-                  : "bg-zinc-100 text-zinc-400"
+                  : "bg-zinc-100 text-zinc-500"
               }`}
               aria-label={s.done ? "Completado" : "Pendiente"}
             >

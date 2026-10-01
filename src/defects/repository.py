@@ -853,9 +853,11 @@ class AssuranceRepository:
             with conn.cursor() as cur:
                 cur.execute(
                     "select tv.id, tv.failure_id, tv.category, tv.confidence, tv.rule_applied,"
-                    "       tv.evidence_bundle, tv.requires_approval, tv.llm_assisted, tv.status"
+                    "       tv.evidence_bundle, tv.requires_approval, tv.llm_assisted, tv.status,"
+                    "       f.test_name, left(f.message, 200) as message"
                     " from public.triage_verdicts tv"
                     " join public.test_runs r on r.id = tv.run_id"
+                    " left join public.failures f on f.id = tv.failure_id"
                     " where tv.run_id = %s and exists (select 1 from public.memberships m"
                     "   where m.org_id = r.org_id and m.user_id = %s)"
                     # orden TOTAL: created_at empata en el insert transaccional; failure_id
@@ -870,6 +872,9 @@ class AssuranceRepository:
                         "rule_applied": r["rule_applied"], "evidence_bundle": r["evidence_bundle"],
                         "requires_approval": r["requires_approval"],
                         "llm_assisted": r["llm_assisted"], "status": r["status"],
+                        # Para la UI (qué test falló y con qué); el acta y el juez no
+                        # los leen: solo usan los campos de arriba.
+                        "test_name": r["test_name"], "message": r["message"],
                     }
                     for r in cur.fetchall()
                 ]

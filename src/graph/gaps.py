@@ -26,24 +26,24 @@ from src.db.pool import get_pool
 
 _FALLBACK_REC: Dict[str, str] = {
     "defecto_sin_conocimiento": (
-        "Captura una lección o patrón en qa_knowledge para documentar"
-        " las causas y soluciones de este defecto recurrente."
+        "Documenta este defecto recurrente con una lección o un patrón: por qué"
+        " ocurre y cómo se resuelve."
     ),
     "dominio_sin_leccion": (
-        "Añade al menos una lección (kind='leccion') para este dominio"
-        " de forma que el equipo pueda aprender de los defectos conocidos."
+        "Añade al menos una lección a este dominio para que el equipo aprenda"
+        " de los defectos conocidos."
     ),
     "riesgo_sin_mitigacion": (
-        "Crea un patrón o lección (kind='leccion' o 'patron') para mitigar"
-        " este riesgo o regla de negocio en el dominio correspondiente."
+        "Documenta cómo se mitiga este riesgo o regla con una lección o un patrón"
+        " en su dominio."
     ),
     "regla_sin_test": (
         "No hay un test que cubra este conocimiento. Genera un caso de prueba "
         "(o automatízalo) para esta regla/flujo/riesgo."
     ),
     "repo_no_indexado": (
-        "Indexa los tests del repositorio desde /app/integrations para detectar "
-        "huecos de cobertura reales (regla/flujo/riesgo sin test)."
+        "Indexa los tests del repositorio desde Integraciones para detectar "
+        "reglas, flujos o riesgos sin un test que los cubra."
     ),
 }
 

@@ -174,7 +174,7 @@ export function IngestTokensPanel({ orgId, bare = false }: { orgId: string; bare
             <li key={t.id} className="flex items-center justify-between gap-2 py-2 text-sm">
               <span className="min-w-0">
                 <span className="font-medium text-zinc-900">{t.name}</span>
-                <span className="ml-2 text-xs text-zinc-400">
+                <span className="ml-2 text-xs text-zinc-500">
                   {t.created_at ? `creado ${t.created_at.slice(0, 10)}` : ""}
                   {t.last_used_at ? ` · último uso ${t.last_used_at.slice(0, 10)}` : " · sin usar"}
                 </span>
@@ -220,7 +220,7 @@ export function IngestTokensPanel({ orgId, bare = false }: { orgId: string; bare
   return (
     <Card className="max-w-xl space-y-4 p-5">
       <h2 className="flex items-center gap-1.5 text-sm font-medium text-zinc-700">
-        <KeyRound size={14} className="text-zinc-400" />
+        <KeyRound size={14} className="text-zinc-500" />
         Tokens de ingesta CI
       </h2>
       {body}

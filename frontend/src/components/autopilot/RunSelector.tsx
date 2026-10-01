@@ -76,8 +76,8 @@ export function RunSelector({ orgId, onRunId }: { orgId: string; onRunId: (id: s
       {/* Histórico navegable: adiós al "pega un UUID" como única vía */}
       <div className="space-y-2 border-t border-zinc-100 pt-4">
         <p className="text-xs font-medium text-zinc-500">Runs recientes</p>
-        {runsQuery.isLoading && <p className="text-sm text-zinc-400">Cargando…</p>}
-        {!runsQuery.isLoading && runs.length === 0 && (
+        {runsQuery.isPending && <p className="text-sm text-zinc-500">Cargando…</p>}
+        {!runsQuery.isPending && runs.length === 0 && (
           <p className="text-sm text-zinc-500">Aún no hay runs. Sube un reporte para empezar.</p>
         )}
         <ul className="space-y-1.5">
@@ -90,7 +90,7 @@ export function RunSelector({ orgId, onRunId }: { orgId: string; onRunId: (id: s
               >
                 <span className="min-w-0">
                   <span className="font-medium text-zinc-900">{r.project}</span>
-                  <span className="ml-2 text-xs text-zinc-400">
+                  <span className="ml-2 text-xs text-zinc-500">
                     {r.created_at ? new Date(r.created_at).toLocaleString("es-ES") : ""}
                   </span>
                 </span>

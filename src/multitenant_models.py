@@ -164,6 +164,8 @@ class TriageVerdictResponse(BaseModel):
     llm_assisted: bool
     status: str
     evidence_bundle: Optional[dict] = None
+    test_name: Optional[str] = None
+    message: Optional[str] = None
 
 
 class ProposeActionsResponse(BaseModel):

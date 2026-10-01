@@ -29,7 +29,7 @@ export function Topbar({ onOpenMobileMenu }: TopbarProps) {
           size="icon"
           className="md:hidden"
           onClick={onOpenMobileMenu}
-          aria-label="Open menu"
+          aria-label="Abrir menú"
         >
           <Menu size={16} />
         </Button>
@@ -42,7 +42,7 @@ export function Topbar({ onOpenMobileMenu }: TopbarProps) {
             <ChevronRight size={14} className="shrink-0 text-zinc-300" />
             {crumb.section && (
               <>
-                <span className="hidden text-zinc-400 sm:inline">{crumb.section}</span>
+                <span className="hidden text-zinc-500 sm:inline">{crumb.section}</span>
                 <ChevronRight size={14} className="hidden shrink-0 text-zinc-300 sm:inline" />
               </>
             )}
@@ -54,7 +54,7 @@ export function Topbar({ onOpenMobileMenu }: TopbarProps) {
       <div className="flex shrink-0 items-center gap-2">
         <span className="hidden items-center gap-1 rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs text-zinc-600 sm:inline-flex">
           <UserRound size={12} />
-          {truncate(user?.email ?? "unknown-user")}
+          {truncate(user?.email ?? "sesión sin email")}
         </span>
         <Button
           variant="outline"

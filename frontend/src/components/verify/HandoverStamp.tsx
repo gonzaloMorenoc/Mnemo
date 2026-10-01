@@ -1,4 +1,5 @@
 import { ShieldCheck } from "lucide-react";
+import { fechaActa } from "@/lib/acta-format";
 
 /**
  * Sello del ACTA DE TRASPASO. Misma gramática visual que AuthenticityStamp:
@@ -70,10 +71,10 @@ export function HandoverStamp({ canonical }: { canonical: Record<string, unknown
 
       <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-1 text-xs text-zinc-500 sm:grid-cols-2">
         <div>
-          emitida <span className="font-mono">{conRaya(fecha.slice(0, 10))}</span>
+          emitida el {conRaya(fechaActa(fecha))}
         </div>
         <div>
-          clave <span className="font-mono">{conRaya(str(canonical.key_id))}</span>
+          firmada con la clave <span className="font-mono">{conRaya(str(canonical.key_id))}</span>
         </div>
       </dl>
     </div>

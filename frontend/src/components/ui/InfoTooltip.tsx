@@ -19,7 +19,7 @@ export function InfoTooltip({
         <button
           type="button"
           aria-label={label ?? `Qué es: ${term ?? "ayuda"}`}
-          className="inline-flex text-zinc-400 hover:text-zinc-600 align-middle"
+          className="inline-flex text-zinc-500 hover:text-zinc-600 align-middle"
         >
           <HelpCircle size={14} />
         </button>

@@ -21,7 +21,7 @@ function GuiaView() {
 
   return (
     <div className="space-y-6">
-      <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+      <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
         Guía · Cómo funciona Mnemo
       </p>
       <div className="grid gap-8 md:grid-cols-[220px_1fr]">

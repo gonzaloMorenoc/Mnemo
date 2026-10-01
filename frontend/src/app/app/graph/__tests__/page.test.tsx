@@ -341,6 +341,26 @@ describe("GraphPage — degradación ante errores de query", () => {
 
     // Page still renders — no crash
     expect(screen.getByText("Grafo de conocimiento")).toBeInTheDocument();
+    // Un error NO es «no hay conocimiento»: no se manda al usuario a capturar lo que ya tiene.
+    expect(await screen.findByText("No se pudo cargar el grafo.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reintentar" })).toBeInTheDocument();
+    expect(screen.queryByText("Aún no hay conocimiento suficiente")).not.toBeInTheDocument();
+  });
+
+  it("si solo fallan las recomendaciones de la IA, no hay toast: los huecos ya están", async () => {
+    // Con el LLM caído, la versión con recomendaciones falla pero la rápida (sin IA)
+    // llega: avisar de un error en cada visita sería ruido.
+    (getGraph as ReturnType<typeof vi.fn>).mockResolvedValue(MOCK_GRAPH);
+    (getGaps as ReturnType<typeof vi.fn>).mockImplementation(
+      (_t: string, opts: { recommendations?: boolean }) =>
+        opts.recommendations === false
+          ? Promise.resolve(MOCK_GAPS)
+          : Promise.reject(new Error("LLM caído")),
+    );
+    renderWithClient(<GraphPage />);
+    expect(await screen.findByText(MOCK_GAPS[0].title)).toBeInTheDocument();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it("llama a toast.error cuando getGaps rechaza y la página no se rompe", async () => {

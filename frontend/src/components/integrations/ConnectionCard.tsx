@@ -48,7 +48,7 @@ export function ConnectionCard({
         </span>
         <ChevronDown
           size={16}
-          className={cn("shrink-0 text-zinc-400 transition-transform", open && "rotate-180")}
+          className={cn("shrink-0 text-zinc-500 transition-transform", open && "rotate-180")}
         />
       </button>
       {open && <div className="space-y-4 border-t border-zinc-100 px-5 py-5">{children}</div>}

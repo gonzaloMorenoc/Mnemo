@@ -56,7 +56,7 @@ export function FamilyLabelControl({ familyId, currentLabel }: { familyId: strin
             ))}
           </SelectContent>
         </Select>
-        <p className="text-xs text-zinc-400">
+        <p className="text-xs text-zinc-500">
           Real = bug del producto · Inestable = el test falla y pasa sin cambios · Mantenimiento = test desactualizado · Infra = fallo de entorno/CI.
         </p>
       </div>

@@ -44,6 +44,18 @@ describe("CertificateVerifier — llegada por enlace", () => {
     expect(verifyCertificate).toHaveBeenCalledTimes(1);
   });
 
+  it("si cambia el enlace en la misma pestaña (sin recargar), verifica el nuevo", async () => {
+    // En directo se pega el enlace manipulado en la pestaña donde está el auténtico:
+    // solo cambia el fragmento, el navegador no recarga, y antes seguía el sello verde.
+    renderConHash(`#v1.${BLOB}`);
+    await waitFor(() => expect(verifyCertificate).toHaveBeenCalledTimes(1));
+    const otra = ACTA.replace('"apto"', '"no-apto"');
+    window.location.hash = `#v1.${Buffer.from(otra, "utf8").toString("base64url").replace(/=+$/, "")}`;
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+    await waitFor(() => expect(verifyCertificate).toHaveBeenCalledTimes(2));
+    expect(verifyCertificate).toHaveBeenLastCalledWith(otra);
+  });
+
   it("enlace truncado: avisa de que se cortó y NO acusa de acta alterada", async () => {
     // Un base64 cortado por la mitad: decodifica a un JSON incompleto.
     renderConHash(`#v1.${BLOB.slice(0, Math.floor(BLOB.length / 2))}`);
