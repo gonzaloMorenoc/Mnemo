@@ -107,22 +107,26 @@ export function CertificateVerifier() {
   );
 
   useEffect(() => {
-    const hash = window.location.hash;
-    // El efecto se remonta en StrictMode (dev) y al recrearse `verify`: un
-    // enlace solo se procesa una vez.
-    if (!hash || hashProcesado.current === hash) return;
-    hashProcesado.current = hash;
-    const texto = decodeShare(hash);
-    if (texto === null) {
-      // Lectura única del fragmento al montar (guardada por `hashProcesado`),
-      // no una sincronización continua con un sistema externo.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (hash.startsWith("#v1.")) setLinkError(ENLACE_ROTO);
-      return;
+    // Se procesa al montar y cada vez que cambia el fragmento SIN recargar (pegar
+    // otro enlace en la misma pestaña): si no, seguía el sello del acta anterior.
+    // El efecto se remonta en StrictMode (dev) y al recrearse `verify`: cada
+    // enlace distinto se procesa una sola vez (`hashProcesado`).
+    function procesar() {
+      const hash = window.location.hash;
+      if (!hash || hashProcesado.current === hash) return;
+      hashProcesado.current = hash;
+      const texto = decodeShare(hash);
+      if (texto === null) {
+        if (hash.startsWith("#v1.")) setLinkError(ENLACE_ROTO);
+        return;
+      }
+      setRaw(texto);
+      setLlegaPorEnlace(true);
+      runVerification(texto, true);
     }
-    setRaw(texto);
-    setLlegaPorEnlace(true);
-    runVerification(texto, true);
+    procesar();
+    window.addEventListener("hashchange", procesar);
+    return () => window.removeEventListener("hashchange", procesar);
   }, [runVerification]);
 
   const valido = verify.data?.valido === true;
