@@ -92,3 +92,11 @@ def test_compute_verdict_sin_confirmar_on_empty_without_manifest():
     # Sin manifiesto no se puede probar que corrieron tests → sin_confirmar (antes: "apto").
     assert compute_verdict([]) == "sin_confirmar"
     assert compute_verdict([], manifest=_COMPLETE_MANIFEST) == "apto"
+
+
+def test_disclaimer_says_the_manifest_is_declared_by_the_client():
+    # El acta notariza el análisis de Mnemo sobre lo que envió el CI; no prueba que la
+    # batería se ejecutara. Va firmado: lo tiene que decir el propio documento.
+    d = _cert([])["disclaimer"]
+    assert "lo declara el CI del cliente" in d
+    assert "no de que la batería se ejecutara" in d

@@ -120,7 +120,7 @@ describe("DashboardPage", () => {
       expect(screen.getAllByText("checkout-suite").length).toBeGreaterThan(0);
       // héroe: manifiesto del acta del último run + CTA a Autopilot
       expect(screen.getByText(/40 tests · 37 ✓ · 3 ✗/)).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: /Ver run/i })).toHaveAttribute("href", "/app/autopilot");
+      expect(screen.getByRole("link", { name: /Ver run/i })).toHaveAttribute("href", "/app/autopilot?run=r1");
       // precisión del motor (gauge) al 60%
       expect(screen.getAllByText("60%").length).toBeGreaterThan(0);
       expect(screen.getAllByText(/1 propuesta de la IA por revisar/i).length).toBeGreaterThan(0);

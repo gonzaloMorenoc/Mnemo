@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -14,6 +14,7 @@ import {
   listContinuityProjects,
 } from "@/lib/api/endpoints";
 import { Button } from "@/components/ui/button";
+import { buildShareUrl } from "@/lib/certificate-share";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -50,6 +51,15 @@ export default function ContinuityPage() {
   const { accessToken } = useAuth();
   const { orgs, activeOrgId, isLoading } = useActiveOrg();
   const [project, setProject] = useState("");
+  // Enlace directo a un proyecto (?project=checkout-suite): sin él, la vista abre en
+  // el primero por orden alfabético. window.location en vez de useSearchParams para
+  // no forzar Suspense (mismo patrón que /app/knowledge?tab=).
+  useLayoutEffect(() => {
+    const p = new URLSearchParams(window.location.search).get("project");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (p) setProject(p);
+  }, []);
+  const [enlaceManual, setEnlaceManual] = useState<string | null>(null);
 
   const isAdmin = useMemo(() => {
     const role = orgs.find((o) => o.id === activeOrgId)?.role;
@@ -62,8 +72,8 @@ export default function ContinuityPage() {
     enabled: Boolean(accessToken && activeOrgId),
   });
   const projects = projectsQuery.data?.projects ?? [];
-  // Estado derivado, sin useEffect: el primer proyecto es el activo hasta que se elija otro.
-  const activeProject = project || projects[0] || "";
+  // Estado derivado, sin useEffect: el elegido (si existe en la org) o el primero.
+  const activeProject = projects.includes(project) ? project : projects[0] || "";
 
   const indexQuery = useQuery({
     queryKey: ["continuity", activeOrgId, activeProject],
@@ -109,8 +119,19 @@ export default function ContinuityPage() {
 
   const idx = indexQuery.data;
   const acta = latestQuery.data;
-  const shareUrl = (blob: string) =>
-    `${typeof window !== "undefined" ? window.location.origin : ""}/verify#${blob}`;
+
+  // Con el prefijo que /verify exige (#v1.): sin él, el enlace abría el formulario
+  // vacío, sin sello ni error. Si el portapapeles falla (contexto no seguro, permiso),
+  // el enlace queda a la vista para copiarlo a mano — nunca un «copiado» falso.
+  async function copyShareLink(share: string) {
+    const url = buildShareUrl(window.location.origin, share);
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Enlace de verificación copiado.");
+    } catch {
+      setEnlaceManual(url);
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -120,7 +141,7 @@ export default function ContinuityPage() {
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-base">Índice de continuidad</CardTitle>
           {projects.length > 0 && (
-            <Select value={activeProject} onValueChange={setProject}>
+            <Select value={activeProject} onValueChange={(p) => { setProject(p); setEnlaceManual(null); }}>
               <SelectTrigger className="w-[220px]" aria-label="Proyecto">
                 <SelectValue />
               </SelectTrigger>
@@ -149,8 +170,15 @@ export default function ContinuityPage() {
             </div>
           ) : projects.length === 0 && !projectsQuery.isLoading ? (
             <p className="text-sm text-zinc-500">
-              Todavía no hay proyectos con runs ni conocimiento en esta organización.
+              Todavía no hay proyectos con ejecuciones ni conocimiento en esta organización.
             </p>
+          ) : indexQuery.isError ? (
+            <div className="space-y-2">
+              <p className="text-sm text-red-700">No se pudo calcular el índice de este proyecto.</p>
+              <Button size="sm" variant="outline" onClick={() => indexQuery.refetch()}>
+                Reintentar
+              </Button>
+            </div>
           ) : idx ? (
             <>
               <div className="flex items-baseline gap-3">
@@ -214,29 +242,37 @@ export default function ContinuityPage() {
             <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-sm">
               <p className="text-zinc-900">
                 Última acta: <strong>{acta.score ?? "—"}</strong> / 100 ·{" "}
-                {new Date(acta.created_at).toLocaleString()}
+                {new Date(acta.created_at).toLocaleString("es-ES")}
               </p>
               {acta.share && (
-                <button
-                  type="button"
-                  className="mt-1 text-xs font-medium text-primary hover:underline"
-                  onClick={() => {
-                    navigator.clipboard.writeText(shareUrl(acta.share));
-                    toast.success("Enlace de verificación copiado.");
-                  }}
-                >
-                  Copiar enlace de verificación
-                </button>
+                <div className="mt-2 space-y-2">
+                  <Button size="sm" variant="outline" onClick={() => copyShareLink(acta.share)}>
+                    Copiar enlace de verificación
+                  </Button>
+                  {enlaceManual && (
+                    <input
+                      readOnly
+                      value={enlaceManual}
+                      aria-label="Enlace de verificación"
+                      onFocus={(e) => e.currentTarget.select()}
+                      className="w-full rounded border border-zinc-200 px-2 py-1 font-mono text-xs text-zinc-600"
+                    />
+                  )}
+                </div>
               )}
             </div>
           )}
           <Button
             disabled={!isAdmin || !activeProject || emitMutation.isPending}
-            title={isAdmin ? undefined : "Emitir un acta requiere rol owner/admin"}
             onClick={() => emitMutation.mutate()}
           >
             {emitMutation.isPending ? "Emitiendo…" : "Emitir acta de traspaso"}
           </Button>
+          {!isAdmin && (
+            <p className="text-xs text-zinc-500">
+              Solo un administrador de la organización puede emitir el acta.
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>

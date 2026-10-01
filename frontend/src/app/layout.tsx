@@ -10,7 +10,7 @@ const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono-loaded"
 
 export const metadata: Metadata = {
   title: "Mnemo",
-  description: "Autopilot de QA: ingesta CI, triaje determinista y aseguramiento firmado — privado, on-premise.",
+  description: "Memoria de QA: el conocimiento del proyecto se queda cuando el consultor rota. Actas firmadas, verificables sin cuenta.",
 };
 
 export default function RootLayout({

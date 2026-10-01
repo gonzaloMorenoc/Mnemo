@@ -49,15 +49,28 @@ export async function apiRequest<T>(
   const parsed = text ? safeJsonParse(text) : null;
 
   if (!response.ok) {
-    const errorPayload = parsed as ApiErrorShape | null;
-    const message =
-      errorPayload?.detail ??
-      errorPayload?.message ??
-      `Request failed with status ${response.status}`;
+    const message = errorMessage(response.status, parsed as ApiErrorShape | null);
     throw new ApiClientError(message, response.status, parsed ?? text);
   }
 
   return parsed as T;
+}
+
+/**
+ * El mensaje que verá una persona (va a toasts y avisos). Un 4xx con texto del
+ * backend lo conserva: son mensajes de negocio («proyecto no encontrado…»). Un 5xx
+ * no enseña el texto interno («Database error»). Y un 422 de validación trae una
+ * LISTA en `detail`, que acababa pintado como «[object Object]». El cuerpo original
+ * sigue en `details` para quien lo necesite.
+ */
+function errorMessage(status: number, payload: ApiErrorShape | null): string {
+  if (status >= 500) {
+    return `El servidor no ha podido completar la acción (error ${status}). Inténtalo de nuevo en unos segundos.`;
+  }
+  const detail: unknown = payload?.detail ?? payload?.message;
+  if (typeof detail === "string" && detail.trim()) return detail;
+  if (status === 422) return "Hay datos que no son válidos. Revisa el formulario.";
+  return `No se pudo completar la acción (error ${status}).`;
 }
 
 function safeJsonParse(value: string) {

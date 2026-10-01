@@ -6,7 +6,8 @@ _DISCLAIMER = (
     "Este certificado es un acta de evidencia reproducible: registra los fallos observados, "
     "la evaluación del motor de triaje (determinista, auditable) y las aprobaciones humanas. "
     "La 'evaluación' es una señal asistida, no una garantía de ausencia de defectos ni una "
-    "certificación de aptitud legal."
+    "certificación de aptitud legal. El manifiesto de ejecución lo declara el CI del cliente: "
+    "Mnemo da fe de su análisis sobre ese resultado, no de que la batería se ejecutara."
 )
 
 # Umbrales de confianza del motor (spec Bloque A): cold-start y precisión por tenant.

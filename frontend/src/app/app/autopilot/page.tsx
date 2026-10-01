@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useState } from "react";
 
 import { useActiveOrg } from "@/components/providers/org-provider";
 import { RunSelector } from "@/components/autopilot/RunSelector";
@@ -14,6 +14,13 @@ import { RoiPanel } from "@/components/autopilot/RoiPanel";
 export default function AutopilotPage() {
   const { activeOrgId: orgId } = useActiveOrg();
   const [runId, setRunId] = useState<string | null>(null);
+  // Enlace directo a un run (?run=<id>) desde el Dashboard. window.location en vez
+  // de useSearchParams para no forzar Suspense (mismo patrón que /app/knowledge).
+  useLayoutEffect(() => {
+    const r = new URLSearchParams(window.location.search).get("run");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (r) setRunId(r);
+  }, []);
 
   return (
     <div className="space-y-6">

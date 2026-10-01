@@ -10,6 +10,19 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { CATEGORY_LABEL, CATEGORY_STYLE, CategoryBadge } from "@/components/ui/category-badge";
 
+// Qué decidió cada regla del motor (src/triage/engine.py), en lenguaje de quien
+// mira la pantalla. El código de la regla queda en el title para auditarlo.
+const RULE_LABEL: Record<string, string> = {
+  R0_calibrated: "Según la etiqueta del equipo",
+  R0_prior_contradicted: "La evidencia choca con la etiqueta del equipo",
+  R1_flaky: "Pasó al reintentar o alterna en el mismo commit",
+  R2_infra: "Fallo masivo con firma de red o entorno",
+  R3_maintenance: "Selector roto tras un cambio en la página",
+  R4_real_recurrent: "Aserción que ya había fallado antes",
+  R5_real_novel: "Aserción que falla por primera vez",
+  R6_ambiguous: "Sin regla clara: lo decide una persona o la IA",
+};
+
 export function TriageVerdictList({ runId }: { runId: string }) {
   const { accessToken } = useAuth();
   const query = useQuery({
@@ -42,12 +55,14 @@ export function TriageVerdictList({ runId }: { runId: string }) {
       ) : (
         <ul className="space-y-2">
           {verdicts.map((v) => (
-            <li key={v.id} className="flex items-center justify-between text-sm">
+            <li key={v.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm">
               <span className="font-mono text-xs text-zinc-500">fallo {v.failure_id.slice(0, 8)}</span>
-              <span className="flex items-center gap-2">
+              <span className="flex flex-wrap items-center gap-2">
                 <CategoryBadge category={v.category} />
                 <span className="text-zinc-500">confianza {(v.confidence * 100).toFixed(0)}%</span>
-                <span className="text-zinc-400">regla: {v.rule_applied}</span>
+                <span className="text-zinc-500" title={v.rule_applied}>
+                  {RULE_LABEL[v.rule_applied] ?? v.rule_applied}
+                </span>
                 {v.rule_applied === "R0_prior_contradicted" && (
                   <Badge className="bg-amber-100 text-amber-700"
                          title="Falla con una aserción sin rastro de intermitencia: revisa la familia y vuelve a etiquetarla">

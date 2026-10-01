@@ -1,6 +1,7 @@
 import logging
+import time
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import psycopg
 from fastapi import (
@@ -535,12 +536,32 @@ def join_org(
     return _org_to_response(org)
 
 
+# `?probe=1` es público y hace una llamada REAL al LLM: sin freno, un bucle de
+# peticiones vaciaba la cuota (el free tier de la demo). El resultado del probe se
+# reutiliza durante la ventana; el keep-warm no usa probe y no se ve afectado.
+_PROBE_TTL_SECONDS = 60
+_probe_cache: Optional[Tuple[float, Dict[str, Any]]] = None
+_monotonic = time.monotonic
+
+
+def _llm_status_for_health(probe: bool) -> Dict[str, Any]:
+    global _probe_cache
+    if not probe:
+        return llm_status(probe=False)
+    now = _monotonic()
+    if _probe_cache is not None and now - _probe_cache[0] < _PROBE_TTL_SECONDS:
+        return _probe_cache[1]
+    status = llm_status(probe=True)
+    _probe_cache = (now, status)
+    return status
+
+
 @router.get("/health")
 def health_v2(probe: bool = False) -> Dict[str, Any]:
-    # `?probe=1` hace una llamada mínima real al LLM y reporta el error crudo
-    # (401/429/timeout). Sin probe (p.ej. el keep-warm) solo valida la config.
+    # `?probe=1` hace una llamada mínima real al LLM (como mucho una por ventana) y
+    # reporta el error crudo (401/429/timeout). Sin probe solo valida la config.
     return {"status": "active", "model": resolved_model_name(),
-            "llm": llm_status(probe=probe),
+            "llm": _llm_status_for_health(probe),
             "multi_tenant_enabled": multi_tenant_enabled()}
 
 

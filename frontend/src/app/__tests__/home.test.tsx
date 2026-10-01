@@ -16,7 +16,7 @@ describe("HomePage (landing)", () => {
   it("muestra la tesis del producto en el titular", () => {
     render(<HomePage />);
     expect(
-      screen.getByRole("heading", { name: /Cada release, con su acta firmada/i, level: 1 }),
+      screen.getByRole("heading", { name: /Cuando un consultor rota, el conocimiento se queda/i, level: 1 }),
     ).toBeInTheDocument();
   });
 
@@ -31,8 +31,8 @@ describe("HomePage (landing)", () => {
 
   it("presenta los tres pilares", () => {
     render(<HomePage />);
-    expect(screen.getByText("Acta firmada verificable")).toBeInTheDocument();
-    expect(screen.getByText("Memoria que aprende")).toBeInTheDocument();
+    expect(screen.getByText("Continuidad medida y firmada")).toBeInTheDocument();
+    expect(screen.getByText("Memoria que se llena trabajando")).toBeInTheDocument();
     expect(screen.getByText("Se enchufa a tu CI")).toBeInTheDocument();
   });
 

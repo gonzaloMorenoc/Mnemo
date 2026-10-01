@@ -318,9 +318,17 @@ export interface KnowledgeSource {
   confidence?: string;
 }
 
+export interface CitedSource {
+  id: string;
+  type: "knowledge" | "defect";
+  title: string;
+}
+
 export interface KnowledgeAnswer {
   answer: string;
   citations: string[];
+  /** Las fuentes citadas con su título legible (backend ≥ bloqueantes de la demo). */
+  sources?: CitedSource[];
 }
 
 export type AutoGenCase = { title: string; steps: string[] };

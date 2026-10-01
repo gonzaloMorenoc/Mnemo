@@ -18,6 +18,7 @@ import { KnowledgeBrowser } from "@/components/knowledge/KnowledgeBrowser";
 import { KnowledgeImportPanel } from "@/components/knowledge/KnowledgeImportPanel";
 import { KnowledgeProposalsPanel } from "@/components/knowledge/KnowledgeProposalsPanel";
 import { Badge } from "@/components/ui/badge";
+import { CitedSources } from "@/components/knowledge/CitedSources";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -363,18 +364,7 @@ export default function KnowledgePage() {
                 </p>
               )}
 
-              {answer.citations.length > 0 && (
-                <div>
-                  <p className="mb-1.5 text-xs font-medium text-zinc-500">Fuentes citadas</p>
-                  <ul className="space-y-1">
-                    {answer.citations.map((citation, idx) => (
-                      <li key={idx} className="text-xs text-zinc-600">
-                        · {citation}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+              <CitedSources citations={answer.citations} sources={answer.sources} />
             </div>
           )}
 
