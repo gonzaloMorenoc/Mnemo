@@ -22,8 +22,11 @@ EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "paraphrase-multilingual-MiniLM-L
 # deja margen a ambos lados. Si se cambia EMBEDDING_MODEL, recalibrar.
 MAX_SEMANTIC_DISTANCE = float(os.getenv("MAX_SEMANTIC_DISTANCE", "0.75"))
 
-# LLM provider intercambiable (ollama local | openai-compatible | anthropic)
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama")
+# LLM provider intercambiable (none | ollama local | openai-compatible | anthropic).
+# Sin configurar → "none": todo degrada a la vía determinista. Presuponer un Ollama
+# local hacía que llm_status lo diera por configurado sin comprobarlo y que las
+# propuestas post-ingesta esperasen timeouts en cada run.
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "none")
 LLM_MODEL = os.getenv("LLM_MODEL", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "")
@@ -33,15 +36,6 @@ LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "4096"))
 # corto degradaría en silencio los flujos de output largo (test-plan, generación).
 LLM_TIMEOUT_SECONDS = int(os.getenv("LLM_TIMEOUT_SECONDS", "50"))
 ALLOW_EXTERNAL_LLM = os.getenv("ALLOW_EXTERNAL_LLM", "").lower() == "true"
-
-# Jira/Confluence Search Paths (Optional)
-JIRA_URL = os.getenv("JIRA_URL")
-JIRA_API_TOKEN = os.getenv("JIRA_API_TOKEN")
-JIRA_USERNAME = os.getenv("JIRA_USERNAME")
-
-CONFLUENCE_URL = os.getenv("CONFLUENCE_URL")
-CONFLUENCE_API_TOKEN = os.getenv("CONFLUENCE_API_TOKEN")
-CONFLUENCE_USERNAME = os.getenv("CONFLUENCE_USERNAME")
 
 # Multi-tenant KB (Postgres + Supabase). Defaults vacios = modo single-tenant.
 DATABASE_URL = os.getenv("DATABASE_URL", "")

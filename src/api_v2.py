@@ -192,17 +192,27 @@ def get_ingestion_service() -> IngestionService:
 def get_narrator() -> Narrator:
     global _narrator
     if _narrator is None:
-        from src.llm.factory import get_llm_provider
-        _narrator = LLMNarrator(get_llm_provider())
+        _narrator = LLMNarrator(_llm_provider_or_none())
     return _narrator
+
+
+def _llm_provider_or_none():
+    """El proveedor LLM, o None si no se puede construir (sin configurar, falta la
+    clave…). Las dependencias que lo envuelven degradan: un LLM mal configurado no
+    puede tumbar con un 500 un endpoint cuya parte de IA es opcional."""
+    from src.llm.factory import get_llm_provider
+    try:
+        return get_llm_provider()
+    except Exception as exc:  # noqa: BLE001 — se degrada, pero se deja rastro
+        logger.warning("LLM no disponible, se degrada: %s", exc)
+        return None
 
 
 def get_root_cause_analyzer():
     global _root_cause_analyzer
     if _root_cause_analyzer is None:
         from src.assurance.root_cause import RootCauseAnalyzer
-        from src.llm.factory import get_llm_provider
-        _root_cause_analyzer = RootCauseAnalyzer(get_llm_provider())
+        _root_cause_analyzer = RootCauseAnalyzer(_llm_provider_or_none())
     return _root_cause_analyzer
 
 
@@ -1100,7 +1110,7 @@ def assurance_verdict_v2(
     try:
         narrative = narrator.summarize(verdict)
     except Exception:
-        # La narrativa LLM es opcional: si el narrator (Ollama) falla, devolvemos
+        # La narrativa LLM es opcional: si el narrator falla (o no hay LLM), devolvemos
         # el veredicto determinista sin narrativa en lugar de romper la respuesta.
         narrative = None
     return AssuranceVerdictResponse(

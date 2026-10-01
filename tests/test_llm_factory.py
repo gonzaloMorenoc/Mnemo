@@ -7,9 +7,27 @@ from src.llm.providers.openai import OpenAIProvider
 from src.llm.providers.anthropic import AnthropicProvider
 
 
-def test_default_ollama(monkeypatch):
+def test_ollama_when_explicitly_configured(monkeypatch):
     monkeypatch.setattr(config, "LLM_PROVIDER", "ollama")
     assert isinstance(get_llm_provider(), OllamaProvider)
+
+
+def test_without_configuration_there_is_no_llm(monkeypatch):
+    # Sin LLM_PROVIDER no se presupone un Ollama local: llm_status lo daba por
+    # configurado sin comprobarlo y las propuestas post-ingesta esperaban timeouts
+    # en cada run. Ahora todo degrada a la vía determinista, que ya existe.
+    monkeypatch.setattr(config, "LLM_PROVIDER", "none")
+    with pytest.raises(RuntimeError, match="LLM_PROVIDER"):
+        get_llm_provider()
+    from src.llm.factory import llm_status
+    st = llm_status()
+    assert st["configured"] is False and "LLM_PROVIDER" in st["error"]
+
+
+def test_empty_provider_also_means_no_llm(monkeypatch):
+    monkeypatch.setattr(config, "LLM_PROVIDER", "")
+    with pytest.raises(RuntimeError, match="LLM_PROVIDER"):
+        get_llm_provider()
 
 
 def test_openai(monkeypatch):

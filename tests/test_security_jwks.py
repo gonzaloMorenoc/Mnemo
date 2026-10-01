@@ -32,6 +32,11 @@ def _rsa_jwk():
 def _verifier_with(monkeypatch, jwk):
     """Verifier forzado al path JWKS (sin JWT_SECRET) con un JWKS fijo."""
     monkeypatch.setattr(config, "SUPABASE_JWT_SECRET", "")
+    # Los tokens de estos tests no llevan `aud` ni `iss`. security.py importa la
+    # audiencia y la URL (de la que deriva el emisor) por valor: sin fijarlas aquí,
+    # el .env local colaba un 401 que en CI —sin .env— no aparecía.
+    monkeypatch.setattr("src.security.SUPABASE_JWT_AUDIENCE", "")
+    monkeypatch.setattr("src.security.SUPABASE_URL", "")
     v = SupabaseJWTVerifier()
     monkeypatch.setattr(v, "_load_jwks", lambda: {"keys": [jwk]})
     return v
