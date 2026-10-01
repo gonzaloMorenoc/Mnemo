@@ -7,6 +7,7 @@ from psycopg.rows import dict_row
 from src.config import DATABASE_URL
 from src.db.pool import get_pool
 from src.defects.embedder import LocalEmbedder
+from src.repo_ingest.descriptor import asset_descriptor
 
 
 class TestAssetRepository:
@@ -49,7 +50,10 @@ class TestAssetRepository:
             count = 0
             for asset in assets:
                 content = (asset.get("content") or "")[:8000]
-                emb = Vector(list(self.embedder.embed(content)))
+                # Se embebe lo que el test dice que prueba (ruta + títulos), no su
+                # sintaxis; el contenido íntegro se guarda para el few-shot.
+                emb = Vector(list(self.embedder.embed(
+                    asset_descriptor(asset.get("path") or "", content))))
                 cur.execute(
                     "insert into public.test_assets"
                     " (org_id, repo_full_name, path, framework, domain, content, embedding)"

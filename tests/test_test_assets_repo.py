@@ -288,3 +288,26 @@ def test_search_semantic_returns_results(org_with_member):
     )
     assert len(results) >= 1
     assert results[0]["path"] == "t.py"
+
+
+class TestReplaceForRepoEmbedsDescriptor:
+    def test_embeds_what_the_test_checks_but_stores_the_full_content(self):
+        # El vector sale de ruta + títulos (lo que casa con una regla de negocio);
+        # la columna content guarda el código entero (el few-shot lo necesita).
+        seen = []
+
+        class RecordingEmb:
+            def embed(self, text):
+                seen.append(text)
+                return [0.1] * 384
+
+        repo = TestAssetRepository(db_url="dummy", embedder=RecordingEmb())
+        conn_ctx, conn, cur = _make_conn_ctx(member=True)
+        code = "import x\ntest('un cupon se aplica una sola vez', () => {})\n"
+        with patch.object(repo, "_connect", return_value=conn_ctx):
+            repo.replace_for_repo(user_id="u", org_id="o", repo="org/repo",
+                                  assets=[{"path": "tests/cupones.spec.ts", "content": code}])
+        assert seen and "un cupon se aplica una sola vez" in seen[0]
+        assert "import x" not in seen[0]
+        insert = [c for c in cur.execute.call_args_list if "insert into public.test_assets" in c.args[0]]
+        assert insert and code in insert[0].args[1]
