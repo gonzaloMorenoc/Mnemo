@@ -242,7 +242,7 @@ b5y = b4y + sh + 26
 eh = 104
 band_header(MX, b5y, "Servicios externos", "#ea580c")
 ext = [
-    ("🧠  Proveedor LLM (opcional)", "prod: Gemini (OpenAI-compat) · Groq · Ollama · Anthropic", ["ALLOW_EXTERNAL_LLM", "por defecto: none"]),
+    ("🧠  Proveedor LLM (opcional)", "prod: Groq gpt-oss-120b (OpenAI-compat) · Ollama · Anthropic · Gemini", ["ALLOW_EXTERNAL_LLM", "por defecto: none"]),
     ("🐙  GitHub App", "commit status (quality gate) · draft PR (self-heal / automation)", ["nunca auto-merge"]),
     ("🗂️  Jira / Xray / Confluence API", "pull de bugs · export de casos · import de páginas", []),
 ]

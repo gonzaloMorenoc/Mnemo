@@ -18,7 +18,7 @@ público y no debe contener identificadores del entorno real.
 | Frontend (Next.js) | Vercel | habla con el backend vía proxy server-side (`NEXT_PUBLIC_API_BASE_URL`) |
 | Backend (FastAPI) | contenedor en la nube (HF Space) | keep-warm por GitHub Action cada 15 min |
 | BD + Auth | Supabase | RLS multi-tenant |
-| LLM | Gemini free tier (configurable: Groq / Ollama on-premise) | las funciones no-LLM no dependen de él |
+| LLM | Groq `openai/gpt-oss-120b`, plan gratuito (configurable: Gemini / Ollama on-premise) | las funciones no-LLM no dependen de él |
 
 ### 1b. Estado pre-sembrado
 

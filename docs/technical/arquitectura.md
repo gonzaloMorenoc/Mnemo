@@ -32,7 +32,7 @@ Complementa el C4 con el detalle de los módulos internos, los servicios del mot
 
 - **Backend:** Python 3.13, FastAPI.
 - **Embeddings locales:** `paraphrase-multilingual-MiniLM-L12-v2` (384 dims, CPU) vía HuggingFace, configurable con `EMBEDDING_MODEL` (`src/config.py`). Se eligió multilingüe porque el modelo inglés anterior apenas separaba señal de ruido en textos en español. Cambiar de modelo obliga a re-embeber lo existente (`scripts/reembed.py`) y a recalibrar los umbrales (ver más abajo).
-- **LLM opcional e intercambiable** (`src/llm/factory.py`): `LLM_PROVIDER` vale `none` por defecto y, en ese caso, todo degrada a la vía determinista. Proveedores disponibles: cualquier API compatible OpenAI vía `OPENAI_BASE_URL` (producción usa Gemini por esa vía), Anthropic u Ollama si se configura. Los proveedores externos exigen opt-in explícito (`ALLOW_EXTERNAL_LLM=true`) porque envían datos de fallos a un tercero.
+- **LLM opcional e intercambiable** (`src/llm/factory.py`): `LLM_PROVIDER` vale `none` por defecto y, en ese caso, todo degrada a la vía determinista. Proveedores disponibles: cualquier API compatible OpenAI vía `OPENAI_BASE_URL` (producción usa `openai/gpt-oss-120b` en Groq por esa vía), Anthropic u Ollama si se configura. Los proveedores externos exigen opt-in explícito (`ALLOW_EXTERNAL_LLM=true`) porque envían datos de fallos a un tercero.
 - **Datos:** **Postgres + pgvector** (Supabase). Auth: **Supabase JWT** (verificación por JWKS).
 - **Frontend:** Next.js (App Router) + React + TypeScript + TanStack Query + shadcn/ui; auth Supabase.
 
@@ -187,5 +187,5 @@ Calibrados para el modelo multilingüe; si cambia `EMBEDDING_MODEL`, hay que rec
 - **Frontend:** Vercel (build de Next); el proxy server-side `/api/v2/*` reenvía a `NEXT_PUBLIC_API_BASE_URL`.
 - **Backend:** contenedor Docker en un **Hugging Face Space** (`uvicorn asgi:app`), que clona `main` en el build: desplegar es reconstruir el Space. `asgi.py` monta únicamente el router `/v2`. Un workflow de GitHub (`keep-warm.yml`) consulta `/v2/health` periódicamente para que el Space no se duerma.
 - **BD y Auth:** Supabase (Postgres + pgvector + Auth). **Importante:** usar la cadena del **Session pooler** (IPv4); la conexión directa `db.<ref>.supabase.co` es IPv6-only y puede no enrutar. Ver `docs/technical/modelo-datos.md`.
-- **LLM en producción:** proveedor compatible OpenAI (Gemini) con `ALLOW_EXTERNAL_LLM=true`.
+- **LLM en producción:** `openai/gpt-oss-120b` en Groq (compatible OpenAI) con `ALLOW_EXTERNAL_LLM=true`.
 - Guía completa: `docs/deploy/produccion.md`.
