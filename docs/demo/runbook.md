@@ -105,7 +105,7 @@ Secrets/variables que deben existir en el host del backend (ver `docs/deploy/pro
 - [ ] `/v2/health` → `llm.configured: true` (el Acto 3 lo usa; sin él degrada a fuentes).
 - [ ] Login en el frontend: el selector muestra **solo** las orgs de demo (retirar
       cualquier org de pruebas de la cuenta antes del día).
-- [ ] **Acto 1**: Continuidad → `checkout-suite` = 95 y `banca-movil` = 25 (si no, ver la
+- [ ] **Acto 1**: `/app/continuity?project=checkout-suite` = 95 y `banca-movil` = 25 (si no, ver la
       riqueza en §1f: `arc_ok`).
 - [ ] **Acto 2**: «Emitir acta de traspaso» de `checkout-suite` ensayado la víspera (queda
       como `handover/latest` para el plan B) y sus dos enlaces probados en una ventana sin
@@ -113,8 +113,11 @@ Secrets/variables que deben existir en el host del backend (ver `docs/deploy/pro
 - [ ] **Acto 3**: las tres preguntas del guion lanzadas en la app; leer las respuestas
       (el LLM no es determinista: si alguna se tuerce, ajustar la pregunta, no el guion).
 - [ ] **Acto 4**: el dashboard tiene runs de la semana (riqueza re-ejecutada, §1f) y un
-      run de `checkout-suite` muestra veredictos y acta.
-- [ ] (Opcional) terminal con el push en vivo preparado (`prod.local.md`).
+      run **con fallos** (p. ej. de `tienda-online`) se abre desde «Runs recientes» con sus
+      veredictos y su acta.
+- [ ] (Opcional) terminal con el push en vivo preparado (`prod.local.md`). **Hacerlo después
+      del Acto 2**: `fresh_push.json` mete un fallo en `checkout-suite` y puede mover su
+      índice. Si se ensaya antes, comprobar de nuevo el 95.
 - [ ] Runs de ensayos anteriores podados (§1f) si se quiere la org limpia.
 
 ### 1f. Mantenimiento de los datos de demo

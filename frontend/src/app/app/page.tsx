@@ -218,15 +218,20 @@ export default function DashboardPage() {
           </div>
           <ul className="divide-y divide-zinc-100">
             {recentRuns.slice(0, 5).map((r) => (
-              <li key={r.id} className="flex items-center justify-between gap-2 py-2 text-sm">
-                <span className="min-w-0">
-                  <span className="font-medium text-zinc-900">{r.project}</span>
-                  <span className="ml-2 text-xs text-zinc-400">{r.created_at ? new Date(r.created_at).toLocaleString() : ""}</span>
-                </span>
-                <span className="flex shrink-0 items-center gap-2">
-                  {r.failures > 0 && <Badge>{r.failures} fallos</Badge>}
-                  <VerdictBadge verdict={r.verdict} />
-                </span>
+              <li key={r.id}>
+                <Link
+                  href={`/app/autopilot?run=${encodeURIComponent(r.id)}`}
+                  className="-mx-2 flex items-center justify-between gap-2 rounded-md px-2 py-2 text-sm hover:bg-zinc-50"
+                >
+                  <span className="min-w-0">
+                    <span className="font-medium text-zinc-900">{r.project}</span>
+                    <span className="ml-2 text-xs text-zinc-500">{r.created_at ? new Date(r.created_at).toLocaleString("es-ES") : ""}</span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    {r.failures > 0 && <Badge>{r.failures} {r.failures === 1 ? "fallo" : "fallos"}</Badge>}
+                    <VerdictBadge verdict={r.verdict} />
+                  </span>
+                </Link>
               </li>
             ))}
           </ul>

@@ -26,7 +26,7 @@ describe("LatestReleaseHero", () => {
     expect(screen.getByText(/acta firmada/i)).toBeInTheDocument();
     expect(screen.getByText(/128 tests · 120 ✓ · 5 ✗/)).toBeInTheDocument();
     expect(screen.getByText("42/100")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Ver run/i })).toHaveAttribute("href", "/app/autopilot");
+    expect(screen.getByRole("link", { name: /Ver run/i })).toHaveAttribute("href", "/app/autopilot?run=r1");
   });
 
   it("certified=true + manifest=null (acta v2 sin manifiesto): el chip SIGUE mostrándose y se ven los fallos", () => {

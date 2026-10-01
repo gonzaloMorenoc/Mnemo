@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/components/providers/auth-provider", () => ({
@@ -43,16 +43,15 @@ const INDICE_50 = {
   inventario: {},
 };
 
-function setup(role: string, indice: unknown = INDICE_50) {
+function setup(role: string, indice: unknown = INDICE_50,
+               projects: string[] = ["checkout-suite"]) {
   (useActiveOrg as ReturnType<typeof vi.fn>).mockReturnValue({
     orgs: [{ id: "o1", name: "Org", role }],
     activeOrgId: "o1",
     isLoading: false,
     setActiveOrgId: vi.fn(),
   });
-  (listContinuityProjects as ReturnType<typeof vi.fn>).mockResolvedValue({
-    projects: ["checkout-suite"],
-  });
+  (listContinuityProjects as ReturnType<typeof vi.fn>).mockResolvedValue({ projects });
   (getContinuity as ReturnType<typeof vi.fn>).mockResolvedValue(indice);
   // 404 = todavía no hay actas para este proyecto, no un error
   (getLatestHandover as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("404"));
@@ -119,7 +118,8 @@ describe("Continuidad", () => {
     setup("member");
     const btn = await screen.findByRole("button", { name: /emitir acta de traspaso/i });
     expect(btn).toBeDisabled();
-    expect(btn).toHaveAttribute("title", expect.stringMatching(/owner\/admin/));
+    // El motivo se ve (un title no aparece en el móvil) y sin jerga de roles.
+    expect(screen.getByText("Solo un administrador de la organización puede emitir el acta.")).toBeInTheDocument();
   });
 
   it("con rol owner el botón está disponible una vez cargado el proyecto", async () => {
@@ -130,5 +130,35 @@ describe("Continuidad", () => {
     expect(
       screen.getByRole("button", { name: /emitir acta de traspaso/i }),
     ).toBeEnabled();
+  });
+
+  it("el enlace de verificación lleva el prefijo que /verify exige (#v1.)", async () => {
+    // Sin él, /verify abría el formulario vacío: ni sello ni error (el Acto 2 de la demo).
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    setup("owner");
+    (getLatestHandover as ReturnType<typeof vi.fn>).mockResolvedValue({
+      score: 95, project: "checkout-suite", created_at: "2026-10-01T10:00:00Z",
+      canonical_json: {}, signature: "s", share: "BLOB",
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Copiar enlace de verificación" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalled());
+    expect(writeText.mock.calls[0][0]).toMatch(/\/verify#v1\.BLOB$/);
+  });
+
+  it("?project= en la URL elige el proyecto con el que abre", async () => {
+    window.history.replaceState({}, "", "/app/continuity?project=checkout-suite");
+    setup("owner", INDICE_50, ["api-pagos", "checkout-suite"]);
+    await screen.findByText("50");
+    expect(getContinuity).toHaveBeenCalledWith("t", "o1", "checkout-suite");
+    expect(getContinuity).not.toHaveBeenCalledWith("t", "o1", "api-pagos");
+    window.history.replaceState({}, "", "/app/continuity");
+  });
+
+  it("si falla el índice, lo dice y ofrece reintentar (no un esqueleto eterno)", async () => {
+    setup("owner");
+    (getContinuity as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("boom"));
+    expect(await screen.findByText(/No se pudo calcular el índice/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reintentar" })).toBeInTheDocument();
   });
 });

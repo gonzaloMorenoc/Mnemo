@@ -36,9 +36,9 @@ export function LatestReleaseHero({
           ? `${manifest.total} tests · ${manifest.passed} ✓ · ${manifest.failed} ✗`
           : `${run.failures} fallo${run.failures === 1 ? "" : "s"}`}
         {run.commit_sha ? ` · commit ${run.commit_sha.slice(0, 8)}` : ""}
-        {run.created_at ? ` · ${new Date(run.created_at).toLocaleString()}` : ""}
+        {run.created_at ? ` · ${new Date(run.created_at).toLocaleString("es-ES")}` : ""}
       </p>
-      <Link href="/app/autopilot" className="mt-3 inline-block text-xs font-medium text-primary hover:underline">
+      <Link href={`/app/autopilot?run=${encodeURIComponent(run.id)}`} className="mt-3 inline-block text-xs font-medium text-primary hover:underline">
         Ver run →
       </Link>
     </Card>

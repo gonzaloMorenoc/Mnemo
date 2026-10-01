@@ -91,7 +91,7 @@ export function RunSelector({ orgId, onRunId }: { orgId: string; onRunId: (id: s
                 <span className="min-w-0">
                   <span className="font-medium text-zinc-900">{r.project}</span>
                   <span className="ml-2 text-xs text-zinc-400">
-                    {r.created_at ? new Date(r.created_at).toLocaleString() : ""}
+                    {r.created_at ? new Date(r.created_at).toLocaleString("es-ES") : ""}
                   </span>
                 </span>
                 <span className="flex shrink-0 items-center gap-2">

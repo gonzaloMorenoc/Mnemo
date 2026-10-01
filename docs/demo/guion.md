@@ -36,7 +36,8 @@ sustituye. Mnemo es lo que hace que lo que sabía María no se vaya con ella.
 
 ## Acto 1 — Cuánto sabe Mnemo de cada proyecto (60 s)
 
-**Qué se hace:** menú **Continuidad** → selector de proyecto.
+**Qué se hace:** abrir `/app/continuity?project=checkout-suite` (marcador preparado: sin el
+parámetro, la vista abre en el primer proyecto por orden alfabético).
 
 1. `checkout-suite` → índice **95**. Recorrer el desglose: *el porqué de las etiquetas*
    4/4, *oficio del proyecto* 4/4 (runbook, datos de prueba, contactos, decisiones),
@@ -95,8 +96,10 @@ dice: «sin IA, sigue diciéndote dónde mirar».
 
 ## Acto 4 — De dónde sale la memoria (45 s)
 
-**Qué se hace:** **Dashboard** → un run reciente de `checkout-suite` → veredictos de
-triaje y acta del run.
+**Qué se hace:** **Dashboard** → «Runs recientes» → un run **con fallos** (los semanales de
+`checkout-suite` son verdes a propósito; vale uno de `tienda-online`, o el push en vivo hecho
+después del Acto 2) → se abre ese run: veredictos de triaje, con la regla que decidió cada uno,
+y su acta.
 
 > «Esta memoria no se rellena en una sesión de documentación que nadie hace. Sale del día a
 > día: cada run del CI entra, el motor determinista clasifica cada fallo y explica qué regla
@@ -132,7 +135,8 @@ Revisar esta tabla antes de cada ensayo: si el producto cambia, el guion tambié
 | La razón tecleada al etiquetar se vuelve buscable | PR #114 (vector propio de la razón; media con el centroide) | prod, 2026-10-01 |
 | Cada respuesta cita sus fuentes; sin LLM degrada a fuentes | `src/ai/nl_query.py::answer_over_sources` | código |
 | Texto exacto de la respuesta del LLM | Gemini en prod — **no determinista: ensayar en la app** | pendiente |
-| «Contradice la etiqueta humana» | PR #113 (`R0_prior_contradicted`) | tras merge |
+| «Contradice la etiqueta humana» | PR #113 (`R0_prior_contradicted`) | en prod (01-10) |
+| El acta da fe del análisis, no de que se ejecutaran los tests | disclaimer firmado (`src/certify/certificate.py::_DISCLAIMER`) y texto del sello en `/verify` | código |
 
 **Retirado del guion anterior** por no poder sostenerlo: «coste de API 0 €» (depende del
 plan del proveedor de LLM), «100 % on-premise con Ollama» (no es la configuración que se
