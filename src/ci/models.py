@@ -19,6 +19,9 @@ class CiRunArtifact(BaseModel):
     project: str = Field(max_length=500)
     org_id: str = Field(max_length=200)
     commit_sha: str = Field(max_length=200)
-    source: str = "playwright"
+    # Los formatos que admite el CHECK de test_runs.source (migración 005): fuera de
+    # esta lista, el INSERT moría con un 500 en vez de devolver un 422 al CI.
+    source: Literal["allure", "junit", "testng", "cucumber",
+                    "playwright", "cypress", "robot"] = "playwright"
     run_uid: Optional[str] = Field(default=None, max_length=200)
     tests: List[CiTestResult] = Field(max_length=10_000)

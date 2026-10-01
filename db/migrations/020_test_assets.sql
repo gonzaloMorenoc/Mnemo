@@ -19,5 +19,7 @@ create index if not exists idx_test_assets_embedding on public.test_assets
 
 alter table public.test_assets enable row level security;
 alter table public.test_assets force row level security;
+-- drop previo: scripts/docker_init.py re-aplica todas las migraciones en cada arranque.
+drop policy if exists test_assets_member on public.test_assets;
 create policy test_assets_member on public.test_assets
     using (public.is_org_member(org_id)) with check (public.is_org_member(org_id));

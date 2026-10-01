@@ -53,3 +53,20 @@ def test_run_uid_optional_default_none():
         {"project": "p", "org_id": "o", "commit_sha": "abc", "run_uid": "u-123", "tests": []}
     )
     assert art2.run_uid == "u-123"
+
+
+def test_rejects_source_outside_the_db_check():
+    # test_runs.source tiene un CHECK (migración 005). Sin validarlo aquí, un CI
+    # que mande otro valor llegaba al INSERT y moría con un 500 en vez de un 422.
+    d = _artifact_dict()
+    d["source"] = "mocha"
+    with pytest.raises(ValidationError):
+        CiRunArtifact.model_validate(d)
+
+
+@pytest.mark.parametrize("source", ["allure", "junit", "testng", "cucumber",
+                                    "playwright", "cypress", "robot"])
+def test_accepts_every_report_format(source):
+    d = _artifact_dict()
+    d["source"] = source
+    assert CiRunArtifact.model_validate(d).source == source
