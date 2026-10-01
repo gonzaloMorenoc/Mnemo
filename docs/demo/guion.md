@@ -39,9 +39,13 @@ sustituye. Mnemo es lo que hace que lo que sabía María no se vaya con ella.
 **Qué se hace:** abrir `/app/continuity?project=checkout-suite` (marcador preparado: sin el
 parámetro, la vista abre en el primer proyecto por orden alfabético).
 
-1. `checkout-suite` → índice **95**. Recorrer el desglose: *el porqué de las etiquetas*
-   4/4, *oficio del proyecto* 4/4 (runbook, datos de prueba, contactos, decisiones),
-   *reglas con respaldo* 4/5.
+1. Arriba, el **mapa de riesgo de rotación**: todos los proyectos, del más expuesto al
+   más cubierto. `checkout-suite` → índice **85** («Cubierto»). Recorrer el desglose:
+   *memoria de defectos* 2/3 (los fallos que vuelven, con lo que el equipo aprendió de
+   ellos — lo que una wiki no sabe), *el porqué de las etiquetas* 4/4, *oficio del
+   proyecto* 4/4 (runbook, datos de prueba, contactos, decisiones), *reglas con respaldo*
+   4/5. Señalar el hueco: el error de exportación CSV se repite y nadie ha dejado su
+   lección («Revisar propuestas →»).
 2. Cambiar a `banca-movil` → índice **25**: *oficio* 0/4, *reglas con respaldo* 0/2.
 
 > «El índice no es una opinión: es el recuento de lo que la memoria tiene de cada
@@ -56,11 +60,13 @@ parámetro, la vista abre en el primer proyecto por orden alfabético).
 
 **Qué se hace:** en la misma vista, con `checkout-suite` seleccionado.
 
-1. **«Emitir acta de traspaso»** (requiere rol owner/admin) → el acta queda firmada con
-   el índice y su desglose dentro.
+1. Rellenar **«Quién se va»** (María) y **«Quién llega»** (Pablo) y pulsar **«Emitir acta de
+   traspaso»** (requiere ser administrador) → el acta queda firmada con el índice, su
+   desglose, quién se va y quién llega, y la **huella del contenido**: los N elementos
+   de conocimiento depositados, cada uno con su SHA-256.
 2. **«Copiar enlace de verificación»** → abrirlo en una ventana **sin sesión** (mejor: en
    el móvil, delante de todos). La página `/verify` comprueba la firma y pinta el sello del
-   traspaso: proyecto, índice y fecha.
+   traspaso: proyecto, índice, quién se va y quién llega, cuántos elementos y su huella.
 3. El enlace **manipulado** (preparado de antemano, ver `runbook.md` §1c-bis — vale el
    mismo procedimiento con un enlace de traspaso) → **«Firma NO válida»**.
 
@@ -125,7 +131,7 @@ Revisar esta tabla antes de cada ensayo: si el producto cambia, el guion tambié
 
 | Afirmación | Fuente | Comprobado |
 |---|---|---|
-| `checkout-suite` 95 / `banca-movil` 25 y sus desgloses | `compute_index` sobre Demo MTP en prod (`src/continuity/index.py`) | 2026-10-01 |
+| `checkout-suite` 85 / `banca-movil` 25 y sus desgloses | `compute_index` sobre Demo MTP en prod (`src/continuity/index.py`) | 2026-10-01 |
 | El índice es un recuento recalculable, no una opinión | `index.py`: solo lecturas, media ponderada de 4 dimensiones con num/den; sin datos → `None`, no 0 | código |
 | Emitir el acta requiere owner/admin | `src/continuity/service.py::emit_handover` (PermissionError) | código |
 | El acta lleva el índice y el desglose dentro, firmada | `emit_handover`: payload con `continuity.score`, `dimensions`, `inventario`, `key_id`; `sign(canonical_json(...))` | código |
@@ -136,6 +142,10 @@ Revisar esta tabla antes de cada ensayo: si el producto cambia, el guion tambié
 | Cada respuesta cita sus fuentes; sin LLM degrada a fuentes | `src/ai/nl_query.py::answer_over_sources` | código |
 | Texto exacto de la respuesta del LLM | Gemini en prod — **no determinista: ensayar en la app** | pendiente |
 | «Contradice la etiqueta humana» | PR #113 (`R0_prior_contradicted`) | en prod (01-10) |
+| El acta firma la huella del contenido y quién se va/llega; Mnemo detecta si cambió | `src/continuity/manifest.py`, `service.py::_integridad` | código |
+| Rotar la clave no invalida actas | `CertificateService.verify_payload` (anillo por `key_id`) | código |
+| El índice no se infla con notas vacías | `src/continuity/index.py` (MIN_RAZON_CHARS, MIN_CONTENIDO_CHARS, MIN_DIMENSIONES_MEDIBLES) | código |
+| Memoria de defectos 2/3 en checkout-suite | `src/demo/seed_recurrencia.py` + `compute_index` en prod | 2026-10-01 |
 | El acta da fe del análisis, no de que se ejecutaran los tests | disclaimer firmado (`src/certify/certificate.py::_DISCLAIMER`) y texto del sello en `/verify` | código |
 
 **Retirado del guion anterior** por no poder sostenerlo: «coste de API 0 €» (depende del
@@ -146,6 +156,21 @@ traspaso» de la auditoría del 12-ago **no está medida**: no decirla como dato
 ---
 
 ## Notas de presentación
+
+- **«¿Y si mañana se borra la memoria?»** → bajo la última acta, Continuidad recalcula la
+  huella: «lo depositado sigue intacto» o «ha cambiado desde el acta (N → M elementos)».
+- **«¿Y cuando rotéis la clave de firma?»** → las actas llevan el `key_id` firmado y la
+  verificación elige la clave por él entre la actual y las retiradas: rotar no invalida
+  nada de lo emitido.
+- **«¿Esto está sembrado?»** → sí, y decirlo antes de que lo pregunten: es una
+  organización de demostración con datos sembrados por el mismo camino que la app
+  (ingesta del CI, triaje del motor, etiquetas con su razón). Con datos reales la memoria
+  se llena igual —cada run y cada etiqueta—, y lo que todavía no está medido es el
+  ahorro: es el objetivo del piloto.
+- **«Inflo el índice con notas vacías»** → no: una razón cuenta desde ~20 caracteres, un
+  tipo de oficio solo si tiene contenido, y con menos de dos dimensiones medibles el
+  índice dice «sin datos suficientes». Mide qué hay documentado, no su calidad (el sello
+  lo dice), y una regla sin respaldo baja el índice a propósito: es un hueco.
 
 - Narrar la historia de María y Pablo, no las pantallas: cada transición responde a una
   pregunta de Pablo.
