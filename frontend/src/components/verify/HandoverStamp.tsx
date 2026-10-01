@@ -38,8 +38,9 @@ export function HandoverStamp({ canonical }: { canonical: Record<string, unknown
         </span>
       </div>
       <p className="mt-1 text-sm text-zinc-600">
-        La firma garantiza integridad y origen. El estado del conocimiento es el que
-        consta dentro del acta, en el momento en que se emitió.
+        La firma prueba que esta acta la emitió Mnemo y que nadie la ha modificado. El
+        índice recoge lo que había documentado en el proyecto al emitirla: mide qué
+        conocimiento hay, no su calidad.
       </p>
 
       <div className="mt-5 flex flex-wrap items-baseline gap-x-3 gap-y-1">

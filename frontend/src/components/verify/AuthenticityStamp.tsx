@@ -28,7 +28,9 @@ export function AuthenticityStamp({ canonical }: { canonical: Record<string, unk
         <span className="text-lg font-semibold">Acta auténtica · firmada · íntegra</span>
       </div>
       <p className="mt-1 text-sm text-zinc-600">
-        La firma garantiza integridad y origen. El veredicto es el que consta dentro del acta.
+        La firma prueba que esta acta la emitió Mnemo y que nadie la ha modificado. El
+        resultado de la ejecución (el manifiesto) lo declaró el CI del cliente: el acta da fe
+        del análisis de Mnemo sobre ese resultado.
       </p>
 
       <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
