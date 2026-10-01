@@ -656,3 +656,26 @@ def test_query_candidates_returns_null_centroid_family(assurance_repo, org):
     assert fam_id in ids, (
         f"familia {fam_id} con centroid NULL no fue devuelta por _query_candidates: {ids}"
     )
+
+
+@pytest.mark.integration
+def test_set_family_label_cannot_touch_global_families(repo, org):
+    # Una familia de ámbito global no es de ninguna org: ningún miembro de una org
+    # cualquiera puede re-etiquetarla (la etiqueta manda en R0 para todos).
+    fam = None
+    try:
+        with psycopg.connect(DBURL) as conn, conn.cursor() as cur:
+            cur.execute("insert into public.defect_families (scope, org_id, signature, title, occurrence_count)"
+                        " values ('global', null, %s, 'global', 1) returning id",
+                        (f"global-{uuid.uuid4().hex[:8]}",))
+            fam = str(cur.fetchone()[0])
+            conn.commit()
+        assert repo.set_family_label(user_id=org["user_id"], family_id=fam, label="flaky") is False
+        with psycopg.connect(DBURL) as conn, conn.cursor() as cur:
+            cur.execute("select label from public.defect_families where id=%s", (fam,))
+            assert cur.fetchone()[0] == "unknown"
+    finally:
+        if fam:
+            with psycopg.connect(DBURL) as conn, conn.cursor() as cur:
+                cur.execute("delete from public.defect_families where id=%s", (fam,))
+                conn.commit()

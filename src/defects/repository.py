@@ -930,8 +930,10 @@ class AssuranceRepository:
             with conn.cursor() as cur:
                 cur.execute(
                     "update public.defect_families set label = %s"
-                    " where id = %s and (scope = 'global' or exists (select 1 from public.memberships m"
-                    "   where m.org_id = public.defect_families.org_id and m.user_id = %s))"
+                    # Solo familias de una org de la que es miembro: una familia global no
+                    # es de nadie y su etiqueta mandaría en R0 para todas las orgs.
+                    " where id = %s and scope = 'org' and exists (select 1 from public.memberships m"
+                    "   where m.org_id = public.defect_families.org_id and m.user_id = %s)"
                     " returning org_id",
                     (label, family_id, user_id),
                 )

@@ -34,7 +34,8 @@ UNLABELED = "unknown"
 _Q_FAMILIAS = """
     select df.id, df.label, df.occurrence_count,
            exists (select 1 from public.qa_knowledge k
-                   where k.defect_family_id = df.id and k.status = 'activo') as con_conocimiento,
+                   where k.defect_family_id = df.id and k.org_id = df.org_id
+                     and k.status = 'activo') as con_conocimiento,
            exists (select 1 from public.triage_corrections tc
                    where tc.family_id = df.id
                      and tc.reason is not null and tc.reason <> '') as con_razon
