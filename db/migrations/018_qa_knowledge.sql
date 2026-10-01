@@ -27,5 +27,7 @@ create index if not exists idx_qa_knowledge_embedding on public.qa_knowledge
 
 alter table public.qa_knowledge enable row level security;
 alter table public.qa_knowledge force row level security;
+-- drop previo: scripts/docker_init.py re-aplica todas las migraciones en cada arranque.
+drop policy if exists qa_knowledge_member on public.qa_knowledge;
 create policy qa_knowledge_member on public.qa_knowledge for all
     using (public.is_org_member(org_id)) with check (public.is_org_member(org_id));
