@@ -27,6 +27,10 @@ El seed (`src/demo/seed.py`) ya está aplicado en producción:
 - **Org A "Demo MTP"** — 5 runs procesados (ingesta → triaje → acta firmada Ed25519):
   mantenimiento verde→rojo, flaky, **real (no-apto)** y re-run verde.
 - **Org B "Cliente Beta"** — 1 run propio (demostración de aislamiento RLS).
+- **Escenario María→Pablo** (`src/demo/seed_continuity.py`, idempotente por título): el
+  oficio de `checkout-suite` (runbooks, datos de prueba, contactos, decisiones, lección
+  del PSP) + la riqueza semanal (`seed_riqueza.py`) que deja el arco del índice:
+  `checkout-suite`=95 frente a `banca-movil`=25.
 - Actas firmadas con la clave de producción → verifican en la página pública `/verify`.
 
 Para re-sembrar desde cero: borrar las dos orgs (SQL en §1f) y ejecutar el seed **con
@@ -40,7 +44,7 @@ from src.demo.seed import seed_demo
 print(seed_demo(db_url=os.environ['DATABASE_URL'], demo_user_id='<TU_USER_UUID>'))"
 ```
 
-### 1c. El push en vivo (Acto 1)
+### 1c. El push en vivo (opcional, Acto 4)
 
 `scripts/demo_fixtures/fresh_push.json` es la munición: el run de `test_perfil` con el error
 `locator not found: #guardar` (el DOM ya trae `#guardar-cambios`). El webhook exige firma
@@ -58,6 +62,10 @@ Respuesta esperada: `"triage": {"maintenance": 1}`, acta `apto-con-reservas`,
 `"gate": null` si la org no tiene GitHub App conectada (esperado).
 
 ### 1c-bis. Los dos enlaces de verificación (Acto 2)
+
+Vale igual para el **acta de traspaso** (vista Continuidad → «Copiar enlace de
+verificación») que para el acta de un run: los dos enlaces llevan el mismo formato
+`/verify#v1.<blob>`. Para el traspaso, el retoque creíble es subir `continuity.score`.
 
 El enlace auténtico se obtiene desde la tarjeta del acta → **"Copiar enlace de
 verificación"**; se abre en cualquier ventana sin sesión (incógnito, o el móvil) y se
@@ -87,26 +95,32 @@ Secrets/variables que deben existir en el host del backend (ver `docs/deploy/pro
 |----------|----------|
 | `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_JWKS_URL`, `SUPABASE_JWT_AUDIENCE` | BD y auth |
 | `MNEMO_SIGNING_PRIVATE_KEY` / `MNEMO_SIGNING_PUBLIC_KEY` | firma Ed25519 de las actas |
-| `CI_WEBHOOK_SECRET`, `CI_SERVICE_USER_ID`, `CI_SERVICE_ORG_ID` | push en vivo del Acto 1 |
+| `CI_WEBHOOK_SECRET`, `CI_SERVICE_USER_ID`, `CI_SERVICE_ORG_ID` | push en vivo (opcional, Acto 4) |
 | `LLM_PROVIDER`, `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `LLM_MODEL`, `ALLOW_EXTERNAL_LLM` | LLM (opcional: sin él, degradación elegante) |
 
 ### 1e. Checklist 30 minutos antes
 
 - [ ] `GET <backend>/v2/health` → 200 (keep-warm activo; si tarda, abrirlo y esperar).
 - [ ] `GET <backend>/v2/certificates/pubkey` → 200 (la firma está encendida).
-- [ ] Login en el frontend y el selector muestra las dos orgs de demo.
-- [ ] Run **real** seleccionado → gate rojo + acta no-apto + el PDF descarga (con la
-      marca MTP y el pie de verificación).
-- [ ] Los dos enlaces de verificación probados (ver §1c-bis), abiertos en una ventana
-      sin sesión: el auténtico → sello azul "Acta auténtica"; el manipulado → rojo
-      "Firma NO válida".
-- [ ] Terminal con el bloque del push en vivo preparado (`prod.local.md`) y secreto exportado.
+- [ ] `/v2/health` → `llm.configured: true` (el Acto 3 lo usa; sin él degrada a fuentes).
+- [ ] Login en el frontend: el selector muestra **solo** las orgs de demo (retirar
+      cualquier org de pruebas de la cuenta antes del día).
+- [ ] **Acto 1**: Continuidad → `checkout-suite` = 95 y `banca-movil` = 25 (si no, ver la
+      riqueza en §1f: `arc_ok`).
+- [ ] **Acto 2**: «Emitir acta de traspaso» de `checkout-suite` ensayado la víspera (queda
+      como `handover/latest` para el plan B) y sus dos enlaces probados en una ventana sin
+      sesión: auténtico → sello; manipulado → «Firma NO válida».
+- [ ] **Acto 3**: las tres preguntas del guion lanzadas en la app; leer las respuestas
+      (el LLM no es determinista: si alguna se tuerce, ajustar la pregunta, no el guion).
+- [ ] **Acto 4**: el dashboard tiene runs de la semana (riqueza re-ejecutada, §1f) y un
+      run de `checkout-suite` muestra veredictos y acta.
+- [ ] (Opcional) terminal con el push en vivo preparado (`prod.local.md`).
 - [ ] Runs de ensayos anteriores podados (§1f) si se quiere la org limpia.
 
 ### 1f. Mantenimiento de los datos de demo
 
 ```sql
--- Podar los runs de ensayo del Acto 1 (conserva los 5 del seed)
+-- Podar los runs de ensayo del push en vivo (conserva los sembrados)
 delete from public.test_runs
  where org_id = '<ORG_A_UUID>' and run_uid like 'demo-%';
 
@@ -119,27 +133,26 @@ delete from public.organizations
   `PYTHONPATH=. python3 -c "import os; from src.demo.seed_riqueza import seed_riqueza; print(seed_riqueza(db_url=os.environ['DATABASE_URL'], demo_user_id='<TU_USER_UUID>'))"`.
   Es idempotente por semana (`run_uid` `riqueza-…`, a salvo de la poda de arriba, que
   solo toca `demo-%`): añade solo las semanas que falten desde la última vez, y termina
-  verificando el arco del Acto 4 — el resultado debe incluir `arc_ok: True`
+  verificando el arco del índice (Actos 1-2) — el resultado debe incluir `arc_ok: True`
   (checkout-suite=95 y banca-movil=25).
 - **Actas de los runs semanales**: la riqueza también emite el acta (triaje del motor
   + veredicto firmado) de cada run de la org que no la tenga — sin ella el dashboard
   muestra «sin veredicto aún». Requiere `MNEMO_SIGNING_PRIVATE_KEY`/`_PUBLIC_KEY` de
-  **producción** en el entorno (como §1b; el `.env` local lleva un placeholder): sin
-  clave el resultado sale `actas: 0` y los runs quedan sin veredicto; con una clave
-  distinta las actas NO verificarían en `/verify`.
+  **producción** en el entorno (como §1b; desde la rotación del 14-ago el `.env` del
+  checkout de trabajo la lleva — comprobar que su `key_id` coincide con el de
+  `/v2/certificates/pubkey`): sin clave el resultado sale `actas: 0` y los runs quedan
+  sin veredicto; con una clave distinta las actas NO verificarían en `/verify`.
 
-### 1g. Plan B (si el push en vivo falla)
+### 1g. Plan B
 
-Los datos pre-sembrados cubren el discurso completo sin el curl:
+| Si falla… | Se enseña |
+|---|---|
+| Emitir el acta de traspaso (Acto 2) | la última emitida en el ensayo (la vista la recupera de `handover/latest`) y su enlace |
+| El LLM (Acto 3) | la respuesta degradada: «LLM no accesible. Fuentes relevantes: …» — y decirlo como virtud |
+| El push en vivo (Acto 4, opcional) | cualquier run sembrado: `maintenance_red` (recién llegado del CI) o `real` (no-apto) |
 
-| Pre-sembrado | Sustituye a |
-|--------------|-------------|
-| run `maintenance_red` | el push del Acto 1 ("acaba de llegar del CI, ya triado") |
-| run `real` (no-apto) | el bloqueo rotundo del Acto 1 |
-| run `perfil_green` | el re-run del Acto 3 |
-
-El Acto 2 no depende del push: "Proponer acciones" → "Aprobar" → acta → `/verify` funciona
-sobre cualquier run sembrado. El Acto 3 (calibración + Org B + ROI) es independiente.
+El acta de un run (Acciones → Aprobar → Certificado → `/verify`) sigue disponible sobre
+cualquier run sembrado para preguntas del jurado.
 
 ---
 
