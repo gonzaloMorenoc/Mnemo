@@ -77,11 +77,12 @@ def org_poblada():
                     " values (%s,%s,'flaky','real','timeouts por runners fríos',%s)",
                     (org, ids["fam_a"], user))
 
-        def kn(kind, project, domain=None, fam=None):
+        def kn(kind, project, domain=None, fam=None,
+               approach="Cómo se hace, con el detalle que necesita quien llega."):
             cur.execute("insert into public.qa_knowledge (org_id, kind, title, domain,"
-                        " project, created_by, defect_family_id)"
-                        " values (%s,%s,%s,%s,%s,%s,%s)",
-                        (org, kind, f"{kind}-item", domain, project, user, fam))
+                        " project, created_by, defect_family_id, approach)"
+                        " values (%s,%s,%s,%s,%s,%s,%s,%s)",
+                        (org, kind, f"{kind}-item", domain, project, user, fam, approach))
 
         kn("leccion", PROJ, domain="pagos", fam=ids["fam_a"])  # respalda fam_a y el dominio pagos
         kn("runbook", PROJ)                                     # oficio 1/4
@@ -89,6 +90,14 @@ def org_poblada():
         kn("regla_negocio", PROJ, domain="pagos")               # respaldada
         kn("riesgo", PROJ, domain="envios")                     # SIN respaldo
         kn("dato_prueba", None)                                 # project NULL: NO cuenta
+        kn("decision", PROJ, approach="x")                      # solo un título: NO cuenta
+        # Una razón de una palabra no explica nada: no cuenta como «con razón».
+        cur.execute("insert into public.triage_corrections (org_id, family_id,"
+                    " engine_category, human_category, reason, corrected_by)"
+                    " values (%s,%s,'real','flaky','prueba',%s)", (org, ids["fam_b"], user))
+        # «sin-runs»: solo cuatro notas de oficio, una por tipo. Antes daba 100.
+        for k in ("runbook", "dato_prueba", "contacto", "decision"):
+            kn(k, "sin-runs")
         conn.commit()
     yield {"org": org, "user": user}
     with psycopg.connect(DBURL) as conn, conn.cursor() as cur:
@@ -130,6 +139,11 @@ def test_otro_proyecto_renormaliza_las_dimensiones_sin_datos(org_poblada):
     assert idx["score"] == 0                          # honesto: no sabe nada
 
 
+def test_cuatro_notas_en_un_proyecto_sin_runs_no_son_un_indice(org_poblada):
+    idx = compute_index(user_id=org_poblada["user"], org_id=org_poblada["org"], project="sin-runs")
+    assert idx["score"] is None   # una sola dimensión medible: «sin datos suficientes»
+
+
 def test_inventario(org_poblada):
     idx = compute_index(user_id=org_poblada["user"], org_id=org_poblada["org"], project=PROJ)
     inv = idx["inventario"]
@@ -148,4 +162,5 @@ def test_no_miembro_none(org_poblada):
 
 def test_list_projects_une_runs_y_conocimiento(org_poblada):
     projects = list_projects(user_id=org_poblada["user"], org_id=org_poblada["org"])
-    assert projects == ["cont-proj", "otro-proyecto"]
+    # «sin-runs» solo tiene conocimiento: también es un proyecto de la org.
+    assert projects == ["cont-proj", "otro-proyecto", "sin-runs"]
