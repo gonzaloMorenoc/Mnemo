@@ -1,150 +1,151 @@
-# Guion de demo — Mnemo (3 actos, ~4 min)
+# Guion de demo — Mnemo (María se va, Pablo llega · ~5 min)
 
-Demo contra el despliegue de **producción** (frontend en Vercel + backend en la nube + Supabase).
-La operativa (URLs concretas, credenciales, comandos con valores reales) vive en `runbook.md` y,
-para los valores privados, en `prod.local.md` (archivo local, no versionado).
+Demo contra el despliegue de **producción** (frontend en Vercel + backend en el Space +
+Supabase), con la cuenta dueña de la organización **«Demo MTP»**. La operativa (URLs,
+credenciales, comandos con valores reales) vive en `runbook.md` y, para los valores
+privados, en `prod.local.md` (local, no versionado).
+
+**La historia:** María, la QA senior de `checkout-suite`, rota a otro cliente. Pablo la
+sustituye. Mnemo es lo que hace que lo que sabía María no se vaya con ella.
 
 ---
 
 ## Tabla de tiempos
 
-| Acto | Contenido | Duración aprox. |
-|------|-----------|-----------------|
-| Apertura | Problema y propuesta | 30 s |
-| Acto 1 | Push en vivo → triaje automático + run real bloqueado | 60 s |
-| Acto 2 | Self-heal + aprobación humana + acta firmada + verificación pública | 90 s |
-| Acto 3 | Calibración (foso) + aislamiento multi-cliente + ROI | 60 s |
-| Cierre | Diferenciadores y call to action | 15 s |
-| **Total** | | **~4 min** |
+| Bloque | Contenido | Duración |
+|---|---|---|
+| Apertura | El dolor: lo que se va con el consultor que rota | 30 s |
+| Acto 1 | Índice de continuidad: cuánto sabe Mnemo de cada proyecto | 60 s |
+| Acto 2 | Acta de traspaso firmada y verificable sin cuenta | 75 s |
+| Acto 3 | Pablo pregunta; Mnemo responde con lo que dejó María, citado | 75 s |
+| Acto 4 | De dónde sale la memoria: el día a día de los runs | 45 s |
+| Cierre | Por qué esto no es una wiki con IA | 15 s |
+| **Total** | | **~5 min** |
 
 ---
 
-## Frase de apertura
+## Apertura (30 s)
 
-> "Un cambio de botón en la UI rompe el test de perfiles — y el equipo de QA pierde la mañana
-> averiguando por qué. Mnemo lo detecta en automático, propone el parche exacto y, con una firma
-> humana, emite un **acta criptográfica que cualquiera puede verificar**. Sin coste de API,
-> con el LLM configurable 100% on-premise para clientes con datos sensibles."
-
----
-
-## Acto 1 — El problema (push en vivo → triaje automático)
-
-### Qué se dice
-
-> "Esto es Mnemo en producción, con la organización 'Demo MTP' y los runs del sprint ya
-> procesados. Ahora llega un push del CI: el botón 'Guardar' cambió su ID en el DOM y el test
-> de perfil ha roto. Mnemo lo recibe por webhook y lo triaja solo, sin que nadie mire el log."
-
-### Qué se teclea
-
-El bloque del push en vivo está preparado en `prod.local.md` (firma HMAC-SHA256 y `run_uid`
-aleatorio para que cada ensayo ingeste un run fresco). En esencia:
-
-```bash
-# payload = fresh_push.json con org_id real y run_uid aleatorio
-# firma  = HMAC-SHA256(cuerpo, CI_WEBHOOK_SECRET) en X-Hub-Signature-256
-curl -X POST "$BACKEND_URL/v2/ci/webhook" \
-  -H "Content-Type: application/json" \
-  -H "X-Hub-Signature-256: sha256=$SIG" \
-  -d "$PAYLOAD"
-```
-
-### Qué se ve
-
-1. El terminal devuelve el triaje en segundos: `"triage": {"maintenance": 1, ...}` — Mnemo
-   clasifica el fallo de `test_perfil` como **mantenimiento** (el locator `#guardar` no existe;
-   el DOM trae `#guardar-cambios`) y el acta sale **apto-con-reservas**: un fallo de
-   mantenimiento no bloquea el release, lo deja señalado.
-2. En el frontend, seleccionar el run recién llegado: triaje por test con evidencia
-   (`TriageVerdictList`) y briefing ejecutivo (`BriefingCard`).
-3. **El bloqueo rotundo**: seleccionar el run pre-sembrado con un **fallo real nuevo** →
-   `GateCard` en rojo, acta **no-apto**. *"Cuando el fallo es real y nunca visto, Mnemo frena
-   el release; cuando es mantenimiento o flaky, no te roba la mañana."*
-
-### Mensaje clave
-
-> "Triaje determinista en segundos, con la política de un QA senior: bloquear lo real,
-> señalar lo demás. Nadie ha mirado un log."
+> «En una consultora de QA, los consultores rotan. Cuando María deja `checkout-suite`, con
+> ella se van cosas que no están en ningún sitio: cómo se levanta el entorno, qué tarjetas
+> de prueba usar, a quién se le escribe cuando el sandbox del PSP se cae, y por qué un test
+> que parece inestable en realidad no lo es. El que llega lo aprende a base de preguntar…
+> si María sigue contestando.»
 
 ---
 
-## Acto 2 — La acción (self-heal + firma humana + acta verificable)
+## Acto 1 — Cuánto sabe Mnemo de cada proyecto (60 s)
 
-### Qué se dice
+**Qué se hace:** menú **Continuidad** → selector de proyecto.
 
-> "Mnemo no solo detecta: propone la solución — actualizar el locator de `#guardar` a
-> `#guardar-cambios`. Pero la IA nunca firma sola: hace falta la aprobación de un ingeniero."
+1. `checkout-suite` → índice **95**. Recorrer el desglose: *el porqué de las etiquetas*
+   4/4, *oficio del proyecto* 4/4 (runbook, datos de prueba, contactos, decisiones),
+   *reglas con respaldo* 4/5.
+2. Cambiar a `banca-movil` → índice **25**: *oficio* 0/4, *reglas con respaldo* 0/2.
 
-### Qué se hace en la UI
+> «El índice no es una opinión: es el recuento de lo que la memoria tiene de cada
+> proyecto, con el desglose a la vista. `checkout-suite` está documentado; si mañana rota
+> quien lleva `banca-movil`, esto es lo que se pierde — y ahora se ve antes, no después.»
 
-1. En **Acciones** (`ActionsPanel`) → clic en **"Proponer acciones"** → aparece la acción
-   `self_heal` con el parche y la evidencia (el DOM contiene `id="guardar-cambios"`).
-2. Clic en **"Aprobar"** → estado `approved`. *"Determinismo donde firmo, IA donde multiplico."*
-3. Abrir **Certificado** (`CertificateCard`): veredicto firmado con **Ed25519**, con evidencia,
-   desglose y `key_id`. Clic en **"Descargar PDF"** — el PDF ya lleva la marca MTP y un pie
-   que dice dónde verificarlo.
-4. **El remate — el enlace que se verifica solo**: clic en **"Copiar enlace de
-   verificación"** y abrirlo en una ventana sin sesión (mejor aún: en el móvil, delante de
-   todos). Sin cuenta, sin instalar nada, el acta se verifica sola y aparece el **sello de
-   autenticidad** con el veredicto y el manifiesto de la ejecución.
-   - Enlace auténtico → sello azul MTP, veredicto tal cual consta en el acta.
-   - Enlace **manipulado** (preparado de antemano, ver `runbook.md` §1c-bis) →
-     **"Firma NO válida"** en rojo. *"El verde solo se cree cuando se ha visto el rojo."*
-
-### Mensaje clave
-
-> "Esto es un acta de aseguramiento, no un dashboard: cualquiera — un cliente, un auditor —
-> puede verificarla criptográficamente sin tener cuenta en Mnemo. Como la cadena de suministro
-> firma sus builds, nosotros firmamos el estado real de la calidad."
+**Mensaje:** el riesgo de rotación pasa de intuición a dato por proyecto.
 
 ---
 
-## Acto 3 — Aprendizaje + aislamiento (foso + Org B + ROI)
+## Acto 2 — El acta de traspaso (75 s)
 
-### Qué se dice
+**Qué se hace:** en la misma vista, con `checkout-suite` seleccionado.
 
-> "¿Y el run verde? Mnemo tampoco regala aptos: hasta que el motor no está calibrado con
-> correcciones humanas, ni siquiera un run limpio recibe un apto rotundo. Esa honestidad es
-> el producto."
+1. **«Emitir acta de traspaso»** (requiere rol owner/admin) → el acta queda firmada con
+   el índice y su desglose dentro.
+2. **«Copiar enlace de verificación»** → abrirlo en una ventana **sin sesión** (mejor: en
+   el móvil, delante de todos). La página `/verify` comprueba la firma y pinta el sello del
+   traspaso: proyecto, índice y fecha.
+3. El enlace **manipulado** (preparado de antemano, ver `runbook.md` §1c-bis — vale el
+   mismo procedimiento con un enlace de traspaso) → **«Firma NO válida»**.
 
-### Qué se hace en la UI
+> «Esto es lo que la consultora entrega al cliente cuando rota a una persona: no un "ya se
+> lo he contado a Pablo", sino un acta firmada de qué conocimiento quedó depositado.
+> Cualquiera la verifica sin cuenta en Mnemo. Y si alguien la toca, se nota.»
 
-1. **Re-run limpio** (pre-sembrado): acta verde **apto-con-reservas** — explicar el matiz:
-   sin historial de calibración la confianza es baja y el sistema lo dice. *"El apto rotundo
-   se gana con calibración, no se regala."*
-2. **Calibración** (`/app/calibration`): etiquetar una familia (flaky/real/mantenimiento…) →
-   las métricas del foso se actualizan. Cada corrección humana afina el siguiente triaje.
-3. **Aislamiento multi-cliente**: cambiar en el topbar a **"Cliente Beta"** → sus runs no
-   aparecen; los de Demo MTP tampoco al revés. RLS en vivo: cada cliente, su memoria.
-4. **ROI** (`RoiPanel`): horas de triaje ahorradas, releases certificados, coste de API 0 €.
-
-### Mensaje clave
-
-> "El motor aprende de cada corrección — ese historial de calibración por cliente es el foso:
-> no se puede clonar con un fork. Y cada cliente solo ve su memoria."
+**Mensaje:** une los dos pilares — memoria del proyecto y evidencia firmada.
 
 ---
 
-## Frase de cierre
+## Acto 3 — Pablo pregunta (75 s)
 
-> "Mnemo convierte el conocimiento de QA — que hoy se evapora con la rotación — en memoria
-> permanente y en actas verificables. Determinista donde firma, asistido por IA donde escala,
-> y con un coste marginal de cero. Gracias."
+**Qué se hace:** menú **Onboarding al proyecto** → «Preguntar a la memoria» (o
+**Conocimiento** → pestaña «Preguntar»).
+
+1. *«¿Por qué es inestable el checkout?»* → la respuesta tira de la lección del
+   rate-limit del sandbox del PSP y de la razón con la que se etiquetó la familia de
+   timeouts («los timeouts correlan con runners fríos y latencia del sandbox del PSP, no
+   con el test»), con sus citas.
+2. *«¿A quién pregunto por el sandbox del PSP?»* → el contacto: lo lleva el equipo de
+   Pagos.
+3. (Si sobra tiempo) *«¿Cómo levanto el entorno de checkout?»* → el runbook.
+
+> «Pablo no tiene que encontrar a María. Pregunta con sus palabras y recibe lo que ella
+> dejó escrito — incluida la razón que tecleó al etiquetar un fallo hace semanas, sin
+> saber que estaba escribiendo para su sustituto. Cada respuesta dice de dónde sale.»
+
+**Si el LLM no responde:** la respuesta degrada a la lista de fuentes relevantes, y se
+dice: «sin IA, sigue diciéndote dónde mirar».
+
+---
+
+## Acto 4 — De dónde sale la memoria (45 s)
+
+**Qué se hace:** **Dashboard** → un run reciente de `checkout-suite` → veredictos de
+triaje y acta del run.
+
+> «Esta memoria no se rellena en una sesión de documentación que nadie hace. Sale del día a
+> día: cada run del CI entra, el motor determinista clasifica cada fallo y explica qué regla
+> aplicó, el equipo etiqueta con una frase, y esa frase se vuelve buscable. Cada run lleva
+> además su propia acta firmada.»
+
+Detalle para preguntas (no en el guion principal): si una familia marcada *flaky* empieza a
+fallar con una aserción pura, el motor no la esconde tras la etiqueta — marca «contradice la
+etiqueta humana» y pide revisión antes de dar el run por bueno.
+
+---
+
+## Cierre (15 s)
+
+> «Una wiki no sabe qué test falló ayer; Mnemo sí, y por eso su memoria se llena sola y se
+> puede firmar. Cuando un consultor rota, el conocimiento se queda. Gracias.»
+
+---
+
+## De dónde sale cada afirmación
+
+Revisar esta tabla antes de cada ensayo: si el producto cambia, el guion también.
+
+| Afirmación | Fuente | Comprobado |
+|---|---|---|
+| `checkout-suite` 95 / `banca-movil` 25 y sus desgloses | `compute_index` sobre Demo MTP en prod (`src/continuity/index.py`) | 2026-10-01 |
+| El índice es un recuento recalculable, no una opinión | `index.py`: solo lecturas, media ponderada de 4 dimensiones con num/den; sin datos → `None`, no 0 | código |
+| Emitir el acta requiere owner/admin | `src/continuity/service.py::emit_handover` (PermissionError) | código |
+| El acta lleva el índice y el desglose dentro, firmada | `emit_handover`: payload con `continuity.score`, `dimensions`, `inventario`, `key_id`; `sign(canonical_json(...))` | código |
+| Se verifica sin cuenta | `frontend/src/app/verify/page.tsx` (fuera de `/app`, sin sesión) | código |
+| Enlace manipulado → firma no válida | `runbook.md` §1c-bis (probado con actas de release) | ensayar con traspaso |
+| Las preguntas recuperan la lección del PSP, la razón de la familia, el contacto y el runbook | `search_unified` sobre Demo MTP en prod (fuentes, sin LLM) | 2026-10-01 |
+| La razón tecleada al etiquetar se vuelve buscable | PR #114 (vector propio de la razón; media con el centroide) | prod, 2026-10-01 |
+| Cada respuesta cita sus fuentes; sin LLM degrada a fuentes | `src/ai/nl_query.py::answer_over_sources` | código |
+| Texto exacto de la respuesta del LLM | Gemini en prod — **no determinista: ensayar en la app** | pendiente |
+| «Contradice la etiqueta humana» | PR #113 (`R0_prior_contradicted`) | tras merge |
+
+**Retirado del guion anterior** por no poder sostenerlo: «coste de API 0 €» (depende del
+plan del proveedor de LLM), «100 % on-premise con Ollama» (no es la configuración que se
+usa) y cualquier tiempo concreto («en segundos»). La cifra de «2-6 semanas de shadowing por
+traspaso» de la auditoría del 12-ago **no está medida**: no decirla como dato.
 
 ---
 
 ## Notas de presentación
 
-- Hablar sobre la demo, no solo mostrarla: narrar el valor de cada transición.
-- **Claim de privacidad, versión honesta**: la demo corre en la nube con un LLM gratuito
-  (Gemini free tier vía endpoint compatible OpenAI). El pitch correcto es *"proveedor LLM
-  configurable: 100% on-premise con Ollama para datos sensibles; esta demo usa la nube por
-  accesibilidad"*. No decir "los datos nunca salen" mientras se enseña la demo cloud.
-- Si el LLM no responde, el briefing degrada a texto determinista — mencionarlo como feature:
-  el triaje, el acta y el gate no dependen del LLM.
-- La firma de las actas es **Ed25519** (no ECDSA); el `key_id` dentro del acta permite rotar
-  claves sin romper actas antiguas.
-- El `gate` del webhook devuelve `null` si la organización no tiene la GitHub App conectada:
-  degradación esperada, el semáforo del run en la UI no depende de ello.
-- Plan B: ver `runbook.md` — los runs pre-sembrados cubren los tres actos sin push en vivo.
+- Narrar la historia de María y Pablo, no las pantallas: cada transición responde a una
+  pregunta de Pablo.
+- La demo corre en la nube con un LLM de API (Gemini). El proveedor es configurable; no
+  afirmar dónde viajan los datos más allá de eso.
+- Plan B y checklist previa: `runbook.md`. Si el acta de traspaso falla en vivo, enseñar la
+  última emitida (`handover/latest`) desde el ensayo.
