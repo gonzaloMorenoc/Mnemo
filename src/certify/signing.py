@@ -13,9 +13,10 @@ class SigningKeyMissing(RuntimeError):
 def key_id(public_key_pem: str) -> str:
     """Identificador determinista de la clave pública (SHA-256 truncado a 16 hex).
 
-    Va dentro del acta firmada para que un verificador sepa qué clave usar (habilita
-    rotación: certificados viejos siguen verificando con su clave). Cadena vacía si
-    no hay clave configurada."""
+    Va dentro del acta firmada para que un verificador sepa qué clave usar: con la
+    pública saliente en MNEMO_SIGNING_RETIRED_PUBLIC_KEYS, las actas viejas siguen
+    verificando tras una rotación (CertificateService.verify_payload). Cadena vacía
+    si no hay clave configurada."""
     if not public_key_pem:
         return ""
     return hashlib.sha256(public_key_pem.strip().encode("utf-8")).hexdigest()[:16]

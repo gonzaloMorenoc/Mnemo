@@ -14,6 +14,7 @@ import {
   listContinuityProjects,
 } from "@/lib/api/endpoints";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { buildShareUrl } from "@/lib/certificate-share";
 import { continuityBand, deltaDesdeActa } from "@/lib/continuity-band";
 import { fechaActa } from "@/lib/acta-format";
@@ -56,6 +57,9 @@ export default function ContinuityPage() {
     if (p) setProject(p);
   }, []);
   const [enlaceManual, setEnlaceManual] = useState<string | null>(null);
+  // Quién se va y quién llega: van FIRMADOS dentro del acta (opcionales).
+  const [de, setDe] = useState("");
+  const [para, setPara] = useState("");
 
   const isAdmin = useMemo(() => {
     const role = orgs.find((o) => o.id === activeOrgId)?.role;
@@ -85,7 +89,7 @@ export default function ContinuityPage() {
   });
 
   const emitMutation = useMutation({
-    mutationFn: () => emitHandover(accessToken!, activeOrgId, activeProject),
+    mutationFn: () => emitHandover(accessToken!, activeOrgId, activeProject, de.trim(), para.trim()),
     onSuccess: () => {
       toast.success("Acta de traspaso emitida y firmada.");
       latestQuery.refetch();
@@ -279,6 +283,18 @@ export default function ContinuityPage() {
                 Última acta: <strong>{acta.score ?? "—"}</strong> / 100 ·{" "}
                 {fechaActa(acta.created_at)}
               </p>
+              {acta.integridad && (
+                acta.integridad.intacto ? (
+                  <p className="mt-1 text-xs font-medium text-emerald-700">
+                    ✓ Lo depositado sigue intacto: {acta.integridad.n_acta} elementos, la misma huella que firma el acta.
+                  </p>
+                ) : (
+                  <p role="alert" className="mt-1 text-xs font-medium text-amber-800">
+                    ⚠ El conocimiento ha cambiado desde el acta ({acta.integridad.n_acta} → {acta.integridad.n_actual ?? "—"} elementos):
+                    su huella ya no coincide con la firmada. Emite una nueva si el cambio es legítimo.
+                  </p>
+                )
+              )}
               {acta.share && (
                 <div className="mt-2 space-y-2">
                   <Button size="sm" variant="outline" onClick={() => copyShareLink(acta.share)}>
@@ -297,6 +313,18 @@ export default function ContinuityPage() {
               )}
             </div>
           )}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="space-y-1 text-sm">
+              <span className="font-medium text-zinc-700">Quién se va</span>
+              <Input value={de} onChange={(e) => setDe(e.target.value)} maxLength={120}
+                     placeholder="p. ej. María (QA senior)" aria-label="Quién se va" />
+            </label>
+            <label className="space-y-1 text-sm">
+              <span className="font-medium text-zinc-700">Quién llega</span>
+              <Input value={para} onChange={(e) => setPara(e.target.value)} maxLength={120}
+                     placeholder="p. ej. Pablo" aria-label="Quién llega" />
+            </label>
+          </div>
           <Button
             disabled={!isAdmin || !activeProject || emitMutation.isPending}
             onClick={() => emitMutation.mutate()}

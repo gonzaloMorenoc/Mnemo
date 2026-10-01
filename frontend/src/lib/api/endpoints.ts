@@ -430,10 +430,11 @@ export function getContinuity(token: string, orgId: string, project: string) {
   return apiRequest<ContinuityResponse>(`/api/v2/continuity?${qs}`, "GET", { token });
 }
 
-export function emitHandover(token: string, orgId: string, project: string) {
+export function emitHandover(token: string, orgId: string, project: string,
+                             de?: string, para?: string) {
   return apiRequest<HandoverAct>("/api/v2/continuity/handover", "POST", {
     token,
-    body: { org_id: orgId, project },
+    body: { org_id: orgId, project, de: de || null, para: para || null },
   });
 }
 

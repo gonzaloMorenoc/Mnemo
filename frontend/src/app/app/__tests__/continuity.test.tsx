@@ -26,6 +26,7 @@ vi.mock("@/lib/api/endpoints", () => ({
 
 import { useActiveOrg } from "@/components/providers/org-provider";
 import {
+  emitHandover,
   getContinuity,
   getLatestHandover,
   listContinuityProjects,
@@ -171,5 +172,27 @@ describe("Continuidad", () => {
     expect(await screen.findByText("+20 desde la última acta")).toBeInTheDocument();
     expect(screen.getAllByText("Riesgo medio").length).toBeGreaterThan(0);
     expect(screen.getByText(/Hay huecos que se irían con la persona/)).toBeInTheDocument();
+  });
+
+  it("al emitir, el acta lleva quién se va y quién llega", async () => {
+    setup("owner");
+    (emitHandover as ReturnType<typeof vi.fn>).mockResolvedValue({ score: 50 });
+    fireEvent.change(await screen.findByLabelText("Quién se va"), { target: { value: "María" } });
+    fireEvent.change(screen.getByLabelText("Quién llega"), { target: { value: "Pablo" } });
+    fireEvent.click(screen.getByRole("button", { name: /emitir acta de traspaso/i }));
+    await waitFor(() => expect(emitHandover).toHaveBeenCalled());
+    expect((emitHandover as ReturnType<typeof vi.fn>).mock.calls[0].slice(1))
+      .toEqual(["o1", "checkout-suite", "María", "Pablo"]);
+  });
+
+  it("la última acta dice si lo depositado sigue intacto", async () => {
+    setup("owner");
+    (getLatestHandover as ReturnType<typeof vi.fn>).mockResolvedValue({
+      score: 50, project: "checkout-suite", created_at: "2026-10-01T10:00:00Z",
+      canonical_json: {}, signature: "s", share: "BLOB",
+      integridad: { intacto: false, n_acta: 23, n_actual: 21 },
+    });
+    expect(await screen.findByText(/ha cambiado desde el acta/i)).toBeInTheDocument();
+    expect(screen.getByText(/23 → 21/)).toBeInTheDocument();
   });
 });

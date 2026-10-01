@@ -12,22 +12,28 @@ from typing import Any, Dict, Optional
 from src.certify.share import share_blob
 from src.certify.signing import canonical_json, key_id, sign
 from src.continuity.index import compute_index, list_projects
+from src.continuity.manifest import compute_deposit
 
-SCHEMA = "mnemo.traspaso.v1"
+# v2: además de los recuentos, firma la HUELLA de lo depositado (contenido) y quién
+# se va y quién llega. Las actas v1 siguen verificando: la firma es sobre su JSON.
+SCHEMA = "mnemo.traspaso.v2"
 
 
 class ContinuityService:
     def __init__(self, *, repo, private_key: str, public_key: str, mnemo_version: str,
-                 index_fn=compute_index, projects_fn=list_projects):
+                 index_fn=compute_index, projects_fn=list_projects,
+                 deposit_fn=compute_deposit):
         self.repo = repo                 # ContinuityRepository
         self._private_key = private_key
         self._public_key = public_key
         self._mnemo_version = mnemo_version
         self._index_fn = index_fn        # inyectables: los unit tests no tocan la BD
         self._projects_fn = projects_fn
+        self._deposit_fn = deposit_fn
 
     def emit_handover(self, *, user_id: str, org_id: str, project: str,
-                      created_at: str) -> Dict[str, Any]:
+                      created_at: str, de: Optional[str] = None,
+                      para: Optional[str] = None) -> Dict[str, Any]:
         """Emite y firma el acta de traspaso del proyecto.
 
         PermissionError si no es owner/admin; ValueError si el proyecto no existe
@@ -38,6 +44,9 @@ class ContinuityService:
         if project not in self._projects_fn(user_id=user_id, org_id=org_id):
             raise ValueError("proyecto no encontrado en esta organización")
         idx = self._index_fn(user_id=user_id, org_id=org_id, project=project)
+        # La huella del CONTENIDO: si mañana se borra o cambia un solo elemento, la
+        # que Mnemo recalcula ya no coincide con la firmada (ver latest_handover).
+        contenido = self._deposit_fn(user_id=user_id, org_id=org_id, project=project)
         # El desglose entero viaja dentro: el acta es RECALCULABLE. Quien tenga los
         # datos puede reproducir el número, y los pesos van con ella para que dos
         # actas emitidas con pesos distintos sigan siendo comparables.
@@ -49,6 +58,8 @@ class ContinuityService:
             "emitted_by": user_id,
             "continuity": {"score": idx["score"], "dimensions": idx["dimensions"]},
             "inventario": idx["inventario"],
+            "contenido": contenido,
+            "traspaso": {"de": de, "para": para},
             "mnemo_version": self._mnemo_version,
             "key_id": key_id(self._public_key),
         }
@@ -66,4 +77,16 @@ class ContinuityService:
         act = self.repo.latest_act(user_id=user_id, org_id=org_id, project=project)
         if act is None:
             return None
-        return {**act, "share": share_blob(act["canonical_json"], act["signature"])}
+        return {**act, "share": share_blob(act["canonical_json"], act["signature"]),
+                "integridad": self._integridad(user_id, org_id, project, act["canonical_json"])}
+
+    def _integridad(self, user_id: str, org_id: str, project: str,
+                    canonical: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """¿Sigue intacto lo que el acta depositó? Recalcula la huella actual y la
+        compara con la firmada. None para actas v1 (no firmaban contenido)."""
+        firmado = canonical.get("contenido")
+        if not firmado:
+            return None
+        actual = self._deposit_fn(user_id=user_id, org_id=org_id, project=project) or {}
+        return {"intacto": actual.get("sha256") == firmado.get("sha256"),
+                "n_acta": firmado.get("n"), "n_actual": actual.get("n")}
