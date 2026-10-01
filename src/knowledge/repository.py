@@ -43,6 +43,7 @@ def insert_qa_knowledge(cur, *, org_id: str, kind: str, title: str,
     transacción que la aprobación de una propuesta (atomicidad). Valida el kind."""
     if kind not in _KINDS:
         raise ValueError(f"kind inválido: {kind}")
+    _assert_same_org(cur, org_id=org_id, defect_family_id=defect_family_id, run_id=run_id)
     cur.execute(
         f"insert into public.qa_knowledge ({_INSERT_COLS})"
         " values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
@@ -52,6 +53,21 @@ def insert_qa_knowledge(cur, *, org_id: str, kind: str, title: str,
          embedding),
     )
     return cur.fetchone()
+
+
+def _assert_same_org(cur, *, org_id: str, defect_family_id: Optional[str],
+                     run_id: Optional[str]) -> None:
+    """Un item solo puede apuntar a una familia o a un run de SU organización. La FK
+    no lo garantiza: sin esto, quien conociera el UUID de una familia ajena la marcaba
+    como «con conocimiento» en el índice de continuidad (firmado) de otra org. El
+    mensaje es el mismo exista o no la referencia: no sirve de oráculo de UUIDs."""
+    for tabla, ref in (("defect_families", defect_family_id), ("test_runs", run_id)):
+        if not ref:
+            continue
+        cur.execute(f"select exists(select 1 from public.{tabla}"
+                    " where id::text = %s and org_id = %s) as ok", (str(ref), org_id))
+        if not cur.fetchone()["ok"]:
+            raise ValueError("la referencia no pertenece a la organización")
 
 
 class QaKnowledgeRepository:

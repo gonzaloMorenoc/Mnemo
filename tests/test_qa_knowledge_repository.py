@@ -315,3 +315,44 @@ def test_non_member_cannot_access(org_with_member):
     assert repo.list_items(user_id=other, org_id=o) == []
     assert repo.search_semantic(user_id=other, org_id=o, query_embedding=[0.1] * 384) == []
     assert repo.get_item(user_id=other, org_id=o, item_id=str(item["id"])) is None
+
+
+@pytest.fixture
+def foreign_family_and_run():
+    """Familia y run de OTRA organización (la víctima)."""
+    if not DBURL:
+        pytest.skip("DATABASE_URL not configured")
+    owner = str(uuid.uuid4())
+    with psycopg.connect(DBURL) as conn, conn.cursor() as cur:
+        cur.execute("insert into auth.users (id, email, role, aud, created_at, updated_at)"
+                    " values (%s,%s,'authenticated','authenticated',now(),now())",
+                    (owner, f"kn-victim-{owner[:8]}@test.internal"))
+        cur.execute("insert into public.organizations (name, created_by) values (%s,%s) returning id",
+                    (f"kn-victim-{owner[:8]}", owner))
+        org = str(cur.fetchone()[0])
+        cur.execute("insert into public.defect_families (scope, org_id, signature, title, occurrence_count)"
+                    " values ('org', %s, %s, 'ajena', 1) returning id", (org, f"sig-{owner[:8]}"))
+        fam = str(cur.fetchone()[0])
+        cur.execute("insert into public.test_runs (org_id, project, source) values (%s,'p','junit')"
+                    " returning id", (org,))
+        run = str(cur.fetchone()[0])
+        conn.commit()
+    yield {"family_id": fam, "run_id": run}
+    with psycopg.connect(DBURL) as conn, conn.cursor() as cur:
+        cur.execute("delete from public.organizations where id=%s", (org,))
+        cur.execute("delete from auth.users where id=%s", (owner,))
+        conn.commit()
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("campo", ["defect_family_id", "run_id"])
+def test_cannot_link_knowledge_to_another_orgs_family_or_run(org_with_member,
+                                                            foreign_family_and_run, campo):
+    # Sin esta comprobación, quien conociera el UUID de una familia ajena marcaba esa
+    # familia como «con conocimiento» en el índice (firmado) de la víctima.
+    u, o = org_with_member["user_id"], org_with_member["org_id"]
+    repo = QaKnowledgeRepository(db_url=DBURL, embedder=FakeEmb())
+    ref = foreign_family_and_run[campo.replace("defect_", "")]
+    with pytest.raises(ValueError, match="no pertenece a la organización"):
+        repo.create_item(user_id=u, org_id=o, kind="leccion", title="x", **{campo: ref})
+    assert repo.list_items(user_id=u, org_id=o) == []

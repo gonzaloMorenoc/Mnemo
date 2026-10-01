@@ -220,7 +220,8 @@ class HandoverEmitRequest(BaseModel):
 
 class CertificateVerifyRequest(BaseModel):
     canonical_json: dict
-    signature: str
+    # Una firma Ed25519 en base64 son 88 caracteres: el tope evita decodificar basura.
+    signature: str = Field(max_length=512)
 
 
 class CertificateVerifyResponse(BaseModel):

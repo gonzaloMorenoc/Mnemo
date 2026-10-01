@@ -11,6 +11,8 @@ from urllib.parse import urlparse
 
 from atlassian import Confluence
 
+from src.jira.safe_url import no_redirect_session, safe_error
+
 
 class ConfluenceApiError(Exception):
     """Error al hablar con la API de Confluence (red, auth, sin licencia, 404…)."""
@@ -178,13 +180,13 @@ class ConfluenceApiClient:
         # la librería (75 s) es mayor que los 55 s del proxy del frontend.
         self._confluence = Confluence(url=f"{base_url.rstrip('/')}/wiki",
                                       username=email, password=token, cloud=True,
-                                      timeout=timeout)
+                                      session=no_redirect_session(), timeout=timeout)
 
     def fetch_page(self, page_id: str) -> ConfluencePage:
         try:
             raw = self._confluence.get_page_by_id(page_id, expand="body.storage,space")
         except Exception as exc:  # noqa: BLE001 — envolvemos cualquier fallo (incl. 404 sin licencia)
-            raise ConfluenceApiError(str(exc)) from exc
+            raise ConfluenceApiError(safe_error(exc)) from exc
         body = (((raw or {}).get("body") or {}).get("storage") or {}).get("value") or ""
         return ConfluencePage(
             id=str((raw or {}).get("id") or page_id),

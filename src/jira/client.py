@@ -3,6 +3,7 @@ from typing import List
 from atlassian import Jira
 
 from src.jira.models import JiraBug, JiraIssue, adf_to_text
+from src.jira.safe_url import no_redirect_session, safe_error
 
 
 class JiraApiError(Exception):
@@ -14,7 +15,7 @@ class JiraApiClient:
         # timeout explícito: el default de la librería (75 s por llamada HTTP) es
         # MAYOR que los 55 s del proxy del frontend → 504 seguro sin esto.
         self._jira = Jira(url=base_url, username=email, password=token, cloud=True,
-                          timeout=timeout)
+                          session=no_redirect_session(), timeout=timeout)
 
     def fetch_bugs(self, jql: str, *, page_size: int = 50, max_issues: int = 1000) -> List[JiraBug]:
         bugs: List[JiraBug] = []
@@ -46,7 +47,7 @@ class JiraApiClient:
                 if total is not None and start >= total:
                     break
         except Exception as exc:  # noqa: BLE001 — envolvemos cualquier fallo de la librería
-            raise JiraApiError(str(exc)) from exc
+            raise JiraApiError(safe_error(exc)) from exc
         return bugs
 
     def fetch_issue(self, key: str) -> "JiraIssue":
@@ -60,7 +61,7 @@ class JiraApiClient:
             raw = self._jira.issue(
                 key, fields="summary,description,resolution,resolutiondate,customfield_10016")
         except Exception as exc:  # noqa: BLE001
-            raise JiraApiError(str(exc)) from exc
+            raise JiraApiError(safe_error(exc)) from exc
         fields = raw.get("fields") or {}
         return JiraIssue(
             key=raw.get("key") or key,

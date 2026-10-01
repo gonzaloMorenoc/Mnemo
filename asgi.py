@@ -14,6 +14,11 @@ from fastapi import FastAPI
 
 from src.api_v2 import router as v2_router
 from src.db.pool import get_pool, close_pool
+from src.http.body_limit import BodySizeLimitMiddleware
+
+# Endpoints PÚBLICOS (sin auth) con cuerpo: tope antes de leerlo. Un acta real ocupa
+# ~2 KB; 512 KB deja margen para runs con cientos de fallos en la evidencia.
+_PUBLIC_BODY_LIMITS = {"/v2/certificates/verify": 512 * 1024}
 
 
 @asynccontextmanager
@@ -29,3 +34,4 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Mnemo Autopilot", version="2.0.0", lifespan=lifespan)
 app.include_router(v2_router)
+app.add_middleware(BodySizeLimitMiddleware, limits=_PUBLIC_BODY_LIMITS)

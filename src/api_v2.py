@@ -519,15 +519,35 @@ def create_org(
     return _org_to_response(org)
 
 
+# Freno a la fuerza bruta del código de unión (10 hex = 40 bits): fallos por USUARIO
+# autenticado y no por IP (todo el tráfico del navegador llega por el proxy de
+# Vercel). En memoria del proceso: el backend corre con un solo worker.
+_JOIN_MAX_FAILURES = 10
+_JOIN_WINDOW_SECONDS = 3600
+_join_failures: Dict[str, List[float]] = {}
+from time import monotonic as _join_clock  # noqa: E402 — junto a su único uso
+
+
+def _recent_join_failures(user_id: str) -> List[float]:
+    now = _join_clock()
+    recent = [t for t in _join_failures.get(user_id, []) if now - t < _JOIN_WINDOW_SECONDS]
+    _join_failures[user_id] = recent
+    return recent
+
+
 @router.post("/orgs/join", response_model=OrganizationResponse)
 def join_org(
     req: JoinOrgRequest,
     user: AuthenticatedUser = Depends(get_current_user),
     repo: OrganizationRepository = Depends(get_repo),
 ) -> OrganizationResponse:
+    if len(_recent_join_failures(user.user_id)) >= _JOIN_MAX_FAILURES:
+        raise HTTPException(status_code=429,
+                            detail="Demasiados códigos incorrectos. Inténtalo dentro de una hora.")
     try:
         org = repo.join_organization(user_id=user.user_id, join_code=req.join_code)
     except ValueError as exc:
+        _join_failures[user.user_id] = [*_recent_join_failures(user.user_id), _join_clock()]
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail="Database error") from exc
