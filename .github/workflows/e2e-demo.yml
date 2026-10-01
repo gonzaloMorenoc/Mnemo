@@ -1,7 +1,8 @@
 name: E2E de la demo
 
 # El recorrido del guion (docs/demo/guion.md) contra el despliegue real, donde lo
-# ve el jurado. No va en cada PR: prueba producción, no el código de la rama.
+# ve el jurado. Solo se lanza a mano (Actions → «E2E de la demo» → Run workflow):
+# prueba producción, no el código de la rama.
 # El tramo con sesión necesita los secretos E2E_EMAIL / E2E_PASSWORD (mejor una
 # cuenta de solo lectura); sin ellos se omite y corre solo la parte pública.
 on:
@@ -10,8 +11,6 @@ on:
       base_url:
         description: "URL del frontend a probar"
         default: "https://mnemo-beta-one.vercel.app"
-  schedule:
-    - cron: "0 6 * * *"
 
 concurrency:
   group: e2e-demo
