@@ -1,73 +1,108 @@
-# Mnemo — QA Memory: visión funcional
+# Mnemo — visión funcional
 
 ## Qué es
 
-**Mnemo** es la **plataforma de memoria operativa de QA** de una consultora: un sistema **privado y on-premise** que convierte el conocimiento disperso de un proyecto (reglas de negocio, flujos, bugs, tests, runs de CI) en **planes de prueba, automatización y memoria accionable**.
+**Mnemo** es la memoria del proyecto de QA que se queda cuando las personas rotan. El
+nombre viene de *Mnemosyne*, la personificación de la memoria.
 
-El nombre viene de *Mnemosyne*, la personificación de la memoria. La idea central: una organización de QA **olvida lo que ya aprendió** — el conocimiento de por qué falló algo, qué reglas de negocio son críticas o cómo se probó un flujo vive en la cabeza de un sénior y se evapora cuando rota de proyecto. Mnemo lo retiene, lo organiza y lo pone donde el equipo trabaja.
+El problema: en una consultora de QA, el conocimiento que hace insustituible a un perfil
+sénior —por qué falló algo, qué reglas de negocio son críticas, cómo se levanta el
+entorno, a quién se pregunta— vive en su cabeza y se evapora cuando cambia de proyecto. El
+que llega lo reconstruye a base de preguntar, si quien se fue sigue contestando.
 
-> **La IA propone, el humano aprueba.** Planes, casos y PRs son propuestas. Nunca hay auto-merge.
+Mnemo lo retiene sin pedir una sesión de documentación que nadie hace: se alimenta del
+trabajo diario (los runs del CI y lo que el equipo escribe al etiquetar un fallo), lo
+organiza por proyecto, mide cuánto se sabe de cada uno y lo devuelve a quien llega, con la
+fuente citada.
 
-## Propuesta de valor
-
-- **Privado por diseño:** embeddings siempre locales y LLM intercambiable — en modo on-premise (Ollama `qwen3:8b`, el default de código) las trazas y logs de los clientes nunca salen a una nube externa y el coste de API es 0 €. Diferenciador real frente a herramientas cloud para clientes enterprise bajo NDA/GDPR/LGPD. Un proveedor cloud (Gemini/Groq/OpenAI-compatible) es opcional y exige opt-in explícito (`ALLOW_EXTERNAL_LLM=true`); es lo que usa la demo pública.
-- **Conocimiento federado multi-tenant:** cada organización/cliente tiene su base aislada (RLS + `org_id`); el conocimiento puede compartirse al acervo `global` sanitizado.
-- **RAG operacional, no chatbot:** recupera el conocimiento del proyecto y lo transforma en planes, casos y automatización — con fuente y nivel de confianza citados.
-- **Cita siempre la fuente:** confirmado vs. inferido; detecta conocimiento contradictorio u obsoleto.
+> **La IA propone, una persona aprueba.** Las propuestas de conocimiento, los planes, los
+> casos y los PRs pasan por una aprobación humana. Nunca hay auto-merge.
 
 ## Personas
 
 | Persona | Qué busca en Mnemo |
 |---|---|
-| **QA / Test Automation Engineer** | Generar un plan de pruebas desde una HU sin partir de cero; saber qué huecos de cobertura hay; automatizar con el estilo del repo. |
-| **Persona nueva en el proyecto** | Entender flujos, términos y riesgos históricos rápidamente; tener una ruta de aprendizaje guiada. |
-| **Delivery / QA Manager** | Salud de calidad por proyecto, defectos recurrentes (Defect DNA), cobertura actualizada e informes de aseguramiento para el cliente. |
+| **Responsable de la consultora / Delivery** | Ver qué proyectos dependen de una sola persona antes de que rote, y entregar al cliente un acta de que el conocimiento quedó depositado. |
+| **QA que llega a un proyecto** | Entender el proyecto la primera semana sin depender de quien se fue: entorno, datos de prueba, contactos, decisiones, y por qué cada fallo recurrente es lo que es. |
+| **QA del proyecto** | Que el triaje de los runs no le robe la mañana, y que lo que explica al etiquetar un fallo sirva a otros. |
 
-## Cinco capacidades (todas en producción)
+## Capacidades
 
-### 1. Memoria del proyecto (`/app/knowledge`)
+### 1. Continuidad (`/app/continuity`)
 
-Captura y organiza el conocimiento de QA del proyecto en 7 tipos: reglas de negocio, flujos, riesgos, glosario, lecciones aprendidas, retos abiertos y patrones. La búsqueda semántica unificada (`search_unified`) cruza la memoria con el **Defect DNA** (familias de defecto, fingerprints, linaje entre proyectos) producido por el Autopilot. Módulo: `src/knowledge/`, tabla `qa_knowledge`. Endpoints: `/v2/knowledge/*`.
+**Índice de continuidad por proyecto** (0-100): media ponderada de cuatro dimensiones,
+cada una con su recuento a la vista — memoria de defectos, el porqué de las etiquetas,
+oficio del proyecto y reglas con respaldo. Es un recuento recalculable: el mismo estado da
+siempre el mismo número, y sin datos dice «sin datos», no un 0.
 
-### 2. Test Plan Agent (`/app/test-plan`)
+**Acta de traspaso firmada** (rol owner/admin): congela el índice y su desglose en un
+documento firmado con Ed25519 que se verifica en la página pública `/verify`, sin cuenta.
+Es lo que la consultora entrega cuando rota a una persona. Módulo: `src/continuity/`.
 
-Dada una historia de usuario — como URL de Jira, PDF/Word o texto libre — genera un plan de pruebas completo: contexto, sistemas afectados, riesgos, datos de prueba, casos por nivel (API/E2E/datos), positivos/negativos/límite. Cita la memoria del proyecto. Salida exportable como Markdown o importable directamente a Jira-Xray (integración nativa). Módulo: `src/testplan/` + `src/xray/`. Endpoints: `/v2/test-plan/*`.
+### 2. Memoria del proyecto (`/app/knowledge`)
 
-### 3. Onboarding Agent (`/app/onboarding`)
+Conocimiento de QA en 11 tipos: los del **producto** (reglas de negocio, flujos, riesgos,
+glosario, lecciones, retos, patrones) y los del **oficio** (runbooks, datos de prueba,
+contactos, decisiones). La búsqueda semántica unificada cruza la memoria con el Defect
+DNA, incluida la razón que el equipo escribió al etiquetar cada familia. Llega por tres
+vías: a mano, importada de Confluence (troceada por secciones) y **propuesta por la IA
+tras cada ingesta**, en una bandeja donde una persona aprueba o descarta. Módulo:
+`src/knowledge/`.
 
-"Modo persona nueva": responde ¿qué sabe el proyecto sobre X?, genera una ruta de aprendizaje personalizada y mantiene un chat guiado apoyado en la memoria del proyecto. Módulo: `src/onboarding/`. Endpoints: `/v2/onboarding/domain-summary` y `/v2/onboarding/learning-path`; el chat usa `/v2/knowledge/ask`.
+### 3. Onboarding (`/app/onboarding`)
 
-### 4. Automation Agent (botón en `/app/test-plan`)
+Para quien llega: resumen de un dominio, ruta de aprendizaje y preguntas a la memoria en
+lenguaje natural, con citas. Sin LLM, la pregunta devuelve las fuentes relevantes en vez
+de una respuesta redactada. Módulo: `src/onboarding/`.
 
-A partir de un caso del plan aprobado, genera código Playwright `.spec.ts` aprendiendo el estilo del repositorio (naming, fixtures, page objects, tags). Abre un draft PR vía GitHub App para revisión humana — nunca auto-merge. Módulo: `src/automation/` + `src/ci/github_app.py`. Endpoints: `/v2/automation/*`.
+### 4. El lazo del CI: Autopilot (`/app/autopilot`)
 
-### 5. Knowledge Graph + Coverage Gap (`/app/graph`)
+Es la fuente que mantiene viva la memoria:
 
-Grafo de relaciones derivado del conocimiento y los tests (HU → servicio → test → regla → bug). Detector de huecos de cobertura: qué reglas o flujos no tienen tests que los cubran. Módulo: `src/graph/`. Endpoints: `/v2/graph` + `/v2/graph/gaps`.
+- **Ingesta** por webhook (`POST /v2/ci/webhook`, firmado con HMAC) o subida de informes
+  con autodetección de 7 formatos (JUnit, TestNG, Robot Framework, Allure, Playwright,
+  Cypress, Cucumber), más issues de Jira.
+- **Defect DNA**: cada fallo se agrupa en una familia de defecto con su historia y su
+  linaje entre proyectos.
+- **Triaje determinista**: cada fallo sale como real, inestable, de entorno o de
+  mantenimiento, con la regla que lo decidió. El LLM solo desempata lo ambiguo.
+- **Acta del run** firmada y verificable, y gate en el PR.
+- **Self-heal**: ante un selector roto, propone el parche; con aprobación, abre un draft PR.
 
-## El Autopilot como fuente
+### 5. Calibración (`/app/calibration`)
 
-El **Autopilot** (ingesta CI → triaje automático → certificado firmado → self-heal) no desaparece: se convierte en una de las fuentes que alimentan la memoria. Aporta:
+Cada etiqueta humana mide al motor contra su propia predicción independiente, por
+cliente. Esa precisión decide si un run limpio puede firmarse como `apto` o se queda en
+`apto-con-reservas`.
 
-- **Ingesta de runs** (webhook `POST /v2/ci/webhook`, HMAC; o upload de reportes con autodetección de 7 formatos: JUnit, TestNG, Robot Framework, Allure, Playwright, Cypress, Cucumber) → fallos sanitizados con fingerprint.
-- **Defect DNA**: familias de defecto con linaje cross-proyecto.
-- **Veredicto de aseguramiento**: por run — conocidos vs. nuevos, señal de riesgo, narrativa LLM.
-- **Self-heal**: propone PR de mantenimiento cuando detecta un locator roto con confianza suficiente.
+### 6. Plan de pruebas y automatización (`/app/test-plan`)
 
-## Casos de uso actuales
+De una historia de usuario (texto, URL de Jira o PDF/Word) a un plan de pruebas manual o
+Gherkin que cita la memoria, exportable a Jira-Xray; y de un caso aprobado a un `.spec.ts`
+de Playwright con el estilo del repositorio del cliente, en un draft PR. Módulos:
+`src/testplan/`, `src/xray/`, `src/automation/`.
 
-1. **Capturar conocimiento** — subir una regla, flujo o lección al knowledge base del proyecto.
-2. **Preguntar al proyecto** — búsqueda semántica unificada sobre memoria + Defect DNA.
-3. **Generar plan de pruebas** — desde HU/criterios de aceptación, citando la memoria.
-4. **Onboarding de persona nueva** — ruta de aprendizaje + chat sobre el proyecto.
-5. **Detectar huecos de cobertura** — qué reglas o flujos no tienen tests.
-6. **Automatizar un caso** — del plan aprobado al draft PR con código Playwright.
-7. **Ingerir run de CI** — veredicto de aseguramiento + actualización de Defect DNA.
+### 7. Grafo y huecos de cobertura (`/app/graph`)
+
+Relaciones entre el conocimiento y los tests, y huecos: reglas sin test, defectos sin
+conocimiento, dominios sin lección, riesgos sin mitigación. Módulo: `src/graph/`.
+
+## Casos de uso
+
+1. **Una persona rota de proyecto** — revisar el índice, completar lo que falta y emitir el acta de traspaso.
+2. **Llega alguien nuevo** — preguntar a la memoria y seguir la ruta de aprendizaje.
+3. **Llega un run del CI** — triaje, acta y, si hay fallos nuevos, propuestas de conocimiento.
+4. **Etiquetar un fallo** — la razón escrita queda buscable para el siguiente.
+5. **Capturar el oficio** — runbooks, datos de prueba, contactos y decisiones del proyecto.
+6. **Planificar y automatizar** — de la HU al plan, y del caso al draft PR.
+7. **Detectar huecos** — qué reglas o flujos no tienen tests.
 
 ## Aislamiento multi-cliente
 
-Cada organización/cliente tiene su base aislada (RLS + `org_id`). Las familias de defecto son `org`-scoped. El conocimiento puede compartirse al acervo `global` sanitizado entre proyectos de la misma org.
+Cada organización (cliente) tiene sus datos aislados: las tablas de datos del cliente llevan `org_id`,
+con RLS en la base de datos y filtros por pertenencia en cada consulta del backend.
 
 ## Estado
 
-Todas las capacidades descritas están en producción (`main`), con las migraciones de `db/migrations/` aplicadas al completo. Ver roadmap y próximos pasos en [`docs/vision/qa-continuity-ai.md`](../vision/qa-continuity-ai.md).
+Las capacidades descritas están en `main` y desplegadas en la demo. Visión y roadmap:
+[`docs/vision/qa-continuity-ai.md`](../vision/qa-continuity-ai.md).

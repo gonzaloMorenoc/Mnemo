@@ -107,6 +107,7 @@ def context():
     # posiciones (x,y,w,h)
     pe = (170, 150, 230, 118)   # Ingeniero QA
     pm = (600, 130, 250, 118)   # Equipo QA / nuevo miembro
+    au = (1080, 110, 260, 118)  # Cliente / auditor (sin cuenta)
     ci = (150, 470, 250, 130)   # CI del cliente
     gh = (1080, 300, 260, 130)  # GitHub
     jx = (1080, 470, 260, 130)  # Jira/Xray
@@ -114,22 +115,24 @@ def context():
     sup = (600, 810, 260, 130)  # Supabase
     mn = (590, 470, 280, 160)   # Mnemo (centro)
 
-    box(sv, *pe, "Ingeniero / QA", "[Persona]", "Sube runs, revisa actas, genera planes y automatización", "person", "person")
-    box(sv, *pm, "Equipo de QA / nuevo miembro", "[Persona]", "Consulta la memoria del proyecto y el onboarding", "person", "person")
+    box(sv, *pe, "Consultor / QA saliente", "[Persona]", "Documenta el proyecto, revisa el triaje y emite actas", "person", "person")
+    box(sv, *pm, "Consultor entrante / equipo", "[Persona]", "Recibe el traspaso: memoria, onboarding e índice de continuidad", "person", "person")
+    box(sv, *au, "Cliente / auditor", "[Persona]", "Verifica actas firmadas en /verify, sin cuenta", "person", "person")
     box(sv, *ci, "Sistema de CI del cliente", "[Sistema externo]", "GitHub Actions · Jenkins · Azure DevOps…", "ext")
     box(sv, *gh, "GitHub", "[Sistema externo]", "Repos, Pull Requests y commit status", "ext")
-    box(sv, *jx, "Jira / Xray", "[Sistema externo]", "Bugs, historias de usuario y casos de prueba", "ext")
-    box(sv, *llm, "Proveedor LLM", "[Sistema externo]", "Gemini · Groq · Ollama · Anthropic (compatible OpenAI)", "ext")
+    box(sv, *jx, "Jira / Xray / Confluence", "[Sistema externo]", "Bugs, historias de usuario, casos y páginas", "ext")
+    box(sv, *llm, "Proveedor LLM (opcional)", "[Sistema externo]", "Por defecto ninguno · Gemini · Groq · Ollama · Anthropic", "ext")
     box(sv, *sup, "Supabase", "[Sistema externo]", "Auth (identidad) + Postgres gestionado", "ext")
-    box(sv, *mn, "Mnemo — QA Memory", "[Software System]",
-        "Triaje automático de CI, acta de release firmada y memoria de QA", "system")
+    box(sv, *mn, "Mnemo", "[Software System]",
+        "Continuidad del conocimiento de QA: memoria del proyecto, triaje de CI y actas firmadas", "system")
 
     rel(sv, pe, "b", mn, "l", "Usa la aplicación web", "HTTPS", lx=430, ly=430)
-    rel(sv, pm, "b", mn, "t", "Consulta memoria / onboarding", "HTTPS")
-    rel(sv, ci, "r", mn, "l", "Envía resultados de test", "webhook HMAC")
+    rel(sv, pm, "b", mn, "t", "Consulta memoria / continuidad", "HTTPS")
+    rel(sv, au, "bl", mn, "tr", "Verifica actas", "HTTPS · sin cuenta", lx=960, ly=330)
+    rel(sv, ci, "r", mn, "l", "Envía resultados de test", "webhook HMAC · token")
     rel(sv, mn, "r", gh, "l", "Abre draft PR, publica gate, lee tests", "GitHub App")
-    rel(sv, mn, "r", jx, "l", "Importa bugs/HU, exporta casos", "REST")
-    rel(sv, mn, "br", llm, "l", "Genera texto en casos ambiguos", "HTTPS / OpenAI API")
+    rel(sv, mn, "r", jx, "l", "Importa bugs/HU/páginas, exporta casos", "REST")
+    rel(sv, mn, "br", llm, "l", "Desempate de ambiguos y propuestas", "HTTPS / OpenAI API")
     rel(sv, mn, "b", sup, "t", "Persiste datos y verifica identidad", "SQL · JWKS")
     legend(sv, 150, 960)
     return sv.wrap(W, H), W, H
@@ -144,7 +147,7 @@ def container():
     bx, by, bw, bh = 430, 120, 720, 940
     sv.add(f'<rect x="{bx}" y="{by}" width="{bw}" height="{bh}" rx="16" fill="none" '
            f'stroke="{SYSTEM[1]}" stroke-width="2" stroke-dasharray="8 6"/>')
-    txt(sv, bx+20, by+28, "Mnemo — QA Memory  [Software System]", 13, SYSTEM[1], "700", "start")
+    txt(sv, bx+20, by+28, "Mnemo  [Software System]", 13, SYSTEM[1], "700", "start")
 
     # contenedores internos: spine vertical Web → API → BD, y Reporter a la izquierda
     web = (bx+250, by+70, 360, 140)
@@ -160,11 +163,11 @@ def container():
     llm = (1260, 610, 250, 118)
     sup = (1260, 800, 250, 130)
 
-    box(sv, *pe, "Ingeniero / QA", "[Persona]", "Usa la aplicación web", "person", "person")
+    box(sv, *pe, "Consultor / QA", "[Persona]", "Usa la aplicación web", "person", "person")
     box(sv, *ci, "CI del cliente", "[Sistema externo]", "GitHub Actions · Jenkins…", "ext")
     box(sv, *gh, "GitHub", "[Sistema externo]", "PRs · commit status · repos", "ext")
-    box(sv, *jx, "Jira / Xray", "[Sistema externo]", "Bugs · HU · casos", "ext")
-    box(sv, *llm, "Proveedor LLM", "[Sistema externo]", "Gemini · Groq · Ollama…", "ext")
+    box(sv, *jx, "Jira / Xray / Confluence", "[Sistema externo]", "Bugs · HU · casos · páginas", "ext")
+    box(sv, *llm, "Proveedor LLM", "[Sistema externo]", "Opcional · Gemini · Ollama…", "ext")
     box(sv, *sup, "Supabase Auth", "[Sistema externo]", "GoTrue · JWT · JWKS", "ext")
 
     box(sv, *web, "Aplicación Web", "[Contenedor: Next.js / React, Vercel]",
@@ -172,16 +175,16 @@ def container():
     box(sv, *rep, "Reporter de CI", "[Contenedor: TypeScript]",
         "corre en el CI; emite resultados + DOM", "cont")
     box(sv, *api, "API de aplicación", "[Contenedor: FastAPI / Python 3.13, HF Space · Docker]",
-        "Toda la lógica: ingesta (7 formatos) · triaje R0–R6 · acta Ed25519 · memoria/RAG · planes · automatización", "cont")
+        "Ingesta (7 formatos) · triaje R0–R6 · actas Ed25519 · memoria/RAG · continuidad · planes · automatización · embeddings locales", "cont")
     box(sv, *dbc, "Base de datos", "[Contenedor: Postgres + pgvector, Supabase]",
-        "Runs, Defect DNA, actas, memoria, tenancy · aislamiento RLS", "db", "cyl")
+        "Runs, Defect DNA, actas, traspasos, memoria, tenancy · RLS", "db", "cyl")
 
     # relaciones (spine limpio + fan-out a la derecha)
     rel(sv, pe, "r", web, "l", "Usa", "HTTPS", lx=390, ly=250)
     rel(sv, web, "b", api, "t", "Llama a la API /v2/*", "JSON/HTTPS · JWT",
         lx=web[0]+web[2]/2+130, ly=by+320)
     rel(sv, ci, "r", rep, "l", "ejecuta")
-    rel(sv, rep, "r", api, "l", "POST /v2/ci/webhook", "HMAC")
+    rel(sv, rep, "r", api, "l", "POST /v2/ci/*", "HMAC · token")
     rel(sv, api, "b", dbc, "t", "Lee y escribe", "SQL · pooler")
     rel(sv, api, "r", gh, "l", "PRs, gate", "GitHub App", lx=1160, ly=430)
     rel(sv, api, "r", jx, "l", "Importa / exporta", "REST", lx=1170, ly=515)
