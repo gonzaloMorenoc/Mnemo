@@ -83,7 +83,7 @@ El proxy de Next corre **server-side**, así que las llamadas al backend salen d
 
 ## Decisión de LLM en producción
 
-En local usabas **Ollama** (privado, 0 €). En prod no hay Ollama, así que:
+Sin `LLM_PROVIDER` no hay LLM y las funciones de IA degradan a su vía determinista. Para activarlo en producción:
 
 - **Opción elegida — Google Gemini (gratis, externo)**: configurada en `render.yaml` vía el endpoint **compatible con OpenAI** de Gemini, así que el código no cambia (mismo `LLM_PROVIDER=openai`, solo cambia `OPENAI_BASE_URL`/`LLM_MODEL`). Clave gratis en `aistudio.google.com/apikey`. **Límites** del tier gratis (p.ej. `gemini-2.0-flash`): del orden de ~15 req/min y ~1.500 req/día — sobra para demo. **Privacidad**: envía datos del cliente a Google → por eso `ALLOW_EXTERNAL_LLM=true`. ⚠️ Choca con el mensaje "privado/on-premise": úsala para la **demo**, no como promesa de venta.
   - Config exacta: `LLM_PROVIDER=openai`, `ALLOW_EXTERNAL_LLM=true`, `OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/`, `LLM_MODEL=gemini-2.5-flash`, `OPENAI_API_KEY=<tu key de AI Studio>`.

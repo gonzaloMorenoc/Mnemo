@@ -1,6 +1,6 @@
 # QA Memory — Visión y roadmap
 
-**Fecha:** 2026-06-27 · **Estado:** marco adoptado (Mnemo evoluciona a QA Memory; se construye sobre el repo actual). · **Origen:** idea del usuario tras la [revisión profunda](../auditoria/2026-06-27-revision-profunda/00-sintesis.md).
+**Fecha:** 2026-06-27 (actualizado 2026-10-01) · **Estado:** marco adoptado; desde agosto el eje es la **continuidad del conocimiento** (que lo que sabe quien rota se quede en el proyecto).
 
 ## La promesa
 
@@ -26,9 +26,9 @@ El problema real no es *encontrar* información: es **convertirla en decisiones 
 ## Principios (no negociables)
 
 - **La IA propone, el humano aprueba.** Planes y tests son propuestas; el PR nunca se mergea solo. (Coherente con el invariante "determinismo donde firmo, IA donde multiplico"; el LLM local *asiste*, no decide ni firma — esto elimina el problema de "perfección" del certificado.)
-- **Citar siempre la fuente + nivel de confianza** (confirmado vs inferido). Detectar conocimiento contradictorio/obsoleto.
+- **Citar siempre la fuente + nivel de confianza** (confirmado vs inferido). Detectar conocimiento contradictorio u obsoleto es objetivo pendiente (G6); hoy el estado `obsoleto` se marca a mano.
 - **Aprende el estilo del repo** antes de generar código (estructura, naming, page objects, fixtures, tags, CI). No genera desde cero.
-- **Privado / on-premise.** LLM y embeddings locales; el dato del cliente no sale; multi-tenant con aislamiento por organización. (Diferenciador real para clientes regulados.)
+- **Datos bajo control.** Embeddings siempre locales; LLM intercambiable y opcional (sin él, todo degrada a la vía determinista): un proveedor local (Ollama) mantiene el dato dentro, y uno externo exige opt-in explícito (`ALLOW_EXTERNAL_LLM`). Multi-tenant con aislamiento por organización. La demo pública usa un proveedor externo.
 
 ## Arquitectura conceptual
 
@@ -50,7 +50,7 @@ La clave diferencial: **RAG + grafo de conocimiento**. El grafo (HU → afecta �
 
 | Capacidad QA Memory | En Mnemo hoy | Acción |
 |---|---|---|
-| Backend / RAG / vector / LLM local | FastAPI · pgvector · `LocalEmbedder` · `generate_structured` (Ollama, degrada) · `nl_query` | Reusar (stack ligero propio; sin LangChain/Qdrant) |
+| Backend / RAG / vector / LLM | FastAPI · pgvector · `LocalEmbedder` · `generate_structured` (LLM intercambiable, degrada) · `nl_query` | Reusar (stack ligero propio; sin LangChain/Qdrant) |
 | Memoria semántica (captura+consumo) | — (nueva entidad `qa_knowledge`) | **Fase 1** (K1+K2 ya especificado) |
 | Ingesta de fuentes | CI runs/tests ✓ · Jira bugs (`src/jira`) ✓ · tests del repo Git (`src/repo_ingest`) ✓ | Ampliar a historias/criterios/Confluence/OpenAPI |
 | Knowledge Graph | Defect DNA (familias + linaje) = grafo embrionario | Extender (relaciones en Postgres) |
@@ -72,7 +72,7 @@ Relacionado: `BusinessRule —covered_by→ test`, `—affected_by→ UserStory`
 ## Roadmap por fases
 
 - **Fase 1 — Memoria + RAG operacional + Test Plan** ✅ **Entregado (main)**
-  - **1a (cimiento):** entidad `qa_knowledge` (7 kinds: reglas/flujos/riesgos/glosario/lecciones/retos/patrones, vinculable a familias/runs) + captura + búsqueda/asistente unificados con el Defect DNA (`search_unified`). Módulo `src/knowledge/`, migración `018`.
+  - **1a (cimiento):** entidad `qa_knowledge` (7 kinds de producto: reglas/flujos/riesgos/glosario/lecciones/retos/patrones, vinculable a familias/runs; +4 de oficio en la migración `027`) + captura + búsqueda/asistente unificados con el Defect DNA (`search_unified`). Módulo `src/knowledge/`, migración `018`.
   - **1b:** **Test Plan Agent** — dada una HU (URL Jira / PDF-Word / texto): contexto, sistemas, riesgos, datos, casos por nivel, citando el conocimiento. Exportar Markdown / importar a Jira-Xray. Módulo `src/testplan/` + `src/xray/`, migración `019`.
 - **Fase 2 — Knowledge Graph + Coverage Gap Detector** ✅ **Entregado (main)**
   - Grafo de relaciones derivado en Postgres (`src/graph/`) + detector de huecos de cobertura (`/v2/graph/gaps`). Página `/app/graph`.
@@ -82,8 +82,15 @@ Relacionado: `BusinessRule —covered_by→ test`, `—affected_by→ UserStory`
 - **Ingesta del repo + Coverage Gap real (G1+G2)** ✅ **Entregado (main)**
   - Indexación de los tests del repo del cliente vía GitHub App (`src/repo_ingest/`, tabla `test_assets`, migración `020`) y detector de gaps que cruza memoria × tests reales por embeddings. El estilo few-shot del Automation Agent sale de estos assets.
 
+- **Continuidad del conocimiento** ✅ **Entregado (main, agosto)** — el eje actual:
+  - **Memoria recuperable en español:** embeddings multilingües (`paraphrase-multilingual-MiniLM-L12-v2`); la razón que el equipo escribe al etiquetar una familia se guarda, se muestra y se busca por su propio vector (migración `030`).
+  - **El oficio del proyecto:** kinds `runbook`, `dato_prueba`, `contacto`, `decision` (migración `027`).
+  - **Captura sin clics:** propuestas de conocimiento tras cada ingesta del CI (bandeja con aprobación humana) e importación de Confluence por secciones.
+  - **Índice de continuidad por proyecto + acta de traspaso firmada** verificable sin cuenta (`src/continuity/`, migración `028`). Página `/app/continuity`.
+
 **Pendiente (roadmap real — detalle en [qa-continuity-gaps-roadmap.md](qa-continuity-gaps-roadmap.md)):**
-- **Ingesta multi-fuente más allá de Jira/Git (G3):** Confluence, OpenAPI/Postman, transcripciones, con clasificación automática, nivel de confianza y fuente citada.
+- **Ingesta multi-fuente (G3):** Confluence ✅; quedan OpenAPI/Postman y transcripciones, con clasificación automática, nivel de confianza y fuente citada.
+- **Preguntar desde donde se trabaja:** MCP / Slack, para que la memoria se consulte sin abrir la web.
 - **Knowledge Graph rico (G4):** servicio/evento/flujo/HU como nodos de primera clase con relaciones tipadas.
 - **Detección de contradicción/obsolescencia (G6):** identificar conocimiento que se contradice entre fuentes o que ha quedado obsoleto.
 
@@ -102,8 +109,8 @@ Funcionalidades estrella (transversales, ya disponibles): *modo persona nueva* (
 
 ## Posicionamiento
 
-*"Convierte la memoria del proyecto en cobertura QA accionable."* No sustituye al QA: **conserva la memoria de QA del proyecto y acelera a cualquier persona nueva.** Comprador ideal (de la revisión profunda): consultora/outsourcer de QA mediano que rota personal y sirve clientes regulados — fit nativo con la arquitectura multi-tenant, on-prem y de memoria.
+*"Convierte la memoria del proyecto en cobertura QA accionable."* No sustituye al QA: **conserva la memoria de QA del proyecto y acelera a cualquier persona nueva.** Comprador ideal (de la revisión profunda): consultora/outsourcer de QA mediano que rota personal y sirve clientes regulados — fit nativo con la arquitectura multi-tenant y de memoria.
 
 ## Estado
 
-Las Fases 1 y 2, el Automation Agent, el Onboarding Agent y la ingesta del repo con gap real (G1+G2) están todos en producción (`main`), con las migraciones de `db/migrations/` aplicadas al completo. El siguiente paso es la **ingesta multi-fuente** (G3: Confluence, OpenAPI) y después el grafo rico (G4) — ver [qa-continuity-gaps-roadmap.md](qa-continuity-gaps-roadmap.md).
+Las Fases 1 y 2, el Automation Agent, el Onboarding Agent, la ingesta del repo con gap real (G1+G2) y la continuidad del conocimiento están en producción (`main`), con las migraciones de `db/migrations/` aplicadas al completo. Lo siguiente: el resto de G3 (OpenAPI) y el grafo rico (G4) — ver [qa-continuity-gaps-roadmap.md](qa-continuity-gaps-roadmap.md).

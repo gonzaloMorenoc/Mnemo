@@ -62,9 +62,9 @@ def arrow(x1, y1, x2, y2, kind="req", label=None, lx=None, ly=None, curve=0):
 
 # ---------------- Title ----------------
 text(50, 52, "Mnemo — Arquitectura del sistema", 30, "#0f172a", "700")
-text(50, 78, "QA Memory · plataforma de memoria operativa de QA — triaje automático · acta de release firmada · memoria de QA",
+text(50, 78, "Continuidad del conocimiento de QA — memoria del proyecto · triaje determinista de CI · actas firmadas (release y traspaso)",
      14.5, "#5b6b82", "400")
-text(W - 50, 52, "v0.4 · 2026-07", 13, "#8a97a8", "500", "end", family="mono")
+text(W - 50, 52, "v0.5 · 2026-10", 13, "#8a97a8", "500", "end", family="mono")
 text(W - 50, 72, "3 planos: Vercel · HF Space · Supabase", 12, "#8a97a8", "500", "end", family="mono")
 
 MX = 50            # left margin
@@ -81,10 +81,10 @@ b1y = 104
 band_header(MX, b1y, "Actores y fuentes de datos", "#6366f1")
 cy = b1y + 18
 cards1 = [
-    ("👤  QA / Test Engineer", "usa la aplicación en el navegador", []),
-    ("⚙️  CI del cliente", "GitHub Actions · Jenkins · Azure…", ["webhook HMAC", "reporter Playwright"]),
+    ("👤  QA / consultor", "usa la app · documenta y traspasa el proyecto", []),
+    ("⚙️  CI del cliente", "GitHub Actions · Jenkins · Azure…", ["webhook HMAC", "token de ingesta", "reporter"]),
     ("🐙  Repositorio GitHub", "tests + código · Pull Requests", ["GitHub App"]),
-    ("🗂️  Jira / Xray", "bugs · historias de usuario · casos", ["API token (Fernet)"]),
+    ("🗂️  Jira / Xray / Confluence", "bugs · HU · casos · páginas", ["API token (Fernet)"]),
 ]
 cw1 = (CW - 3 * 18) / 4
 for i, (t, sub, pills) in enumerate(cards1):
@@ -107,7 +107,7 @@ fcw = (zw - 3 * 20) / 2
 fx = zx + 20
 rrect(fx, zy + 42, fcw, 58, 10, "#ffffff", "#dbe2ec", 1.3)
 text(fx + 14, zy + 64, "Next.js App · App Router", 13, "#1f2a3d", "700")
-text(fx + 14, zy + 82, "páginas /verify (pública) · /app/* (autopilot, assurance, defects, knowledge, test-plan, graph, onboarding, calibration…)", 10.3, "#64748b")
+text(fx + 14, zy + 82, "/verify (pública) · /app/* (continuity, knowledge, autopilot, assurance, defects, graph, onboarding, test-plan, guia, verify…)", 10.3, "#64748b")
 pill_row(fx + 14, zy + 88, ["React 19", "TypeScript", "TanStack Query", "shadcn/ui", "Tailwind", "Supabase JS"], 10)
 fx2 = fx + fcw + 20
 rrect(fx2, zy + 42, fcw, 58, 10, "#ffffff", "#dbe2ec", 1.3)
@@ -135,10 +135,11 @@ pill_row(ax + 14, ay + 27, ["Python 3.13", "auth Supabase JWT (JWKS)", "pool psy
 mods = [
     ("Ingest", "7 parsers + autodetección", "#0891b2"),
     ("Defects / DNA", "familias · fingerprint · centroide", "#0891b2"),
-    ("Triage", "reglas R0–R6 · LLM solo ambiguos", "#0891b2"),
+    ("Triage", "reglas R0–R6 + R0' · LLM solo ambiguos", "#0891b2"),
     ("Actions", "self-heal · quarantine · ticket", "#0891b2"),
     ("Certify  ★", "acta firmada Ed25519 · gate", "#7c3aed"),
-    ("Knowledge", "memoria QA (7 tipos) · RAG", "#0891b2"),
+    ("Continuity  ★", "índice 4 dimensiones · acta de traspaso", "#7c3aed"),
+    ("Knowledge", "memoria QA (11 kinds) · propuestas", "#0891b2"),
     ("Graph", "grafo + coverage gaps reales", "#0891b2"),
     ("TestPlan", "HU → plan · export Xray", "#0891b2"),
     ("Automation", "caso → Playwright .spec.ts", "#0891b2"),
@@ -147,8 +148,9 @@ mods = [
     ("CI", "webhook HMAC · GitHub App", "#0891b2"),
     ("Orgs", "crear · join · list", "#0891b2"),
     ("Integrations", "Jira · GitHub · Xray (Fernet)", "#0891b2"),
+    ("Confluence", "import por secciones → propuestas", "#0891b2"),
 ]
-cols = 7
+cols = 8
 gx = MX + 18
 gy = ay + 60
 gap = 12
@@ -179,10 +181,10 @@ for i, (t, sub, col) in enumerate(mods):
 ey = gy + 2 * (mch + gap) + 14
 text(gx, ey - 8, "Servicios del motor", 12, "#0e7490", "700")
 eng = [
-    ("Embeddings — LOCAL", "all-MiniLM-L6-v2 · 384d · CPU (torch)", "#059669"),
+    ("Embeddings — LOCAL", "paraphrase-multilingual-MiniLM-L12-v2 · 384d · CPU", "#059669"),
     ("Firma Ed25519", "cryptography · key_id · /verify público", "#7c3aed"),
     ("Sanitizer", "redacta secretos y PII antes de persistir", "#dc2626"),
-    ("LLM factory", "OpenAI-compat · Ollama · Anthropic", "#0891b2"),
+    ("LLM factory (opcional)", "none por defecto · OpenAI-compat · Ollama · Anthropic", "#0891b2"),
 ]
 ecw = (CW - 36 - 3 * gap) / 4
 for i, (t, sub, col) in enumerate(eng):
@@ -204,15 +206,16 @@ pcw = CW * 0.62
 px, py = MX + 20, b4y + 42
 rrect(px, py, pcw, 92, 10, "#ffffff", "#c5e6d3", 1.3)
 text(px + 14, py + 24, "Postgres + pgvector", 13.5, "#15803d", "700")
-text(px + 14 + 175, py + 24, "· 20 tablas · RLS + FORCE", 11, "#5b7683", "500", family="mono")
+text(px + 14 + 175, py + 24, "· 22 tablas · RLS + FORCE", 11, "#5b7683", "500", family="mono")
 left_groups = [
     ("Runs & fallos", "test_runs · failures · test_results · dom_snapshots"),
     ("Defect DNA", "defect_families · triage_verdicts · triage_corrections"),
-    ("Actas & acciones", "certificates · actions"),
+    ("Actas & acciones", "certificates · handover_acts · actions"),
 ]
 right_groups = [
-    ("Conocimiento", "qa_knowledge · test_assets"),
+    ("Conocimiento", "qa_knowledge · knowledge_proposals · test_assets"),
     ("Tenancy", "organizations · memberships · org_integrations"),
+    ("Ingesta CI", "ingest_tokens"),
 ]
 for j, (g, tbls) in enumerate(left_groups):
     yy = py + 44 + j * 17
@@ -239,9 +242,9 @@ b5y = b4y + sh + 26
 eh = 104
 band_header(MX, b5y, "Servicios externos", "#ea580c")
 ext = [
-    ("🧠  Proveedor LLM", "Google Gemini (free, OpenAI-compat) · Groq · Ollama · Anthropic", ["ALLOW_EXTERNAL_LLM"]),
+    ("🧠  Proveedor LLM (opcional)", "prod: Gemini (OpenAI-compat) · Groq · Ollama · Anthropic", ["ALLOW_EXTERNAL_LLM", "por defecto: none"]),
     ("🐙  GitHub App", "commit status (quality gate) · draft PR (self-heal / automation)", ["nunca auto-merge"]),
-    ("🗂️  Jira / Xray API", "pull de bugs · export de casos de prueba", []),
+    ("🗂️  Jira / Xray / Confluence API", "pull de bugs · export de casos · import de páginas", []),
 ]
 ecw2 = (CW - 2 * 18) / 3
 for i, (t, sub, pills) in enumerate(ext):
@@ -264,13 +267,13 @@ x_ci = MX + (cw1 + 18) * 1 + cw1 / 2
 add(f'<path d="M{x_ci},{b1y+96} C{x_ci},{b1y+150} {W-90},{b1y+150} {W-90},{b3y+120} '
     f'L{MX+CW},{b3y+120}" fill="none" stroke="#ea580c" stroke-width="2.2" '
     f'stroke-dasharray="2 5" marker-end="url(#aext)"/>')
-text(W - 300, b1y + 145, "webhook HMAC  (POST /v2/ci/webhook)", 10.5, "#ea580c", "600", "middle", family="mono")
+text(W - 300, b1y + 145, "webhook HMAC · token  (POST /v2/ci/webhook · /v2/ci/ingest)", 10.5, "#ea580c", "600", "middle", family="mono")
 # Backend -> Supabase (data)
 arrow(MX + CW * 0.35, b3y + bh, MX + CW * 0.35, b4y, "data", "SQL (pooler)", MX + CW*0.35 - 62, (b3y+bh+b4y)/2 + 4)
 # Backend Auth verify -> Supabase auth (JWKS)
 arrow(MX + CW * 0.60, b4y, MX + CW * 0.60, b3y + bh, "auth", "JWKS", MX + CW*0.60 + 34, (b3y+bh+b4y)/2 + 4)
 # Backend -> External (down)
-arrow(MX + CW * 0.5, b4y + sh, MX + CW * 0.5, b5y, "ext", "API calls (LLM · GitHub · Jira)", MX + CW*0.5, (b4y+sh+b5y)/2 + 4)
+arrow(MX + CW * 0.5, b4y + sh, MX + CW * 0.5, b5y, "ext", "API calls (LLM · GitHub · Atlassian)", MX + CW*0.5, (b4y+sh+b5y)/2 + 4)
 
 # ================= FOOTER legend =================
 fy = b5y + eh + 20
@@ -287,11 +290,11 @@ leg(MX + 350, fy + 18, "#ea580c", "2 5", "llamada externa / webhook")
 leg(MX + 560, fy + 18, "#15803d", "8 4", "acceso a datos")
 # differentiator
 rrect(MX + 18, fy + 34, CW * 0.60, 22, 6, "#f5f0ff")
-text(MX + 30, fy + 49, "★ Diferenciador: acta de release firmada Ed25519 y verificable por cualquiera en /verify (sin cuenta) — “SLSA para QA”.",
+text(MX + 30, fy + 49, "★ Actas firmadas Ed25519 (release y traspaso), verificables por cualquiera en /verify sin cuenta.",
      11, "#5b21b6", "600")
 # ops note
 text(W - 66, fy + 26, "Despliegue: frontend en Vercel · backend en HF Space (clona main en build →", 10.3, "#64748b", "500", "end", family="mono")
-text(W - 66, fy + 42, "cada deploy = factory rebuild) · BD+Auth en Supabase · embeddings locales, LLM por API.", 10.3, "#64748b", "500", "end", family="mono")
+text(W - 66, fy + 42, "cada deploy = factory rebuild) · BD+Auth en Supabase · embeddings locales, LLM opcional por API.", 10.3, "#64748b", "500", "end", family="mono")
 
 add('</svg>')
 

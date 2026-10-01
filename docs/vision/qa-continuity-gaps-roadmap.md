@@ -80,7 +80,7 @@ G6 (frescura)  [transversal, al final]
 |---|---|---|---|---|
 | **G1** Ingesta repo | 🟢 Alto | M-L | G2, G4, G5 | ✅ entregado |
 | **G2** Gap real | 🟢 Alto | S-M | estrella "Knowledge Gap" | ✅ entregado |
-| **G3** Multi-fuente | 🟡 Medio-Alto | M/fuente | G4 | **siguiente** |
+| **G3** Multi-fuente | 🟡 Medio-Alto | M/fuente | G4 | parcial (Confluence ✅) |
 | **G4** Grafo rico | 🟢 Alto | L | preguntas de impacto | tras G3 |
 | **G5** Automation+ | 🟡 Medio | L | cobertura real de código | parcial (estilo ✅) |
 | **G6** Frescura | 🟡 Medio | M | confianza a largo plazo | final |
