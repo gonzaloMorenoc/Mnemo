@@ -1,7 +1,7 @@
 """Riqueza de Demo MTP: la org de una consultora con seis proyectos vivos y
 desigualmente cuidados. Solo datos; la siembra vive en seed_riqueza.py.
 
-Los proyectos del arco (checkout-suite=95, banca-movil=25) están PROTEGIDOS:
+Los proyectos del arco (checkout-suite=85, banca-movil=25) están PROTEGIDOS:
 solo runs verdes y cero conocimiento nuevo — los tests lo imponen.
 """
 

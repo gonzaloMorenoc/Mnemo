@@ -6,7 +6,7 @@ run_uid semanal determinista hace que re-ejecutar añada SOLO las semanas que
 falten — la org llega viva a la demo re-ejecutando esto la semana anterior.
 
 Termina recalculando el índice de continuidad de los 6 proyectos: si el arco
-(checkout-suite=95, banca-movil=25) se movió, `arc_ok` sale False — la regla del
+(checkout-suite=85, banca-movil=25) se movió, `arc_ok` sale False — la regla del
 encargo, ejecutable.
 """
 from datetime import date, datetime, time, timedelta, timezone
@@ -222,6 +222,6 @@ def seed_riqueza(*, db_url: str, demo_user_id: str,
     for p in WEEKLY_PROFILE:
         idx = compute_index(user_id=demo_user_id, org_id=org, project=p)
         indices[p] = idx["score"] if idx else None
-    arc_ok = indices.get("checkout-suite") == 95 and indices.get("banca-movil") == 25
+    arc_ok = indices.get("checkout-suite") == 85 and indices.get("banca-movil") == 25
     return {"runs_creados": runs_creados, "triadas": triadas, "kb_creados": kb_creados,
             "assets": assets_n, "actas": actas, "indices": indices, "arc_ok": arc_ok}
