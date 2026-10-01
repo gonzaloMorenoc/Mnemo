@@ -1,0 +1,57 @@
+name: E2E de la demo
+
+# El recorrido del guion (docs/demo/guion.md) contra el despliegue real, donde lo
+# ve el jurado. Solo se lanza a mano (Actions → «E2E de la demo» → Run workflow):
+# prueba producción, no el código de la rama.
+# El tramo con sesión necesita los secretos E2E_EMAIL / E2E_PASSWORD (mejor una
+# cuenta de solo lectura); sin ellos se omite y corre solo la parte pública.
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "URL del frontend a probar"
+        default: "https://mnemo-beta-one.vercel.app"
+
+concurrency:
+  group: e2e-demo
+  cancel-in-progress: false
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      CI: true
+      E2E_BASE_URL: ${{ inputs.base_url || 'https://mnemo-beta-one.vercel.app' }}
+      E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+
+      - run: npx playwright install --with-deps chromium
+
+      - name: Despertar el backend (plan gratuito, se duerme)
+        run: curl -s -m 120 https://gonzalo7-mnemo.hf.space/v2/health || true
+
+      - run: npm run e2e
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            frontend/playwright-report
+            frontend/test-results
+          retention-days: 7

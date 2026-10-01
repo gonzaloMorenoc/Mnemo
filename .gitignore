@@ -50,3 +50,7 @@ docs/concurso/
 
 # Artefactos de sesiones de Playwright (capturas/snapshots del MCP)
 .playwright-mcp/
+
+# E2E (Playwright)
+frontend/test-results/
+frontend/playwright-report/
