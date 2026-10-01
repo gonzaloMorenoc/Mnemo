@@ -32,3 +32,20 @@ def test_garbage_output_degrades():
     out = generate_structured(prompt="p", context=[], schema={"x": 1},
                               provider=_Provider("no json aquí"), on_failure="none")
     assert out is None
+
+
+class _Captura:
+    def __init__(self): self.prompt = None
+    def complete(self, prompt):
+        self.prompt = prompt
+        return '{"answer": "ok", "citations": []}'
+
+
+def test_prompt_pide_json_con_las_claves_del_esquema():
+    # Sin pedirlo, modelos como gpt-oss responden en prosa y la respuesta se tira:
+    # el formato lo exige generate_structured, no cada prompt por su cuenta.
+    prov = _Captura()
+    generate_structured(prompt="p", context=[], schema={"answer": "", "citations": []},
+                        provider=prov, on_failure="none")
+    instruccion = prov.prompt.split("Context snippets:")[-1]
+    assert "JSON" in instruccion and '"answer"' in instruccion and '"citations"' in instruccion
