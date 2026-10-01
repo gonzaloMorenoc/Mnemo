@@ -154,3 +154,20 @@ describe("CertificateVerifier — llegada por enlace", () => {
     expect(container.querySelector("details")).toBeNull();
   });
 });
+
+describe("CertificateVerifier — qué sello pinta", () => {
+  // Las actas de traspaso pasaron a v2 en #124 y el verificador seguía comparando
+  // con "mnemo.traspaso.v1": el acta de la demo salía con el sello VACÍO de release.
+  it.each(["mnemo.traspaso.v1", "mnemo.traspaso.v2"])(
+    "un acta %s muestra el sello de traspaso, no el de release",
+    async (schema) => {
+      const acta = JSON.stringify({
+        canonical_json: { schema, project: "checkout-suite", continuity: { score: 85 } },
+        signature: "sig",
+      });
+      renderConHash(`#v1.${Buffer.from(acta, "utf8").toString("base64url")}`);
+      expect(await screen.findByText(/acta de traspaso auténtica/i)).toBeInTheDocument();
+      expect(screen.queryByText(/sin veredicto/i)).not.toBeInTheDocument();
+    },
+  );
+});

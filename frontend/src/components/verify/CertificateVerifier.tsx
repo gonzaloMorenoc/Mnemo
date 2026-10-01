@@ -23,6 +23,12 @@ import { Textarea } from "@/components/ui/textarea";
 
 type Payload = { canonical_json: Record<string, unknown>; signature: string };
 
+// Por familia, no por versión exacta: comparar con "mnemo.traspaso.v1" hizo que
+// las actas v2 (#124) salieran con el sello vacío de release.
+function esTraspaso(schema: unknown): boolean {
+  return typeof schema === "string" && schema.startsWith("mnemo.traspaso.");
+}
+
 const ENLACE_ROTO =
   "Este enlace está incompleto: es probable que se cortara al copiarlo o al enviarlo por " +
   "correo. Pide que te lo reenvíen, o pega el acta aquí abajo.";
@@ -185,7 +191,7 @@ export function CertificateVerifier() {
           dice el campo `schema`. */}
       {valido &&
         payload &&
-        (payload.canonical_json.schema === "mnemo.traspaso.v1" ? (
+        (esTraspaso(payload.canonical_json.schema) ? (
           <HandoverStamp canonical={payload.canonical_json} />
         ) : (
           <AuthenticityStamp canonical={payload.canonical_json} />
