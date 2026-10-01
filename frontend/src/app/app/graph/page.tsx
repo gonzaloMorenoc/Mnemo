@@ -145,11 +145,14 @@ export default function GraphPage() {
     }
   }, [graphQuery.isError, graphQuery.error]);
 
+  // Si solo falla la versión con recomendaciones de la IA (LLM caído) pero los huecos
+  // rápidos ya están en pantalla, avisar en cada visita sería ruido.
+  const gapsFailed = gapsQuery.isError && !gapsFastQuery.data;
   useEffect(() => {
-    if (gapsQuery.isError) {
+    if (gapsFailed) {
       toast.error((gapsQuery.error as Error).message ?? "Error al cargar los gaps");
     }
-  }, [gapsQuery.isError, gapsQuery.error]);
+  }, [gapsFailed, gapsQuery.error]);
 
   if (isLoading) {
     return (
@@ -188,16 +191,25 @@ export default function GraphPage() {
   const refiningRecs =
     gapsQuery.isFetching && !gapsQuery.data && Boolean(gapsFastQuery.data);
   const sortedGaps = sortGaps(gaps);
-  const noKnowledge = !graphQuery.isLoading && graph.nodes.length === 0;
+  // Un error NO es «no hay conocimiento»: mostrarlo como vacío mandaba a capturar
+  // lo que ya existe (el mismo antipatrón que Continuidad evita).
+  const noKnowledge = !graphQuery.isLoading && !graphQuery.isError && graph.nodes.length === 0;
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] flex-col gap-4 overflow-hidden">
+    <div className="flex flex-col gap-4 lg:h-[calc(100vh-7rem)] lg:overflow-hidden">
       <PageHeader />
 
-      <div className="flex min-h-0 flex-1 gap-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
         {/* ── left: react-flow graph ── */}
-        <div className="relative min-h-0 flex-1 rounded-2xl border border-zinc-200 bg-white shadow-sm">
-          {noKnowledge ? (
+        <div className="relative h-[60vh] min-h-[360px] rounded-2xl border border-zinc-200 bg-white shadow-sm lg:h-auto lg:min-h-0 lg:flex-1">
+          {graphQuery.isError ? (
+            <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+              <p className="text-sm text-red-700">No se pudo cargar el grafo.</p>
+              <Button size="sm" variant="outline" onClick={() => graphQuery.refetch()}>
+                Reintentar
+              </Button>
+            </div>
+          ) : noKnowledge ? (
             <div className="flex h-full items-center justify-center p-6">
               <EmptyState
                 icon={Network}
@@ -221,7 +233,7 @@ export default function GraphPage() {
                 <span className="flex items-center gap-1.5">
                   <span className="h-2.5 w-2.5 rounded-sm border border-zinc-400 bg-zinc-100" /> Dominio
                 </span>
-                <span className="mt-1 max-w-[180px] border-t border-zinc-100 pt-1 text-[11px] text-zinc-400">
+                <span className="mt-1 max-w-[180px] border-t border-zinc-100 pt-1 text-[11px] text-zinc-500">
                   Las líneas conectan cada lección con su dominio, con el defecto que
                   documenta y con lecciones de etiquetas comunes.
                 </span>
@@ -231,9 +243,9 @@ export default function GraphPage() {
         </div>
 
         {/* ── right: coverage gaps panel ── */}
-        <aside className="flex w-80 shrink-0 flex-col gap-3 overflow-y-auto xl:w-96">
+        <aside className="flex w-full shrink-0 flex-col gap-3 lg:w-80 lg:overflow-y-auto xl:w-96">
           <div className="flex items-center gap-2">
-            <Network size={16} className="text-zinc-400" />
+            <Network size={16} className="text-zinc-500" />
             <h2 className="flex items-center gap-1 text-sm font-semibold text-zinc-700">
               Huecos de cobertura
               <InfoTooltip
@@ -257,7 +269,7 @@ export default function GraphPage() {
           )}
 
           {refiningRecs && (
-            <p className="text-xs text-zinc-400">Afinando recomendaciones con IA…</p>
+            <p className="text-xs text-zinc-500">Afinando recomendaciones con IA…</p>
           )}
 
           {!gapsLoading && sortedGaps.length === 0 && (
@@ -269,8 +281,9 @@ export default function GraphPage() {
           )}
 
           <ul aria-label="Gaps de cobertura" className="flex flex-col gap-3">
-          {sortedGaps.map((gap) => (
-            <li key={`${gap.kind}-${gap.title}`} className="list-none">
+          {sortedGaps.map((gap, i) => (
+            // El título no es único (dos familias «AssertionError»): la clave lleva el índice.
+            <li key={`${gap.kind}-${gap.title}-${i}`} className="list-none">
             <Card className="p-4">
               <div className="mb-2 flex items-center gap-2">
                 <span
@@ -296,7 +309,7 @@ export default function GraphPage() {
               )}
               {gap.affected.length > 0 && (
                 <div className="flex flex-wrap gap-1">
-                  <span className="text-xs text-zinc-400">
+                  <span className="text-xs text-zinc-500">
                     {gap.affected.length} elemento{gap.affected.length === 1 ? "" : "s"} afectado{gap.affected.length === 1 ? "" : "s"}
                   </span>
                 </div>
