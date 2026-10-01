@@ -61,9 +61,10 @@ const MOCK_PATH = {
   citations: ["KB-002"],
 };
 
-const MOCK_ANSWER: { answer: string; citations: string[] } = {
+const MOCK_ANSWER = {
   answer: "El flujo de checkout tiene 3 pasos principales.",
   citations: ["KB-003"],
+  sources: [{ id: "KB-003", type: "knowledge" as const, title: "Flujo de checkout en 3 pasos" }],
 };
 
 describe("OnboardingPage — ¿Qué sabe el proyecto? (domainSummary)", () => {
@@ -129,7 +130,7 @@ describe("OnboardingPage — chat (askKnowledge)", () => {
     });
 
     expect(await screen.findByText("El flujo de checkout tiene 3 pasos principales.")).toBeInTheDocument();
-    expect(screen.getByText("· KB-003")).toBeInTheDocument();
+    expect(screen.getByText("Flujo de checkout en 3 pasos")).toBeInTheDocument();
   });
 });
 

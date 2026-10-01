@@ -84,7 +84,11 @@ describe("KnowledgePage", () => {
   it("llama a askKnowledge y renderiza la respuesta con citas", async () => {
     (askKnowledge as ReturnType<typeof vi.fn>).mockResolvedValue({
       answer: "Los pagos deben usar idempotency keys.",
-      citations: ["Regla #12: idempotency en pagos", "Lección: doble cobro 2023"],
+      citations: ["k12", "k7"],
+      sources: [
+        { id: "k12", type: "knowledge", title: "Regla #12: idempotency en pagos" },
+        { id: "k7", type: "knowledge", title: "Lección: doble cobro 2023" },
+      ],
     });
     (searchKnowledge as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
@@ -104,8 +108,10 @@ describe("KnowledgePage", () => {
     });
 
     expect(await screen.findByText("Los pagos deben usar idempotency keys.")).toBeInTheDocument();
-    expect(screen.getByText("· Regla #12: idempotency en pagos")).toBeInTheDocument();
-    expect(screen.getByText("· Lección: doble cobro 2023")).toBeInTheDocument();
+    // Las citas se pintan por su título, no por su id.
+    expect(screen.getByText("Regla #12: idempotency en pagos")).toBeInTheDocument();
+    expect(screen.queryByText(/k12/)).not.toBeInTheDocument();
+    expect(screen.getByText("Lección: doble cobro 2023")).toBeInTheDocument();
   });
 
   it("llama a toast.error si askKnowledge falla, sin romper la página", async () => {

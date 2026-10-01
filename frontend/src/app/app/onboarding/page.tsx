@@ -1,5 +1,7 @@
 "use client";
 
+import { CitedSources } from "@/components/knowledge/CitedSources";
+
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -303,18 +305,7 @@ export default function OnboardingPage() {
               <p className="text-sm font-medium text-zinc-800">Respuesta</p>
               <p className="text-sm text-zinc-700">{chatAnswer.answer}</p>
 
-              {chatAnswer.citations.length > 0 && (
-                <div>
-                  <p className="mb-1.5 text-xs font-medium text-zinc-500">Fuentes citadas</p>
-                  <ul className="space-y-1">
-                    {chatAnswer.citations.map((citation, idx) => (
-                      <li key={idx} className="text-xs text-zinc-600">
-                        · {citation}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+              <CitedSources citations={chatAnswer.citations} sources={chatAnswer.sources} />
             </div>
           )}
         </CardContent>

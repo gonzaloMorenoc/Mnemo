@@ -67,7 +67,8 @@ def test_ask_calls_answer_over_sources_and_returns_result():
     with patch("src.ai.nl_query.answer_over_sources", return_value=fake_answer) as mock_aos:
         result = svc.ask(user_id="u1", org_id="o1", question="¿qué rompe checkout?")
 
-    assert result == fake_answer
+    # answer y citations, tal cual; `sources` es aditivo (títulos de lo citado).
+    assert {k: result[k] for k in fake_answer} == fake_answer
     mock_aos.assert_called_once()
     call_kwargs = mock_aos.call_args.kwargs
     assert call_kwargs["question"] == "¿qué rompe checkout?"
@@ -96,3 +97,32 @@ def test_search_unified_defect_content_includes_label_reason():
     results = svc.search_unified(user_id="u1", org_id="o1", query="checkout inestable")
     defect = next(r for r in results if r["type"] == "defect")
     assert "runners fríos" in defect["content"]
+
+
+def test_ask_returns_the_cited_sources_with_a_readable_title():
+    # Las citas son ids: sin su título, la UI pintaba «· 7330f4ee-…» justo cuando la
+    # demo dice «cada respuesta dice de dónde sale».
+    svc = _make_service()
+    with patch("src.knowledge.service.nl_query.answer_over_sources",
+               return_value={"answer": "a", "citations": ["k1", "f1", "k1", "ajeno"]}):
+        out = svc.ask(user_id="u1", org_id="o1", question="q")
+    assert out["citations"] == ["k1", "f1", "k1", "ajeno"]  # el contrato previo no cambia
+    assert out["sources"] == [
+        {"id": "k1", "type": "knowledge", "title": "Lesson: checkout errors"},
+        {"id": "f1", "type": "defect", "title": "checkout 500"},
+    ]  # sin duplicados, en orden de cita, y nada que no esté entre las fuentes
+
+
+def test_a_cited_defect_is_titled_by_the_labeler_reason():
+    # El título de una familia es el tipo de error («TimeoutError»): lo que la
+    # identifica para quien pregunta es la razón con la que el equipo la etiquetó.
+    svc = _make_service()
+    svc.assurance.search_families_semantic.return_value = [
+        {"family_id": "f1", "title": "TimeoutError", "label": "infra", "root_cause": None,
+         "signature": "s", "occurrence_count": 2,
+         "label_reason": "Los timeouts correlan con runners fríos del sandbox del PSP"},
+    ]
+    with patch("src.knowledge.service.nl_query.answer_over_sources",
+               return_value={"answer": "a", "citations": ["f1"]}):
+        out = svc.ask(user_id="u1", org_id="o1", question="q")
+    assert out["sources"][0]["title"] == "Los timeouts correlan con runners fríos del sandbox del PSP"
