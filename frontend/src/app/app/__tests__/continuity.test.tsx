@@ -71,7 +71,7 @@ afterEach(() => {
 describe("Continuidad", () => {
   it("pinta el score y las cuatro dimensiones con sus cuentas", async () => {
     setup("owner");
-    expect(await screen.findByText("50")).toBeInTheDocument();
+    expect((await screen.findAllByText("50")).length).toBeGreaterThan(0);
     expect(screen.getByText("Memoria de defectos")).toBeInTheDocument();
     expect(screen.getByText("Oficio del proyecto")).toBeInTheDocument();
     expect(screen.getAllByText("1 / 2").length).toBeGreaterThan(0);
@@ -90,7 +90,8 @@ describe("Continuidad", () => {
         { key: "oficio", label: "Oficio del proyecto", num: 0, den: 0, ratio: null, weight: 0.25 },
       ],
     });
-    expect(await screen.findByText("sin datos")).toBeInTheDocument();
+    // Y dice por qué no penaliza: una parte sin datos no cuenta en el índice.
+    expect(await screen.findByText("sin datos · no cuenta en el índice")).toBeInTheDocument();
   });
 
   it("un fallo al cargar muestra el error, no «no hay proyectos»", async () => {
@@ -149,9 +150,8 @@ describe("Continuidad", () => {
   it("?project= en la URL elige el proyecto con el que abre", async () => {
     window.history.replaceState({}, "", "/app/continuity?project=checkout-suite");
     setup("owner", INDICE_50, ["api-pagos", "checkout-suite"]);
-    await screen.findByText("50");
-    expect(getContinuity).toHaveBeenCalledWith("t", "o1", "checkout-suite");
-    expect(getContinuity).not.toHaveBeenCalledWith("t", "o1", "api-pagos");
+    // El detalle abre en el proyecto del enlace, no en el primero alfabético.
+    expect(await screen.findByText("Índice de continuidad · checkout-suite")).toBeInTheDocument();
     window.history.replaceState({}, "", "/app/continuity");
   });
 
@@ -160,5 +160,16 @@ describe("Continuidad", () => {
     (getContinuity as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("boom"));
     expect(await screen.findByText(/No se pudo calcular el índice/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Reintentar" })).toBeInTheDocument();
+  });
+
+  it("el detalle dice la banda de riesgo y la diferencia con la última acta", async () => {
+    setup("owner");
+    (getLatestHandover as ReturnType<typeof vi.fn>).mockResolvedValue({
+      score: 30, project: "checkout-suite", created_at: "2026-10-01T10:00:00Z",
+      canonical_json: {}, signature: "s", share: "BLOB",
+    });
+    expect(await screen.findByText("+20 desde la última acta")).toBeInTheDocument();
+    expect(screen.getAllByText("Riesgo medio").length).toBeGreaterThan(0);
+    expect(screen.getByText(/Hay huecos que se irían con la persona/)).toBeInTheDocument();
   });
 });

@@ -125,7 +125,9 @@ describe("DashboardPage", () => {
       expect(screen.getAllByText("60%").length).toBeGreaterThan(0);
       expect(screen.getAllByText(/1 propuesta de la IA por revisar/i).length).toBeGreaterThan(0);
       expect(screen.getAllByText(/1 de severidad alta/i).length).toBeGreaterThan(0);
-      expect(screen.getAllByText(/Configuración completa/i).length).toBeGreaterThan(0);
+      // Una org en uso (runs + memoria) no ve nada de configuración: «Pon Mnemo en
+      // marcha» transmitía «a medio configurar» a quien ya trabaja con él.
+      expect(screen.queryByText(/Pon Mnemo en marcha/i)).toBeNull();
       expect(screen.queryByTestId("step-todo-5")).toBeNull();
     });
   });
