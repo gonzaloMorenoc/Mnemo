@@ -16,6 +16,9 @@ Qué re-embebe (todas las columnas vector(384) del API v2):
                                         a NULL, dejan de participar en el match)
   - public.qa_knowledge.embedding    ← embedding_text(title, challenge, approach)
   - public.test_assets.embedding     ← content
+  - public.triage_corrections.reason_embedding ← reason (solo filas con razón;
+                                        migración 030 — la razón del etiquetador
+                                        buscable por sí misma)
 
 No toca las tablas del RAG v1 legacy (documents/chunks de 001): están fuera
 del arranque de producción (ver asgi.py).
@@ -152,10 +155,31 @@ def reembed_test_assets(conn, embedder, *, dry_run: bool) -> int:
         return len(rows)
 
 
+def reembed_label_reasons(conn, embedder, *, dry_run: bool) -> int:
+    where = " where reason is not null and btrim(reason) <> ''"
+    with conn.cursor() as cur:
+        total = _count(cur, "select count(*) as n from public.triage_corrections" + where)
+        if dry_run:
+            return total
+        cur.execute("select id, reason from public.triage_corrections" + where + " order by id")
+        rows = cur.fetchall()
+        for i, r in enumerate(rows, 1):
+            emb = Vector(list(embedder.embed(r["reason"])))
+            cur.execute("update public.triage_corrections set reason_embedding=%s where id=%s",
+                        (emb, r["id"]))
+            if i % _BATCH == 0:
+                conn.commit()
+                print(f"  razones: {i}/{total}", flush=True)
+        conn.commit()
+        return len(rows)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dry-run", action="store_true",
                         help="solo contar filas afectadas, sin escribir")
+    parser.add_argument("--only-reasons", action="store_true",
+                        help="solo las razones de etiqueta (backfill de la migración 030)")
     args = parser.parse_args()
 
     print(f"Modelo: {EMBEDDING_MODEL}")
@@ -168,11 +192,16 @@ def main() -> None:
     with _connect() as conn:
         modo = "DRY-RUN (sin escribir)" if args.dry_run else "re-embebiendo"
         print(f"{modo}…")
+        n_r = reembed_label_reasons(conn, embedder, dry_run=args.dry_run)
+        if args.only_reasons:
+            print(f"OK — razones={n_r}")
+            return
         n_f = reembed_failures(conn, embedder, dry_run=args.dry_run)
         n_c = recompute_centroids(conn, dry_run=args.dry_run)
         n_k = reembed_qa_knowledge(conn, embedder, dry_run=args.dry_run)
         n_t = reembed_test_assets(conn, embedder, dry_run=args.dry_run)
-    print(f"OK — failures={n_f} centroides={n_c} qa_knowledge={n_k} test_assets={n_t}")
+    print(f"OK — failures={n_f} centroides={n_c} qa_knowledge={n_k} test_assets={n_t}"
+          f" razones={n_r}")
 
 
 if __name__ == "__main__":
