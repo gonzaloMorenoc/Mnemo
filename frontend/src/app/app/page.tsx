@@ -33,7 +33,7 @@ const quickAccessItems = NAV_ITEMS.filter((item) =>
 );
 
 function KpiError() {
-  return <p className="text-sm text-red-500">No se pudo cargar.</p>;
+  return <p role="alert" className="text-sm text-red-700">No se pudo cargar. Recarga la página para reintentar.</p>;
 }
 
 function tally(items: (string | null | undefined)[]): Record<string, number> {
@@ -45,7 +45,7 @@ function tally(items: (string | null | undefined)[]): Record<string, number> {
 function VizCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <Card className="flex flex-col gap-2 p-4">
-      <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">{title}</p>
+      <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">{title}</p>
       <div className="flex-1">{children}</div>
     </Card>
   );
@@ -95,7 +95,10 @@ export default function DashboardPage() {
     { n: 5, title: "Genera el test que falta", description: "Desde un gap, al estilo de tu repo, hacia un PR.", href: "/app/graph", cta: "Generar", done: false, highlight: true },
   ];
   const setupComplete = steps.slice(0, 4).every((s) => s.done);
-  const checklistLoading = orgLoading || github.isLoading || repo.isLoading || knowledge.isLoading || gaps.isLoading;
+  // isPending y no isLoading: con la consulta aún deshabilitada (la org se está
+  // resolviendo) isLoading es false y se pintaba un falso «vacío» («Aún sin runs»).
+  // El caso «sin organización» ya sale antes, así que pending = todavía cargando.
+  const checklistLoading = orgLoading || github.isPending || repo.isPending || knowledge.isPending || gaps.isPending;
 
   const m = calibration.data;
   const nGapsAlta = (gaps.data ?? []).filter((g) => g.severity === "alta").length;
@@ -120,16 +123,16 @@ export default function DashboardPage() {
       <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
         {runs.isError ? (
           <Card className="p-5">
-            <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">Última release</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Última release</p>
             <KpiError />
           </Card>
-        ) : runs.isLoading ? (
+        ) : runs.isPending ? (
           <Skeleton className="h-40 rounded-xl" />
         ) : latest ? (
           <LatestReleaseHero run={latest} manifest={manifest} certified={Boolean(cert.data)} />
         ) : (
           <Card className="p-5">
-            <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">Última release</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Última release</p>
             <p className="mt-2 text-sm text-zinc-500">Aún sin runs — sube un reporte en Autopilot.</p>
             <Link href="/app/autopilot" className="mt-3 inline-block text-xs font-medium text-primary hover:underline">Ir a Autopilot →</Link>
           </Card>
@@ -137,12 +140,12 @@ export default function DashboardPage() {
         <VizCard title="Precisión del motor">
           {calibration.isError ? (
             <KpiError />
-          ) : calibration.isLoading ? (
+          ) : calibration.isPending ? (
             <Skeleton className="h-16 w-full" />
           ) : accuracy != null ? (
             <div className="space-y-1">
               <RadialGauge value={accuracy} ariaLabel={`Precisión del motor: ${Math.round(accuracy * 100)}%`} />
-              <p className="flex items-center gap-1 text-xs text-zinc-400">
+              <p className="flex items-center gap-1 text-xs text-zinc-500">
                 {m!.familias_calibradas} familias calibradas <InfoTooltip term="precision_motor" />
               </p>
             </div>
@@ -157,7 +160,7 @@ export default function DashboardPage() {
         <VizCard title={`Tendencia de riesgo${riskSeries.length ? ` · últimos ${riskSeries.length}` : ""}`}>
           {runs.isError ? (
             <KpiError />
-          ) : runs.isLoading ? (
+          ) : runs.isPending ? (
             <Skeleton className="h-8 w-full" />
           ) : riskSeries.length >= 3 ? (
             <Sparkline values={riskSeries} ariaLabel={`Riesgo: de ${riskSeries[0]} a ${riskSeries[riskSeries.length - 1]} en los últimos ${riskSeries.length} runs`} />
@@ -168,7 +171,7 @@ export default function DashboardPage() {
         <VizCard title="Veredictos · últimos 20">
           {runs.isError ? (
             <KpiError />
-          ) : runs.isLoading ? (
+          ) : runs.isPending ? (
             <Skeleton className="h-16 w-full" />
           ) : (
             <VerdictBar counts={verdictCounts} />
@@ -184,7 +187,7 @@ export default function DashboardPage() {
           ) : (
             <>
               <p className="text-3xl font-semibold tracking-tight text-zinc-900">{knowledge.data?.length ?? 0}</p>
-              <p className="text-xs text-zinc-400">
+              <p className="text-xs text-zinc-500">
                 lecciones, reglas y riesgos capturados
                 {nPending > 0 && <span className="ml-1 font-medium text-amber-600">· {nPending} propuesta{nPending === 1 ? "" : "s"} de la IA por revisar</span>}
               </p>
@@ -198,7 +201,7 @@ export default function DashboardPage() {
           ) : (
             <>
               <p className="text-3xl font-semibold tracking-tight text-zinc-900">{gaps.data?.length ?? 0}</p>
-              <p className="text-xs text-zinc-400">
+              <p className="text-xs text-zinc-500">
                 {nGapsAlta > 0 ? <span className="font-medium text-red-600">{nGapsAlta} de severidad alta</span> : "sin severidad alta"}
                 {(gapsBySeverity.media ?? 0) > 0 ? ` · ${gapsBySeverity.media} media` : ""}
                 {(gapsBySeverity.baja ?? 0) > 0 ? ` · ${gapsBySeverity.baja} baja` : ""}
@@ -240,7 +243,7 @@ export default function DashboardPage() {
 
       {/* ── Setup ── */}
       {checklistLoading ? null : setupComplete ? (
-        <p className="text-xs text-zinc-400">✓ Configuración completa — GitHub conectado, tests indexados, memoria y gaps activos.</p>
+        <p className="text-xs text-zinc-500">✓ Configuración completa — GitHub conectado, tests indexados, memoria y gaps activos.</p>
       ) : (
         <div className="space-y-3">
           <h3 className="text-sm font-medium text-zinc-700">Pon Mnemo en marcha</h3>

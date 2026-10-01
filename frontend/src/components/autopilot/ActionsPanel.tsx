@@ -83,7 +83,7 @@ export function ActionsPanel({ runId, orgId }: { runId: string; orgId: string })
           {propose.isPending ? "Proponiendo…" : "Proponer acciones"}
         </Button>
       </div>
-      <p className="text-xs text-zinc-400">Paso 2 — qué hacer con cada fallo.</p>
+      <p className="text-xs text-zinc-500">Paso 2 — qué hacer con cada fallo.</p>
       {actions.length === 0 ? (
         <p className="text-sm text-zinc-500">
           Sin acciones para este run. Pulsa «Proponer acciones» y Mnemo sugerirá

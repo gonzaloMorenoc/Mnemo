@@ -120,6 +120,13 @@ export default function ContinuityPage() {
   const idx = indexQuery.data;
   const acta = latestQuery.data;
 
+  // El proyecto elegido viaja en la URL: sobrevive a una recarga y se puede compartir.
+  function elegirProyecto(p: string) {
+    setProject(p);
+    setEnlaceManual(null);
+    window.history.replaceState(null, "", `?project=${encodeURIComponent(p)}`);
+  }
+
   // Con el prefijo que /verify exige (#v1.): sin él, el enlace abría el formulario
   // vacío, sin sello ni error. Si el portapapeles falla (contexto no seguro, permiso),
   // el enlace queda a la vista para copiarlo a mano — nunca un «copiado» falso.
@@ -141,7 +148,7 @@ export default function ContinuityPage() {
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-base">Índice de continuidad</CardTitle>
           {projects.length > 0 && (
-            <Select value={activeProject} onValueChange={(p) => { setProject(p); setEnlaceManual(null); }}>
+            <Select value={activeProject} onValueChange={elegirProyecto}>
               <SelectTrigger className="w-[220px]" aria-label="Proyecto">
                 <SelectValue />
               </SelectTrigger>
@@ -168,7 +175,7 @@ export default function ContinuityPage() {
                 Reintentar
               </Button>
             </div>
-          ) : projects.length === 0 && !projectsQuery.isLoading ? (
+          ) : projects.length === 0 && !projectsQuery.isPending ? (
             <p className="text-sm text-zinc-500">
               Todavía no hay proyectos con ejecuciones ni conocimiento en esta organización.
             </p>

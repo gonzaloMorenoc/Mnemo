@@ -2,6 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type PropsWithChildren } from "react";
+import { MotionConfig } from "framer-motion";
 import { Toaster } from "sonner";
 
 import { AuthProvider } from "@/components/providers/auth-provider";
@@ -23,8 +24,10 @@ export function AppProviders({ children }: PropsWithChildren) {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        {children}
-        <Toaster richColors position="top-right" />
+        {/* reducedMotion="user": quien pide menos movimiento al sistema no ve las
+            transiciones de framer-motion. Toasts abajo: arriba tapaban la cabecera. */}
+        <MotionConfig reducedMotion="user">{children}</MotionConfig>
+        <Toaster richColors position="bottom-right" />
       </AuthProvider>
     </QueryClientProvider>
   );

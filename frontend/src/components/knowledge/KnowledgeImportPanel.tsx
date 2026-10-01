@@ -70,7 +70,7 @@ export function KnowledgeImportPanel({ orgId }: { orgId: string }) {
   return (
     <Card className="max-w-2xl space-y-4 p-5">
       <h2 className="flex items-center gap-1.5 text-sm font-medium text-zinc-700">
-        <CloudDownload size={14} className="text-zinc-400" />
+        <CloudDownload size={14} className="text-zinc-500" />
         Importar desde Jira/Confluence
       </h2>
       <p className="text-sm text-zinc-500">
@@ -99,7 +99,7 @@ export function KnowledgeImportPanel({ orgId }: { orgId: string }) {
               value={raw}
               onChange={(e) => setRaw(e.target.value)}
             />
-            <p className={`text-xs ${tooMany ? "font-medium text-red-600" : "text-zinc-400"}`}>
+            <p className={`text-xs ${tooMany ? "font-medium text-red-600" : "text-zinc-500"}`}>
               {refs.length}/{MAX_REFS}
             </p>
           </div>

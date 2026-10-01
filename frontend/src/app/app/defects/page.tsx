@@ -47,7 +47,7 @@ function RootCausePanel({ token, defectId }: { token: string; defectId: string }
       {error && <p className="text-sm text-red-600">{error}</p>}
       {text && (
         <div className="space-y-2">
-          <p className="text-xs text-zinc-400">Sugerencia generada por IA — revísala.</p>
+          <p className="text-xs text-zinc-500">Sugerencia generada por IA — revísala.</p>
           <pre className="whitespace-pre-wrap rounded-lg bg-zinc-50 p-3 text-sm text-zinc-700">{text}</pre>
           <Button onClick={() => run(true)} disabled={busy} className="text-xs">Regenerar</Button>
         </div>
@@ -86,7 +86,7 @@ export default function DefectsPage() {
       <div className="grid gap-6 md:grid-cols-2">
         <Card className="p-4">
           <h2 className="text-sm font-medium text-zinc-700">Familias</h2>
-          <p className="mb-3 text-xs text-zinc-400">Fallos parecidos, agrupados automáticamente por su firma de error.</p>
+          <p className="mb-3 text-xs text-zinc-500">Fallos parecidos, agrupados automáticamente por su firma de error.</p>
           {defectsQuery.isLoading && <Skeleton className="h-24 w-full" />}
           {defectsQuery.isError && (
             <p className="text-sm text-red-600">No se pudieron cargar las familias de defecto.</p>
@@ -125,7 +125,7 @@ export default function DefectsPage() {
                       <Badge>{f.occurrence_count}x</Badge>
                     </span>
                   </span>
-                  <span className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-zinc-400">
+                  <span className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-zinc-500">
                     {f.projects.slice(0, 3).map((p) => (
                       <Badge key={p} className="border-blue-200 bg-blue-50 text-blue-700">{p}</Badge>
                     ))}

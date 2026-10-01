@@ -46,9 +46,10 @@ describe("Guía — integridad de enlaces internos", () => {
     expect(bad).toEqual([]);
   });
 
-  it("hay 7 capítulos con los slugs esperados en orden", () => {
+  it("hay 8 capítulos con los slugs esperados en orden", () => {
     expect(CHAPTERS.map((c) => c.slug)).toEqual([
       "que-es-mnemo",
+      "continuidad",
       "primeros-pasos",
       "analizar-un-run",
       "el-acta-firmada",

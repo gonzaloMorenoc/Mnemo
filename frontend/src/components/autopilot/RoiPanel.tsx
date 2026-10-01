@@ -26,7 +26,7 @@ export function RoiPanel({ runId }: { runId: string }) {
         <span><strong className="text-zinc-900">{autoTriados}</strong> fallos clasificados sin intervención</span>
         <span><strong className="text-zinc-900">{horas} h</strong> ahorradas</span>
       </div>
-      <p className="text-xs text-zinc-400">
+      <p className="text-xs text-zinc-500">
         Supuesto: 15 min de triaje manual evitados por cada fallo clasificado automáticamente.
       </p>
     </Card>

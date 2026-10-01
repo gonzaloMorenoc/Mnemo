@@ -277,7 +277,7 @@ export default function IntegrationsPage() {
             <p
               id="gh-install-id-hint"
               data-testid="gh-install-id-hint"
-              className="text-xs text-zinc-400"
+              className="text-xs text-zinc-500"
             >
               El número final de la URL de instalación (ej. 12345678).
             </p>
@@ -294,7 +294,7 @@ export default function IntegrationsPage() {
             <p
               id="gh-repo-hint"
               data-testid="gh-repo-hint"
-              className="text-xs text-zinc-400"
+              className="text-xs text-zinc-500"
             >
               Formato: <code>owner/nombre</code> (ej. mi-empresa/mi-repo).
             </p>
@@ -345,9 +345,9 @@ export default function IntegrationsPage() {
                   <li key={t.path} className="text-xs text-zinc-600">
                     <span className="font-mono">{t.path}</span>
                     {" · "}
-                    <span className="text-zinc-400">{t.framework}</span>
+                    <span className="text-zinc-500">{t.framework}</span>
                     {" · "}
-                    <span className="text-zinc-400">{t.domain}</span>
+                    <span className="text-zinc-500">{t.domain}</span>
                   </li>
                 ))}
               </ul>
@@ -387,7 +387,7 @@ export default function IntegrationsPage() {
               onChange={(e) => setToken(e.target.value)}
               placeholder="••••••••"
             />
-            <p className="text-xs text-zinc-400">
+            <p className="text-xs text-zinc-500">
               Genéralo en id.atlassian.com → Seguridad → Tokens de API.
             </p>
           </div>
@@ -399,7 +399,7 @@ export default function IntegrationsPage() {
               onChange={(e) => setJql(e.target.value)}
               placeholder="issuetype = Bug"
             />
-            <p className="text-xs text-zinc-400">
+            <p className="text-xs text-zinc-500">
               Filtro de Jira (JQL) que decide qué issues trae «Importar bugs».
               Por defecto, todos los bugs — déjalo así si no usas JQL.
             </p>
@@ -423,7 +423,7 @@ export default function IntegrationsPage() {
               onChange={(e) => setProject(e.target.value)}
               placeholder="p.ej. web-cliente"
             />
-            <p className="text-xs text-zinc-400">
+            <p className="text-xs text-zinc-500">
               Nombre corto con el que se agruparán los bugs importados. Si lo dejas
               vacío se usa «jira».
             </p>

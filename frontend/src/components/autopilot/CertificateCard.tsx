@@ -74,7 +74,7 @@ export function CertificateCard({ runId }: { runId: string }) {
           {generate.isPending ? "Firmando…" : "Generar acta"}
         </Button>
       </div>
-      <p className="text-xs text-zinc-400">
+      <p className="text-xs text-zinc-500">
         Paso 3 — el resultado firmado: sella criptográficamente el veredicto del run;
         cualquiera puede comprobarla en «Verificar acta», sin cuenta.
       </p>
@@ -95,14 +95,14 @@ export function CertificateCard({ runId }: { runId: string }) {
               El reporte no prueba una ejecución completa; el acta lo refleja.
             </p>
           )}
-          <p className="font-mono text-xs text-zinc-400 break-all">firma: {cert.signature.slice(0, 32)}…</p>
+          <p className="font-mono text-xs text-zinc-500 break-all">firma: {cert.signature.slice(0, 32)}…</p>
           <Button size="sm" variant="outline" onClick={handleDownloadPdf}>Descargar PDF</Button>
           {cert.share ? (
             <div className="space-y-1 pt-1">
               <Button size="sm" variant="outline" onClick={handleCopyLink}>
                 Copiar enlace de verificación
               </Button>
-              <p className="text-xs text-zinc-400">
+              <p className="text-xs text-zinc-500">
                 El enlace lleva el acta completa (proyecto, commit, evidencia y calibración):
                 compartirlo es publicarlo.
               </p>

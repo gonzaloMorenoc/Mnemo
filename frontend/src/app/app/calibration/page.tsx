@@ -36,7 +36,7 @@ export default function CalibrationPage() {
         </p>
       </div>
 
-      {metricsQuery.isLoading && <Skeleton className="h-40 w-full max-w-xl" />}
+      {metricsQuery.isPending && Boolean(activeOrgId) && <Skeleton className="h-40 w-full max-w-xl" />}
       {metricsQuery.isError && (
         <Card className="max-w-xl p-5"><p className="text-sm text-red-600">No se pudieron cargar las métricas.</p></Card>
       )}

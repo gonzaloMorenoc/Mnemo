@@ -13,7 +13,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative min-h-screen bg-[color:var(--background)]">
       <div className="grid min-h-screen grid-cols-1 md:grid-cols-[252px_1fr]">
-        <aside className="hidden border-r border-zinc-200 bg-white md:block">
+        {/* sticky: al hacer scroll en una página larga la columna se quedaba en blanco */}
+        <aside className="sticky top-0 hidden h-screen overflow-y-auto border-r border-zinc-200 bg-white md:block">
           <SidebarNav />
         </aside>
 
@@ -34,7 +35,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setMobileOpen(false)}
-              aria-label="Close navigation overlay"
+              aria-label="Cerrar navegación"
             />
             <motion.aside
               className="fixed inset-y-0 left-0 z-40 w-72 border-r border-zinc-200 bg-white md:hidden"

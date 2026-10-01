@@ -9,11 +9,11 @@ export const chapter: Chapter = {
       blocks: [
         {
           kind: "p",
-          text: "Un equipo de QA que salta de cliente en cliente pierde contexto en cada salto. El triaje que hiciste el mes pasado se vuelve a hacer, la lección que aprendió un compañero se queda en su cabeza, y cuando llega el día de liberar cuesta demostrar por qué la calidad de esa release es la que dices que es.",
+          text: "En una consultora de QA, las personas rotan entre proyectos y clientes. Cuando quien lleva un proyecto se va, con ella se van cosas que no están escritas en ningún sitio: cómo se levanta el entorno, con qué datos se prueba, a quién se pregunta cuando algo se cae y por qué un test que parece inestable en realidad no lo es.",
         },
         {
           kind: "p",
-          text: "Mnemo ataca esas tres cosas. Recuerda lo que tu equipo aprende, te ayuda a clasificar los fallos de cada ejecución, y firma un veredicto que cualquiera puede comprobar.",
+          text: "Mnemo es la memoria del proyecto que se queda. Se alimenta del trabajo de cada día —los runs del CI y lo que el equipo escribe al etiquetar un fallo—, mide cuánto sabe de cada proyecto y lo devuelve a quien llega, con la fuente citada.",
         },
       ],
     },
@@ -21,13 +21,17 @@ export const chapter: Chapter = {
       heading: "Lo que lo hace distinto",
       blocks: [
         {
-          kind: "p",
-          text: "El diferenciador es el [[certificado]]: un acta firmada del veredicto de un run. No es un PDF bonito, es una prueba criptográfica. Quien la reciba puede comprobarla en [Verificar acta](/app/verify) sin tener cuenta en Mnemo, y sabrá que nadie la ha tocado desde que se emitió.",
+          kind: "list",
+          items: [
+            "**Sabe qué falló ayer.** Una wiki no; Mnemo une cada run con sus familias de defectos, la razón con la que se etiquetaron y las lecciones aprendidas.",
+            "**Mide la continuidad.** Un índice por proyecto dice cuánto de él está en Mnemo, con su desglose. Lo ves en [Continuidad](/app/continuity).",
+            "**Firma el traspaso.** Cuando alguien rota, el acta de traspaso deja constancia de lo que quedó depositado, y cualquiera la comprueba en [Verificar acta](/app/verify) sin cuenta.",
+          ],
         },
         {
           kind: "note",
           tone: "info",
-          text: "Esta Guía explica cómo funciona Mnemo. No la confundas con el [Onboarding al proyecto](/app/onboarding), que es otra cosa: ahí Mnemo aprende el proyecto concreto de tu cliente para ponerte al día.",
+          text: "Esta Guía explica cómo funciona Mnemo. No la confundas con el [Onboarding al proyecto](/app/onboarding): ahí preguntas por el proyecto concreto de tu cliente.",
         },
       ],
     },

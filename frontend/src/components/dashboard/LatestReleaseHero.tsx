@@ -18,11 +18,11 @@ export function LatestReleaseHero({
   const riskScore = run.verdict === "sin_confirmar" || run.risk_score == null ? null : run.risk_score;
   return (
     <Card className="p-5">
-      <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">Última release</p>
+      <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Última release</p>
       <div className="mt-2 flex flex-wrap items-center gap-3">
         <span className="text-base"><VerdictBadge verdict={run.verdict} /></span>
         {certified && (
-          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+          <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/5 px-2 py-0.5 text-xs font-medium text-primary">
             acta firmada ✓
           </span>
         )}
