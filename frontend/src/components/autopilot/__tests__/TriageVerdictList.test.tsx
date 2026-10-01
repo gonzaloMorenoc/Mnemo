@@ -33,6 +33,16 @@ describe("TriageVerdictList", () => {
     expect(screen.queryByText("real")).not.toBeInTheDocument();
   });
 
+  it("avisa cuando el motor contradice la etiqueta humana (R0_prior_contradicted)", async () => {
+    (getTriageVerdicts as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: "v1", failure_id: "f1", category: "unknown", confidence: 0.5,
+        rule_applied: "R0_prior_contradicted", requires_approval: true, llm_assisted: false, status: "resolved" },
+    ]);
+    renderWithClient(<TriageVerdictList runId="r1" />);
+    expect(await screen.findByText("contradice la etiqueta humana")).toBeInTheDocument();
+    expect(screen.getByText("requiere aprobación")).toBeInTheDocument();
+  });
+
   it("muestra etiquetas humanas para todas las categorías en la leyenda de colores", async () => {
     (getTriageVerdicts as ReturnType<typeof vi.fn>).mockResolvedValue([]);
     renderWithClient(<TriageVerdictList runId="r1" />);
