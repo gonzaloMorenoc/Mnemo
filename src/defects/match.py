@@ -28,8 +28,20 @@ def _cosine(a: Sequence[float], b: Sequence[float]) -> float:
     return dot / (na * nb)
 
 
+# Coseno mínimo para fusionar un fallo en una familia existente sin firma exacta.
+# Calibrado el 30-sep con el modelo multilingüe (tests/golden/familias_pares.py):
+# ningún umbral separa del todo, porque el modelo ve la FORMA del mensaje y no su
+# objetivo (dos ECONNREFUSED a servicios distintos dan 0,82-0,85). Fusionar dos
+# defectos distintos corrompe la memoria —el nuevo hereda la etiqueta y la razón
+# del viejo, y con R0 un defecto real podría heredar un 'flaky'—; partir uno solo
+# cuesta etiquetarlo dos veces. Ante la duda, no fusionar: 0,85 fusionaba 3/10
+# pares distintos, 0,90 fusiona 1/10 (y 7/10 de los iguales).
+MATCH_THRESHOLD = 0.90
+
+
 def decide_match(*, fingerprint: str, embedding: Sequence[float],
-                 candidates: List[FamilyCandidate], threshold: float = 0.85) -> MatchResult:
+                 candidates: List[FamilyCandidate],
+                 threshold: float = MATCH_THRESHOLD) -> MatchResult:
     """Empareja un fallo con una familia: firma exacta primero, luego mejor coseno >= threshold."""
     for cand in candidates:
         if cand.signature == fingerprint:

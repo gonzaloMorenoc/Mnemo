@@ -117,7 +117,14 @@ def gap_recommendation(kind: str, title: str, provider=None, *, with_llm: bool =
 # Coverage threshold — calibrable cosine distance
 # ---------------------------------------------------------------------------
 
-_COVERAGE_THRESHOLD = 0.55  # distancia cosine; calibrable
+# Distancia coseno regla↔test por debajo de la cual la regla cuenta como cubierta.
+# Calibrado el 30-sep sobre Demo MTP (16 reglas etiquetadas a mano) con el modelo
+# multilingüe y el descriptor de tests (src/repo_ingest/descriptor.py): las
+# cubiertas quedan a 0,21-0,35 de su test y las que no tienen test, a ≥0,48
+# (escapa una cubierta a 0,456: cuenta como hueco, el error barato). Con 0,55 y
+# el código entero embebido no había corte posible: el hueco era una moneda al aire.
+# Regresión: tests/test_calibracion_umbrales.py.
+_COVERAGE_THRESHOLD = 0.42
 
 # ---------------------------------------------------------------------------
 # SQL queries for the three gap kinds

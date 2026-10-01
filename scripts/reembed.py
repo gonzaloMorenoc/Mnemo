@@ -5,7 +5,7 @@ auditoría 12-ago-2026 H2), los vectores viejos y los nuevos viven en espacios
 distintos — el coseno entre ellos no significa nada. Sin re-embeber:
   - la búsqueda semántica devuelve basura (y el corte MAX_SEMANTIC_DISTANCE
     puede filtrarlo TODO),
-  - el merge de familias (decide_match, coseno >= 0.85 contra el centroide)
+  - el merge de familias (decide_match, coseno >= MATCH_THRESHOLD contra el centroide)
     deja de agrupar y fragmenta familias nuevas.
 
 Qué re-embebe (todas las columnas vector(384) del API v2):
@@ -15,7 +15,8 @@ Qué re-embebe (todas las columnas vector(384) del API v2):
                                         fallos (familias sin fallos: centroide
                                         a NULL, dejan de participar en el match)
   - public.qa_knowledge.embedding    ← embedding_text(title, challenge, approach)
-  - public.test_assets.embedding     ← content
+  - public.test_assets.embedding     ← asset_descriptor(path, content): ruta +
+                                        títulos de los tests + comentarios
 
 No toca las tablas del RAG v1 legacy (documents/chunks de 001): están fuera
 del arranque de producción (ver asgi.py).
@@ -38,6 +39,7 @@ from psycopg.rows import dict_row
 from src.config import DATABASE_URL, EMBEDDING_MODEL
 from src.defects.embedder import LocalEmbedder
 from src.knowledge.repository import embedding_text
+from src.repo_ingest.descriptor import asset_descriptor
 
 _BATCH = 200  # filas por lote: acota memoria y tamaño de transacción
 
@@ -139,10 +141,10 @@ def reembed_test_assets(conn, embedder, *, dry_run: bool) -> int:
         total = _count(cur, "select count(*) as n from public.test_assets")
         if dry_run:
             return total
-        cur.execute("select id, content from public.test_assets order by id")
+        cur.execute("select id, path, content from public.test_assets order by id")
         rows = cur.fetchall()
         for i, r in enumerate(rows, 1):
-            emb = Vector(list(embedder.embed(r["content"] or "")))
+            emb = Vector(list(embedder.embed(asset_descriptor(r["path"] or "", r["content"] or ""))))
             cur.execute("update public.test_assets set embedding=%s where id=%s",
                         (emb, r["id"]))
             if i % _BATCH == 0:
@@ -156,6 +158,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dry-run", action="store_true",
                         help="solo contar filas afectadas, sin escribir")
+    parser.add_argument("--only-test-assets", action="store_true",
+                        help="solo los tests indexados (cambio de descriptor, umbral de cobertura 0,42)")
     args = parser.parse_args()
 
     print(f"Modelo: {EMBEDDING_MODEL}")
@@ -168,6 +172,9 @@ def main() -> None:
     with _connect() as conn:
         modo = "DRY-RUN (sin escribir)" if args.dry_run else "re-embebiendo"
         print(f"{modo}…")
+        if args.only_test_assets:
+            print(f"OK — test_assets={reembed_test_assets(conn, embedder, dry_run=args.dry_run)}")
+            return
         n_f = reembed_failures(conn, embedder, dry_run=args.dry_run)
         n_c = recompute_centroids(conn, dry_run=args.dry_run)
         n_k = reembed_qa_knowledge(conn, embedder, dry_run=args.dry_run)
