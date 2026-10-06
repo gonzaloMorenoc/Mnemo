@@ -43,8 +43,15 @@ Thumbs.db
 # Documentación personal/técnica
 TECHNICAL_GUIDE.md
 
-# Configuración de entornos
+# Configuración de entornos y claves
 .env
+.env.*
+!.env.example
+!.env.docker
+*.pem
+
+# Dependencias de Node
+node_modules/
 docs/demo/*.local.md
 docs/concurso/
 

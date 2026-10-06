@@ -1,4 +1,4 @@
-# Mnemo — Modelo de datos y aislamiento
+# Mnemo · QA Memory — modelo de datos y aislamiento
 
 Referencia del esquema `public` tal como queda tras aplicar las migraciones `db/migrations/001` a `030`. La fuente de verdad son esos ficheros SQL; donde la semántica depende del código, se cita el módulo que la fija.
 
@@ -10,11 +10,14 @@ Convenciones del documento:
 
 ---
 
-## 1. Aislamiento entre tenants (IMPORTANTE)
+## 1. Aislamiento entre clientes
 
-Las migraciones declaran RLS en todas las tablas de `public`, con policies basadas en `is_org_member(org_id)` / `auth.uid()`. **Pero** el backend se conecta por el *Session pooler* de Supabase con un rol que tiene `rolbypassrls = true`: **RLS no se aplica** a las consultas de la app.
+El aislamiento tiene dos capas:
 
-Por eso el **aislamiento real lo hacen los filtros por membership de cada repositorio**. Está documentado en `src/defects/repository.py` (docstring de `AssuranceRepository` y de `_set_claims`) y repetido en `src/actions/repository.py`, `src/knowledge/proposal_repository.py`, `src/ci/ingest_tokens.py` y `src/jira/integrations_repository.py`. El patrón:
+1. **Filtro por pertenencia en cada consulta del backend.** Cada repositorio comprueba que el usuario es miembro de la organización antes de leer o escribir, y filtra por ella. Es el mecanismo principal: el backend se conecta por el *Session pooler* de Supabase con un rol de servicio que no está sujeto a RLS, así que el aislamiento de la app no depende de las policies.
+2. **RLS como red de seguridad.** Todas las tablas de `public` tienen RLS activado y forzado, con policies basadas en `is_org_member(org_id)` / `auth.uid()`. Protegen frente a cualquier acceso directo con credenciales de usuario (p. ej. PostgREST con la anon key).
+
+El filtro por pertenencia está documentado en `src/defects/repository.py` (docstring de `AssuranceRepository` y de `_set_claims`) y repetido en `src/actions/repository.py`, `src/knowledge/proposal_repository.py`, `src/ci/ingest_tokens.py` y `src/jira/integrations_repository.py`. El patrón:
 
 ```sql
 where ... and exists (
@@ -27,9 +30,9 @@ o una comprobación previa `select exists(... memberships ...)` que corta con `[
 
 `_set_claims` fija `request.jwt.claim.sub` y `request.jwt.claim.role` en la sesión: es andamiaje para el día en que se conecte con un rol `authenticated` real, y es lo que permite que `join_organization_by_code` (que usa `auth.uid()`) funcione por el pooler.
 
-**RLS es la red de seguridad** frente al acceso directo por PostgREST con la anon key, no el mecanismo primario. Cubierto por tests de integración contra Supabase real: `tests/test_assurance_repository.py` (aislamiento cross-org, rechazo de no-miembro), `tests/test_rls_behavioral.py`, `tests/test_migration_016_rls.py`, `tests/test_qa_knowledge_rls.py` y `tests/test_test_assets_rls.py`.
+Ambas capas están cubiertas por tests de integración contra Supabase real: `tests/test_assurance_repository.py` (aislamiento entre organizaciones, rechazo de no miembros), `tests/test_rls_behavioral.py`, `tests/test_migration_016_rls.py`, `tests/test_qa_knowledge_rls.py` y `tests/test_test_assets_rls.py`.
 
-> Defensa en profundidad: todas las queries usan parámetros (`%s`, sin concatenación) y el filtro de membership es independiente de RLS.
+> Defensa en profundidad: todas las consultas usan parámetros (`%s`, sin concatenación) y el filtro por pertenencia es independiente de RLS.
 
 ### Estado RLS por tabla
 
@@ -40,8 +43,8 @@ Todas las tablas de `public` tienen `enable` + `force` (las 7 de `001` recibiero
 | `profiles` | `user_id = auth.uid()` | Por usuario, no por org. |
 | `organizations` | select `is_org_member(id)`; insert `created_by = auth.uid()`; update `is_org_admin(id)`; delete solo owner | |
 | `memberships` | select propio o miembro; escritura `is_org_admin(org_id)` | |
-| `documents`, `chunks`, `embeddings` | por `scope` (`global` / `user` / `org`) | RAG v1 legacy. |
-| `analyses` | propio o miembro de la org | RAG v1 legacy. |
+| `documents`, `chunks`, `embeddings` | por `scope` (`global` / `user` / `org`) | Restos del v1, sin uso. |
+| `analyses` | propio o miembro de la org | Restos del v1, sin uso. |
 | `defect_families` | `scope = 'global' or is_org_member(org_id)`; escritura solo `scope = 'org'` | |
 | `ingest_tokens` | select `is_org_member`; insert/update/delete `is_org_admin` (+ `created_by = auth.uid()` en insert) | Tabla de credenciales. |
 | resto | `is_org_member(org_id)` para todo | |
@@ -62,10 +65,10 @@ Relevante solo para PostgREST (el pooler no los necesita):
 |---|---|
 | `is_org_member(org)` | `exists` en `memberships` con `user_id = (select auth.uid())`. Reescrita en `016` con subconsulta para que el planner evalúe `auth.uid()` una vez y no por fila. |
 | `is_org_admin(org)` | Igual, con `role in ('owner','admin')`. |
-| `join_organization_by_code(code)` | `security definer`: busca la org por `join_code` (sin distinguir mayúsculas) e inserta la membership `member`. |
-| `create_owner_membership()` | Trigger `after insert` en `organizations`: crea la membership `owner` del creador. |
+| `join_organization_by_code(code)` | `security definer`: busca la org por `join_code` (sin distinguir mayúsculas) e inserta la pertenencia con rol `member`. |
+| `create_owner_membership()` | Trigger `after insert` en `organizations`: crea la pertenencia `owner` del creador. |
 | `set_default_org_owner_membership()` | Trigger `before insert` en `organizations`: **genera el `join_code`** (10 hex) si viene nulo. El nombre es engañoso. |
-| `search_chunks_scoped(vec, n)` | Búsqueda del RAG v1 legacy; no la usa el API v2. |
+| `search_chunks_scoped(vec, n)` | Resto del v1, sin uso. |
 
 ---
 
@@ -81,7 +84,7 @@ Modelo por defecto: `paraphrase-multilingual-MiniLM-L12-v2` (`EMBEDDING_MODEL` e
 | `qa_knowledge.embedding` | `embedding_text(title, challenge, approach)` = las partes no vacías unidas por salto de línea | `src/knowledge/repository.py` | `ivfflat` parcial |
 | `test_assets.embedding` | `asset_descriptor(path, content)`: ruta + títulos de tests (`test(…)`, `it(…)`, `describe(…)`, `Scenario(…)`, `def test_…`) + comentarios, tope 8000 caracteres. Sin títulos reconocibles (helpers, page objects), el contenido tal cual | `src/repo_ingest/descriptor.py` | `ivfflat` parcial |
 | `triage_corrections.reason_embedding` (030) | La `reason` del etiquetador (solo filas con razón) | `src/api_v2.py` (`_embed_reason`), `scripts/reembed.py` | Ninguno, a propósito |
-| `embeddings.embedding` | Chunks del RAG v1 legacy | fuera del API v2 | `ivfflat` |
+| `embeddings.embedding` | Restos del v1, sin uso | — | `ivfflat` |
 
 Notas:
 
@@ -99,11 +102,11 @@ Notas:
 |---|---|---|
 | `organizations` | Org / cliente | `name`, `created_by` (FK `auth.users`, `on delete restrict`), `join_code` unique, `created_at` |
 | `memberships` | **Fuente de verdad del aislamiento** | PK `(org_id, user_id)`, `role` enum `org_role` ∈ `owner`/`admin`/`member`/`viewer` |
-| `profiles` | Perfil por usuario (legacy) | PK `user_id`, `display_name`, `default_org_id` (FK, `set null`). El código actual no la usa. |
+| `profiles` | Perfil por usuario (resto del v1) | PK `user_id`, `display_name`, `default_org_id` (FK, `set null`). El código actual no la usa. |
 
-### 3.2 RAG v1 legacy (001)
+### 3.2 Restos del v1, sin uso (001)
 
-`documents`, `chunks`, `embeddings` (con `scope` enum `kb_scope` ∈ `global`/`user`/`org` y CHECKs que atan `scope` a `owner_user_id`/`org_id`; `global` exige `sanitized_content` en `chunks`) y `analyses` (`bigserial`). Pertenecen al RAG v1, que está fuera del arranque de producción (`asgi.py` monta solo el API v2). El código del API v2 y `scripts/reembed.py` no las tocan.
+`documents`, `chunks`, `embeddings` y `analyses` las creó la migración `001` para la primera versión de Mnemo (un RAG documental). Ningún código actual las lee ni las escribe; siguen en el esquema porque las migraciones no se reescriben, y conservan su RLS.
 
 ### 3.3 Ingesta y Defect DNA (002, 007)
 
@@ -201,7 +204,7 @@ Notas:
 | Columna | Detalle |
 |---|---|
 | `project` | `text not null` |
-| `canonical_json` | Payload firmado, `schema: "mnemo.traspaso.v1"` (`src/continuity/service.py`): `org_id`, `project`, `created_at`, `emitted_by`, `continuity {score, dimensions}`, `inventario`, `mnemo_version`, `key_id` |
+| `canonical_json` | Payload firmado, `schema: "mnemo.traspaso.v2"` (`src/continuity/service.py`): `org_id`, `project`, `created_at`, `emitted_by`, `continuity {score, dimensions}`, `inventario`, `contenido {n, sha256, por_tipo}` (huella de lo depositado, `src/continuity/manifest.py`), `traspaso {de, para}`, `mnemo_version`, `key_id`. Las filas antiguas con `mnemo.traspaso.v1` (sin `contenido` ni `traspaso`) siguen verificando |
 | `signature` | Misma cadena de firma y la misma puerta pública de verificación que el acta de release; lo que las distingue es `schema` |
 | `score` | **Nullable**: «sin datos suficientes» se firma igual en vez de inventar un cero |
 | `created_by` | Solo owner/admin pueden emitir |
@@ -265,7 +268,7 @@ La reingesta de un repo borra e inserta todas sus filas (`replace_for_repo`).
 |---|---|
 | `name` | |
 | `token_hash` | `unique`; sha256 del token, que en claro se muestra una sola vez |
-| `created_by` | El token actúa con la identidad de quien lo creó, así que los checks de membership del pipeline aplican tal cual |
+| `created_by` | El token actúa con la identidad de quien lo creó, así que las comprobaciones de pertenencia del pipeline aplican tal cual |
 | `last_used_at`, `revoked_at` | |
 
 ---
@@ -275,7 +278,7 @@ La reingesta de un repo borra e inserta todas sus filas (`replace_for_repo`).
 - **«Etiquetada» = `label <> 'unknown'`.** `defect_families.label` es `not null default 'unknown'`, así que el default no es una etiqueta humana. Lo asumen el recuento de familias calibradas de las métricas del motor (`src/defects/repository.py`) y el índice de continuidad (`src/continuity/index.py`), que no cuenta como etiquetadas las familias que nadie ha triado. `set_family_label` valida el label contra los 5 valores del CHECK antes de escribir.
 - **`triage_corrections` es append-only** con `source` ∈ `family_label` | `conflict_review`. Cada etiquetado inserta una fila; nunca se edita en la app. El append-only se impone con el grant (`select, insert`) y por convención: el pooler sí puede hacer `update`, y lo hacen dos scripts fuera del flujo de usuario — `scripts/reembed.py` (rellena `reason_embedding`) y `src/demo/seed.py` (ajusta `corrected_at` de la demo).
 - **`certificates` es append-only** (grant `select, insert`): re-certificar crea otra fila; se lee la más reciente por run.
-- **`handover_acts` es una tabla propia, separada de `certificates`.** `certificates.run_id` es `not null` y su CHECK de veredicto forma parte de la garantía del acta de release; un traspaso no tiene run ni veredicto, y debilitar esos campos para acomodarlo contaminaría ambos modelos. Comparten la cadena de firma y la verificación pública; los distingue `schema` (`mnemo.cert.v3` frente a `mnemo.traspaso.v1`).
+- **`handover_acts` es una tabla propia, separada de `certificates`.** `certificates.run_id` es `not null` y su CHECK de veredicto forma parte de la garantía del acta de release; un traspaso no tiene run ni veredicto, y debilitar esos campos para acomodarlo contaminaría ambos modelos. Comparten la cadena de firma y la verificación pública; los distingue `schema` (`mnemo.cert.v3` frente a `mnemo.traspaso.v2`).
 - **Lo firmado es reproducible:** `created_at` llega del endpoint, no de `now()` dentro de la lógica firmada; el acta de traspaso lleva el desglose y los pesos completos para poder recalcular el número.
 - **Dedup de familias por firma:** el matching busca primero la familia con la `signature` exacta (además del top-K por coseno) y el índice único `(org_id, signature)` de `003` impide duplicarla.
 - **Idempotencia de ingesta:** un `run_uid` repetido devuelve el run existente y su `summary` en vez de duplicar fallos y `occurrence_count`.
@@ -288,7 +291,7 @@ La reingesta de un repo borra e inserta todas sus filas (`replace_for_repo`).
 
 | Nº | Qué hace |
 |---|---|
-| 001 | Esquema multitenant base: `organizations`, `memberships`, `profiles`, RAG v1 (`documents`, `chunks`, `embeddings`, `analyses`), `is_org_member`/`is_org_admin`, triggers de owner y `join_code`, RLS `enable`. |
+| 001 | Esquema multicliente base: `organizations`, `memberships`, `profiles`, tablas del v1 hoy sin uso (`documents`, `chunks`, `embeddings`, `analyses`), `is_org_member`/`is_org_admin`, triggers de owner y `join_code`, RLS `enable`. |
 | 002 | Aseguramiento: `test_runs`, `defect_families`, `failures` con `vector(384)`, RLS completo. |
 | 003 | Índice único `(org_id, signature)` de familias e `ivfflat` sobre `centroid`. |
 | 004 | Amplía `test_runs.source` a 7 formatos de reporte. |

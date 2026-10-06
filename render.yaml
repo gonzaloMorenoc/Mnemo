@@ -16,30 +16,29 @@ services:
     envVars:
       # --- Base de datos + Auth (de tu proyecto Supabase de producción) ---
       - key: DATABASE_URL
-        sync: false           # postgresql://...  (cadena de conexión de Supabase)
+        sync: false           # postgresql://...  (cadena del Session pooler de Supabase)
       - key: SUPABASE_URL
         sync: false           # https://<proyecto>.supabase.co
       - key: SUPABASE_JWKS_URL
         sync: false           # https://<proyecto>.supabase.co/auth/v1/.well-known/jwks.json
       - key: SUPABASE_JWT_AUDIENCE
         value: authenticated
-      # --- LLM: Google Gemini (gratis, API compatible con OpenAI; sin cambios de código) ---
-      # Clave gratis en https://aistudio.google.com/apikey (Google AI Studio).
+      # --- LLM: Groq con openai/gpt-oss-120b (API compatible con OpenAI; el de la demo) ---
+      # Clave en https://console.groq.com/keys. Sin LLM, las funciones de IA degradan.
       - key: LLM_PROVIDER
         value: openai
       - key: ALLOW_EXTERNAL_LLM
         value: "true"
       - key: OPENAI_BASE_URL
-        value: https://generativelanguage.googleapis.com/v1beta/openai/
+        value: https://api.groq.com/openai/v1
       - key: LLM_MODEL
-        value: gemini-2.5-flash        # con cuota gratis; alternativa: gemini-flash-latest.
-                                       # OJO: gemini-2.0-flash puede dar 429 "limit: 0" en algunas cuentas.
+        value: openai/gpt-oss-120b
       - key: OPENAI_API_KEY
-        sync: false                    # tu API key de Google AI Studio (aistudio.google.com/apikey)
-      # Alternativa Groq (también gratis, compatible OpenAI):
-      #   OPENAI_BASE_URL=https://api.groq.com/openai/v1
-      #   LLM_MODEL=llama-3.3-70b-versatile
-      #   OPENAI_API_KEY=<key de console.groq.com/keys>
+        sync: false                    # tu API key de Groq (console.groq.com/keys)
+      # Alternativa Google Gemini (mismo LLM_PROVIDER=openai):
+      #   OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
+      #   LLM_MODEL=gemini-2.5-flash
+      #   OPENAI_API_KEY=<key de aistudio.google.com/apikey>
       # --- Firma de actas Ed25519 (SIN esto el certificado está APAGADO: pubkey → 503) ---
       # Generación y formato: docs/deploy/produccion.md → "Claves de firma del acta".
       - key: MNEMO_SIGNING_PRIVATE_KEY

@@ -1,11 +1,11 @@
 # Runbook de demo — Mnemo
 
-Cómo dejar la demo lista y el plan B. La demo se hace contra **producción** (sección 1);
-el entorno local queda como alternativa de desarrollo (sección 2).
+Cómo está montada la demo, cómo dejarla lista y qué hacer si algo falla. Acompaña al
+[guion](guion.md). La demo se hace contra **producción** (sección 1); la sección 2 explica
+cómo levantarla en local.
 
-Los **valores concretos** del despliegue (URLs con UUIDs, secreto del webhook, run_ids
-sembrados) viven en `prod.local.md` — un archivo **local, ignorado por git**: este runbook es
-público y no debe contener identificadores del entorno real.
+Los identificadores del entorno real (UUIDs de organizaciones y usuarios, secretos) no
+están en el repositorio: los comandos usan marcadores `<...>` que hay que sustituir.
 
 ---
 
@@ -26,7 +26,7 @@ El seed (`src/demo/seed.py`) ya está aplicado en producción:
 
 - **Org A "Demo MTP"** — 5 runs procesados (ingesta → triaje → acta firmada Ed25519):
   mantenimiento verde→rojo, flaky, **real (no-apto)** y re-run verde.
-- **Org B "Cliente Beta"** — 1 run propio (demostración de aislamiento RLS).
+- **Org B "Cliente Beta"** — 1 run propio (para enseñar el aislamiento entre organizaciones).
 - **Escenario María→Pablo** (`src/demo/seed_continuity.py`, idempotente por título): el
   oficio de `checkout-suite` (runbooks, datos de prueba, contactos, decisiones, lección
   del PSP) + la riqueza semanal (`seed_riqueza.py`) que deja el arco del índice:
@@ -51,7 +51,7 @@ print(seed_demo(db_url=os.environ['DATABASE_URL'], demo_user_id='<TU_USER_UUID>'
 `locator not found: #guardar` (el DOM ya trae `#guardar-cambios`). El webhook exige firma
 HMAC-SHA256 del cuerpo en `X-Hub-Signature-256` (estilo GitHub webhooks).
 
-Reglas del comando (versión ejecutable con valores reales: `prod.local.md`):
+Reglas del comando:
 
 - `org_id` del payload = UUID de Org A (el webhook rechaza otras orgs).
 - **`run_uid` aleatorio en cada envío, con prefijo `demo-`** (p.ej. `demo-$(uuidgen)`) →
@@ -104,8 +104,7 @@ Secrets/variables que deben existir en el host del backend (ver `docs/deploy/pro
 - [ ] `GET <backend>/v2/health` → 200 (keep-warm activo; si tarda, abrirlo y esperar).
 - [ ] `GET <backend>/v2/certificates/pubkey` → 200 (la firma está encendida).
 - [ ] `/v2/health` → `llm.configured: true` (el Acto 3 lo usa; sin él degrada a fuentes).
-- [ ] Login en el frontend: el selector muestra **solo** las orgs de demo (retirar
-      cualquier org de pruebas de la cuenta antes del día).
+- [ ] Sesión iniciada en el frontend con una cuenta administradora de «Demo MTP».
 - [ ] **Acto 1**: `/app/continuity?project=checkout-suite` = 85 y `banca-movil` = 25 (si no, ver la
       riqueza en §1f: `arc_ok`).
 - [ ] **Acto 2**: «Emitir acta de traspaso» de `checkout-suite` ensayado la víspera (queda
@@ -116,7 +115,7 @@ Secrets/variables que deben existir en el host del backend (ver `docs/deploy/pro
 - [ ] **Acto 4**: el dashboard tiene runs de la semana (riqueza re-ejecutada, §1f) y un
       run **con fallos** (p. ej. de `tienda-online`) se abre desde «Runs recientes» con sus
       veredictos y su acta.
-- [ ] (Opcional) terminal con el push en vivo preparado (`prod.local.md`). **Hacerlo después
+- [ ] (Opcional) terminal con el push en vivo preparado (§1c). **Hacerlo después
       del Acto 2**: `fresh_push.json` mete un fallo en `checkout-suite` y puede mover su
       índice. Si se ensaya antes, comprobar de nuevo el 85.
 - [ ] Runs de ensayos anteriores podados (§1f) si se quiere la org limpia.
@@ -142,10 +141,9 @@ delete from public.organizations
 - **Actas de los runs semanales**: la riqueza también emite el acta (triaje del motor
   + veredicto firmado) de cada run de la org que no la tenga — sin ella el dashboard
   muestra «sin veredicto aún». Requiere `MNEMO_SIGNING_PRIVATE_KEY`/`_PUBLIC_KEY` de
-  **producción** en el entorno (como §1b; desde la rotación del 14-ago el `.env` del
-  checkout de trabajo la lleva — comprobar que su `key_id` coincide con el de
-  `/v2/certificates/pubkey`): sin clave el resultado sale `actas: 0` y los runs quedan
-  sin veredicto; con una clave distinta las actas NO verificarían en `/verify`.
+  **producción** en el entorno (como §1b; comprobar que su `key_id` coincide con el que
+  publica `/v2/certificates/pubkey`): sin clave el resultado sale `actas: 0` y los runs
+  quedan sin veredicto; con una clave distinta las actas NO verificarían en `/verify`.
 
 ### 1g. Plan B
 
@@ -163,7 +161,7 @@ cualquier run sembrado para preguntas del jurado.
 ## 2. Alternativa: entorno local (desarrollo)
 
 <details>
-<summary>Desplegar la demo en localhost (solo para desarrollo)</summary>
+<summary>Levantar la demo en local</summary>
 
 1. **Backend**: `pip install -r requirements.txt && uvicorn asgi:app --port 8000`
    con `.env` completo (mismas variables de §1d; para LLM local: `ollama pull qwen3:8b`

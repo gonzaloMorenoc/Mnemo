@@ -1,9 +1,12 @@
 # Guion de demo — Mnemo (María se va, Pablo llega · ~5 min)
 
-Demo contra el despliegue de **producción** (frontend en Vercel + backend en el Space +
-Supabase), con la cuenta dueña de la organización **«Demo MTP»**. La operativa (URLs,
-credenciales, comandos con valores reales) vive en `runbook.md` y, para los valores
-privados, en `prod.local.md` (local, no versionado).
+Demo contra el despliegue de **producción** (frontend en Vercel, backend en un Hugging
+Face Space y Supabase), con una cuenta administradora de la organización de demostración
+**«Demo MTP»**, que tiene datos sembrados. Cómo está montada y qué preparar antes:
+[`runbook.md`](runbook.md).
+
+El acta de traspaso del Acto 2 se puede comprobar sin cuenta: el enlace está en la sección
+«Pruébalo» del [README](../../README.md).
 
 **La historia:** María, la QA senior de `checkout-suite`, rota a otro cliente. Pablo la
 sustituye. Mnemo es lo que hace que lo que sabía María no se vaya con ella.
@@ -136,23 +139,22 @@ Revisar esta tabla antes de cada ensayo: si el producto cambia, el guion tambié
 | Emitir el acta requiere owner/admin | `src/continuity/service.py::emit_handover` (PermissionError) | código |
 | El acta lleva el índice y el desglose dentro, firmada | `emit_handover`: payload con `continuity.score`, `dimensions`, `inventario`, `key_id`; `sign(canonical_json(...))` | código |
 | Se verifica sin cuenta | `frontend/src/app/verify/page.tsx` (fuera de `/app`, sin sesión) | código |
-| Enlace manipulado → firma no válida | `runbook.md` §1c-bis (probado con actas de release) | ensayar con traspaso |
+| Enlace manipulado → firma no válida | E2E `frontend/e2e/verify.spec.ts` (el acta de traspaso con el índice retocado da «Firma NO válida»); procedimiento en `runbook.md` §1c-bis | E2E |
 | Las preguntas recuperan la lección del PSP, la razón de la familia, el contacto y el runbook | `search_unified` sobre Demo MTP en prod (fuentes, sin LLM) | 2026-10-01 |
-| La razón tecleada al etiquetar se vuelve buscable | PR #114 (vector propio de la razón; media con el centroide) | prod, 2026-10-01 |
+| La razón tecleada al etiquetar se vuelve buscable | `triage_corrections.reason_embedding` (migración `030`): la razón tiene su propio vector y la búsqueda de familias promedia su distancia con la del centroide | prod, 2026-10-01 |
 | Cada respuesta cita sus fuentes; sin LLM degrada a fuentes | `src/ai/nl_query.py::answer_over_sources` | código |
-| Las tres preguntas responden en español y citan la fuente correcta (PSP → lección del rate-limit; contacto → equipo de Pagos; entorno → runbook) | Ensayo contra Groq `gpt-oss-120b` con `KnowledgeService.ask` sobre Demo MTP; requiere el fix de PR #124 (`generate_structured` exige JSON) | 2026-10-01 |
+| Las tres preguntas responden en español y citan la fuente correcta (PSP → lección del rate-limit; contacto → equipo de Pagos; entorno → runbook) | Ensayo contra Groq `gpt-oss-120b` con `KnowledgeService.ask` sobre Demo MTP (`generate_structured` exige JSON en el prompt, `src/ai/generate.py`) | 2026-10-01 |
 | Texto exacto de la respuesta del LLM | Groq `gpt-oss-120b` en prod — **no determinista: ensayar en la app el día antes** | pendiente |
-| «Contradice la etiqueta humana» | PR #113 (`R0_prior_contradicted`) | en prod (01-10) |
+| «Contradice la etiqueta humana» | `src/triage/engine.py` (`R0_prior_contradicted`) | en prod (01-10) |
 | El acta firma la huella del contenido y quién se va/llega; Mnemo detecta si cambió | `src/continuity/manifest.py`, `service.py::_integridad` | código |
-| Rotar la clave no invalida actas | `CertificateService.verify_payload` (anillo por `key_id`) | código |
+| Rotar la clave no invalida actas (con la pública anterior declarada como retirada) | `CertificateService.verify_payload` (anillo por `key_id`, `MNEMO_SIGNING_RETIRED_PUBLIC_KEYS`) | código |
 | El índice no se infla con notas vacías | `src/continuity/index.py` (MIN_RAZON_CHARS, MIN_CONTENIDO_CHARS, MIN_DIMENSIONES_MEDIBLES) | código |
 | Memoria de defectos 2/3 en checkout-suite | `src/demo/seed_recurrencia.py` + `compute_index` en prod | 2026-10-01 |
 | El acta da fe del análisis, no de que se ejecutaran los tests | disclaimer firmado (`src/certify/certificate.py::_DISCLAIMER`) y texto del sello en `/verify` | código |
 
-**Retirado del guion anterior** por no poder sostenerlo: «coste de API 0 €» (depende del
-plan del proveedor de LLM), «100 % on-premise con Ollama» (no es la configuración que se
-usa) y cualquier tiempo concreto («en segundos»). La cifra de «2-6 semanas de shadowing por
-traspaso» de la auditoría del 12-ago **no está medida**: no decirla como dato.
+**Qué no se afirma**, porque no se puede comprobar en el producto: un coste de API concreto
+(depende del plan del proveedor de LLM), que la demo corra en local (usa un LLM de API),
+tiempos («en segundos») ni ahorros por traspaso, que no están medidos.
 
 ---
 
@@ -161,8 +163,9 @@ traspaso» de la auditoría del 12-ago **no está medida**: no decirla como dato
 - **«¿Y si mañana se borra la memoria?»** → bajo la última acta, Continuidad recalcula la
   huella: «lo depositado sigue intacto» o «ha cambiado desde el acta (N → M elementos)».
 - **«¿Y cuando rotéis la clave de firma?»** → las actas llevan el `key_id` firmado y la
-  verificación elige la clave por él entre la actual y las retiradas: rotar no invalida
-  nada de lo emitido.
+  verificación elige la clave por él entre la actual y las retiradas
+  (`MNEMO_SIGNING_RETIRED_PUBLIC_KEYS`): rotar no invalida lo emitido mientras la pública
+  anterior siga declarada.
 - **«¿Esto está sembrado?»** → sí, y decirlo antes de que lo pregunten: es una
   organización de demostración con datos sembrados por el mismo camino que la app
   (ingesta del CI, triaje del motor, etiquetas con su razón). Con datos reales la memoria

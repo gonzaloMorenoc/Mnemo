@@ -1,8 +1,8 @@
-# Mnemo — Referencia de API (`/v2`)
+# Mnemo · QA Memory — referencia de API (`/v2`)
 
 Referencia de todas las rutas que monta el backend. Fuente de verdad: `src/api_v2.py` (único router, incluido por `asgi.py`) y los modelos de `src/multitenant_models.py`.
 
-El entrypoint de producción es `asgi:app` (`uvicorn asgi:app`). Monta **solo** el router `/v2`; el RAG v1 legacy (`api.py`) no forma parte del arranque.
+El punto de entrada es `asgi:app` (`uvicorn asgi:app`), que monta **solo** el router `/v2`.
 
 ---
 
@@ -102,7 +102,7 @@ curl -sS -H "Authorization: Bearer $MNEMO_INGEST_TOKEN" \
 #    "triage": {...}, "verdict": "apto|apto-con-reservas|no-apto|sin_confirmar", "gate": "…"}
 ```
 
-El token actúa con la identidad de quien lo creó (owner/admin): los membership-checks del pipeline aplican tal cual, y si esa persona deja la organización sus tokens dejan de funcionar. **Nota operativa:** degradar a alguien de owner/admin a member NO revoca sus tokens existentes; si se le retira la confianza, hay que revocarlos explícitamente. Tabla `ingest_tokens` (migración `024`): RLS con lectura para miembros y escritura solo admin, sin grants de escritura a `authenticated`; la gestión va siempre por la API.
+El token actúa con la identidad de quien lo creó (owner/admin): las comprobaciones de pertenencia del pipeline aplican tal cual, y si esa persona deja la organización sus tokens dejan de funcionar. **Nota operativa:** degradar a alguien de owner/admin a member NO revoca sus tokens existentes; si se le retira la confianza, hay que revocarlos explícitamente. Tabla `ingest_tokens` (migración `024`): RLS con lectura para miembros y escritura solo admin, sin grants de escritura a `authenticated`; la gestión va siempre por la API.
 
 ### Pipeline post-ingesta (webhook y `/ci/ingest`)
 
@@ -188,8 +188,8 @@ Conclusión del gate: `no-apto` → `failure`, `apto-con-reservas` y `sin_confir
 |---|---|---|---|
 | `GET` | `/v2/continuity?org_id=` | Sin `project`: `{projects: [...]}`, los proyectos con runs o conocimiento (lista vacía si no es miembro) | JWT + miembro |
 | `GET` | `/v2/continuity?org_id=&project=` | Índice de continuidad del proyecto → `{score, dimensions[], inventario}`. 404 si el proyecto no existe o el usuario no es miembro (mismo 404 en ambos casos, para no revelar qué orgs existen) | JWT + miembro |
-| `POST` | `/v2/continuity/handover` | `{org_id, project}` (1–200) → emite y firma el acta de traspaso: `{canonical_json, signature, share, score, created_at}`. 403 sin rol, 404 proyecto inexistente, 503 sin clave de firma | JWT + **owner/admin** |
-| `GET` | `/v2/continuity/handover/latest?org_id=&project=` | Última acta del proyecto con su enlace regenerado → `{canonical_json, signature, score, project, created_at, share}`; 404 si no hay ninguna o no es miembro | JWT + miembro |
+| `POST` | `/v2/continuity/handover` | `{org_id, project (1–200), de?, para? (≤120 cada uno)}` → emite y firma el acta de traspaso: `{canonical_json, signature, share, score, created_at}`. `de` y `para` (quién se va y quién llega) se recortan y, si quedan vacíos, se firman como `null`. 403 sin rol, 404 proyecto inexistente, 503 sin clave de firma | JWT + **owner/admin** |
+| `GET` | `/v2/continuity/handover/latest?org_id=&project=` | Última acta del proyecto con su enlace regenerado → `{canonical_json, signature, score, project, created_at, share, integridad}`; 404 si no hay ninguna o no es miembro | JWT + miembro |
 
 **Índice.** Determinista y 100 % SQL (sin LLM): misma entrada, mismo número. Cuatro dimensiones, cada una `{key, label, num, den, ratio, weight}`:
 
@@ -197,16 +197,21 @@ Conclusión del gate: `no-apto` → `failure`, `apto-con-reservas` y `sin_confir
 |---|---|---|
 | `memoria_defectos` | Familias recurrentes (≥2 apariciones) con conocimiento activo vinculado | 0,35 |
 | `razon_etiquetas` | Familias etiquetadas por un humano cuya corrección tiene razón escrita | 0,25 |
-| `oficio` | Cuántos de los kinds `runbook`, `dato_prueba`, `contacto`, `decision` tienen al menos un ítem | 0,25 |
+| `oficio` | Cuántos de los tipos `runbook`, `dato_prueba`, `contacto`, `decision` tienen al menos un elemento con contenido | 0,25 |
 | `reglas_respaldadas` | Reglas de negocio y riesgos con una lección o patrón del mismo dominio | 0,15 |
 
-`score` es la media ponderada (0–100) sobre las dimensiones con denominador; si ninguna lo tiene vale `null` («sin datos suficientes»). `inventario` = `{familias, familias_con_leccion, conocimiento_por_kind, dominios, etiquetas, etiquetas_con_razon}`.
+`score` es la media ponderada (0–100) sobre las dimensiones medibles (con denominador). Con menos de 2 dimensiones medibles vale `null` («sin datos suficientes»). Umbrales de calidad, para que el índice no se infle con notas vacías: una razón de etiqueta cuenta si tiene al menos 20 caracteres, y un tipo de oficio cuenta si al menos uno de sus elementos suma 40 caracteres entre `challenge` y `approach` (`src/continuity/index.py`). `inventario` = `{familias, familias_con_leccion, conocimiento_por_kind, dominios, etiquetas, etiquetas_con_razon}`.
 
-**Acta de traspaso.** Schema `mnemo.traspaso.v1`; el payload firmado lleva `{schema, org_id, project, created_at, emitted_by, continuity: {score, dimensions}, inventario, mnemo_version, key_id}`. El desglose y los pesos viajan dentro, así que el acta es recalculable y comparable con otras emitidas con pesos distintos. Se verifica por la misma puerta pública que el acta de release.
+**Acta de traspaso.** Schema `mnemo.traspaso.v2`; el payload firmado lleva `{schema, org_id, project, created_at, emitted_by, continuity: {score, dimensions}, inventario, contenido: {n, sha256, por_tipo}, traspaso: {de, para}, mnemo_version, key_id}`. El desglose y los pesos viajan dentro, así que el acta es recalculable y comparable con otras emitidas con pesos distintos.
+
+- `contenido` es la huella de lo depositado (`src/continuity/manifest.py`): `n` elementos (conocimiento activo del proyecto más la última razón de cada etiqueta), `por_tipo` su recuento por tipo, y `sha256` la raíz calculada sobre la huella de cada elemento.
+- `integridad` (solo en `handover/latest`) = `{intacto, n_acta, n_actual}`: Mnemo recalcula la huella actual y la compara con la firmada. Vale `null` en las actas `mnemo.traspaso.v1`, que no firmaban contenido.
+
+Se verifica por la misma puerta pública que el acta de release. Las actas v1 siguen verificando: `verify` no mira el esquema y elige la clave por el `key_id` firmado.
 
 ---
 
-## Conocimiento (memoria QA)
+## Conocimiento (memoria de QA)
 
 | Método | Ruta | Descripción | Auth |
 |---|---|---|---|
@@ -266,7 +271,7 @@ La integración Xray vive en `org_integrations` con `provider='xray'` (migració
 | `POST` | `/v2/repo/index` | `{org_id}`: indexa los tests del repo GitHub de la org como assets. 403 si no es miembro, 503 GitHub sin configurar, 502 error de GitHub | JWT + miembro |
 | `GET` | `/v2/repo/tests?org_id=` | Assets de test indexados de la org | JWT + miembro |
 
-Estilo de `automation/generate`, en cascada: `style_sample` manual → tests reales del repo (few-shot) → convenciones estándar. El retrieval del few-shot es membership-gated: un no-miembro no recibe 403, pero obtiene el test sin ejemplos del repo.
+Estilo de `automation/generate`, en cascada: `style_sample` manual → tests reales del repositorio como ejemplos → convenciones estándar. Los ejemplos del repositorio solo se recuperan para miembros: un no miembro no recibe 403, pero obtiene el test sin ejemplos del repositorio.
 
 ---
 
