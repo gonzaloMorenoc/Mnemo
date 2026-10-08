@@ -1,14 +1,15 @@
-# Guion del vídeo — Mnemo (María se va, Pablo llega · 2:34)
+# Guion del vídeo — Mnemo (María se va, Pablo llega · 2:07)
 
 Vídeo de demostración con voz en off sintética (ElevenLabs) sobre una grabación de pantalla
 de **producción**. Es la versión grabada de `guion.md` (la demo en vivo, ~5 min): misma
 historia, mismos datos, más corta.
 
-- **Duración:** 2:34 en la versión montada.
+- **Duración:** 2:07 en la versión montada.
 - **Formato:** 1920×1080, 30 fps. Navegador a 1280×720 con zoom al 150 %. Fundidos cruzados de
   0,5 s entre planos y escenas; voz normalizada a −16 LUFS.
-- **Voz:** una sola, en castellano de España, tono sereno y cercano. Ritmo de referencia:
-  ~2,6 palabras por segundo (las duraciones de abajo son las de las voces generadas).
+- **Voz:** una sola, en castellano de España, con ritmo y cercana: Alexis, de la biblioteca de
+  ElevenLabs (la primera versión usó Mirna y resultaba lenta). Ritmo: ~3,2 palabras por
+  segundo; las duraciones de abajo son las de las voces generadas.
 - **Música:** opcional, muy baja, sin letra.
 
 ---
@@ -38,12 +39,12 @@ escalar a 1080p.
 
 | # | Tiempo | En pantalla | Voz (resumen) |
 |---|---|---|---|
-| 1 | 0:00–0:22 | Portada: lema «Cuando un consultor rota, el conocimiento se queda.» resaltado; baja a las tarjetas «Memoria que se llena trabajando» y «Se enchufa a tu CI». | El problema |
-| 2 | 0:21–1:01 | `/app/continuity` → mapa de riesgo de rotación. Pasar por `banca-movil` y `tienda-online`, clic en `checkout-suite` (85, «Cubierto»: ≥ 80) y resaltar su desglose fila a fila. Clic en `banca-movil` (25, «Riesgo alto»: < 50). | El índice por proyecto |
-| 3 | 1:00–1:32 | Con `checkout-suite`: «María (QA senior)» en *Quién se va* y «Pablo» en *Quién llega*, cursor sobre **Emitir acta de traspaso** (sin pulsarlo). Corte a `/verify` con el acta ya emitida, sin sesión: 85, quién se va y quién llega, la huella de los 26 elementos, el sello y «Sin cuenta». Después el mismo enlace manipulado: **Firma NO válida**, con el rótulo «Mismo enlace, con el índice cambiado: 85 → 99». | El acta firmada |
-| 4 | 1:32–1:59 | **Conocimiento** → pestaña **Preguntar**: «¿Por qué es inestable el checkout?» → respuesta con sus fuentes (resaltar la razón de María, tipo *Defecto*). Después «¿A quién pregunto por el sandbox del PSP?» → equipo de Pagos. | Pablo pregunta |
-| 5 | 1:58–2:19 | **Autopilot** → *Runs recientes* → el run de `checkout-suite` con «3 fallos»: veredictos de triaje con la regla que decidió cada uno, acciones correctivas pendientes de aprobar y su acta. | De dónde sale la memoria |
-| 6 | 2:19–2:34 | Vuelta al mapa de riesgo y al acta de `checkout-suite`. Fundido a la tarjeta final con el lema y la URL `mnemo-beta-one.vercel.app`. | Cierre |
+| 1 | 0:00–0:17 | Portada: lema «Cuando un consultor rota, el conocimiento se queda.» resaltado; baja a las tarjetas «Memoria que se llena trabajando» y «Se enchufa a tu CI». | El problema |
+| 2 | 0:17–0:51 | `/app/continuity` → mapa de riesgo de rotación. Pasar por `banca-movil` y `tienda-online`, clic en `checkout-suite` (85, «Cubierto»: ≥ 80) y resaltar su desglose fila a fila. Clic en `banca-movil` (25, «Riesgo alto»: < 50). | El índice por proyecto |
+| 3 | 0:50–1:15 | Con `checkout-suite`: «María (QA senior)» en *Quién se va* y «Pablo» en *Quién llega*, cursor sobre **Emitir acta de traspaso** (sin pulsarlo). Corte a `/verify` con el acta ya emitida, sin sesión: 85, quién se va y quién llega, la huella de los 26 elementos, el sello y «Sin cuenta». Después el mismo enlace manipulado: **Firma NO válida**, con el rótulo «Mismo enlace, con el índice cambiado: 85 → 99». | El acta firmada |
+| 4 | 1:14–1:37 | **Conocimiento** → pestaña **Preguntar**: «¿Por qué es inestable el checkout?» → respuesta con sus fuentes (resaltar la razón de María, tipo *Defecto*). Después «¿A quién pregunto por el sandbox del PSP?» → equipo de Pagos. | Pablo pregunta |
+| 5 | 1:37–1:55 | **Autopilot** → *Runs recientes* → el run de `checkout-suite` con «3 fallos»: veredictos de triaje con la regla que decidió cada uno, acciones correctivas pendientes de aprobar y su acta. | De dónde sale la memoria |
+| 6 | 1:55–2:07 | Vuelta al mapa de riesgo y al acta de `checkout-suite`. Fundido a la tarjeta final con el lema y la URL `mnemo-beta-one.vercel.app`. | Cierre |
 
 ---|---|---|---|
 | 1 | 0:00–0:25 | Portada: logo de Mnemo y el lema «La memoria del proyecto que se queda cuando un consultor rota». Fundido a la app. | El problema |
@@ -60,14 +61,14 @@ escalar a 1080p.
 Un bloque por escena: genera cada uno como un clip aparte y así cada toma se ajusta a su voz.
 Está escrito para leerse en voz alta: sin siglas, sin código y con los números en letra.
 
-**Escena 1 — El problema (21 s)**
+**Escena 1 — El problema (16 s)**
 
 > En una consultora de testing, los consultores rotan de un cliente a otro. Y cuando alguien
 > deja un proyecto, se lleva lo que nunca llegó a escribirse: los pasos para levantar el
 > entorno, la persona a la que llamar cuando algo se cae, y el motivo por el que un test que
 > parece inestable, en realidad, no lo es.
 
-**Escena 2 — El índice (38 s)**
+**Escena 2 — El índice (32 s)**
 
 > Mnemo es la memoria de ese proyecto. Y empieza por medir cuánto sabe de cada uno.
 > Este es el mapa de riesgo de rotación: todos los proyectos, del más expuesto al más cubierto.
@@ -77,38 +78,39 @@ Está escrito para leerse en voz alta: sin siglas, sin código y con los número
 > Banca Móvil se queda en veinticinco. Si mañana rota quien lo lleva, esto es lo que se pierde.
 > Y ahora se ve antes, no después.
 
-**Escena 3 — El acta (30 s)**
+**Escena 3 — El acta (23 s)**
 
-> María, la responsable de Checkout Suite, se va a otro cliente. Llega Pablo.
+> María, la responsable de Checkout Suite, cambia de cliente. Llega Pablo.
 > Mnemo emite un acta de traspaso firmada: el índice, quién se va, quién llega, y una huella
 > de todo el conocimiento que queda depositado. Si mañana se borra algo, Mnemo lo avisa.
 > El acta viaja en un enlace, y cualquiera puede comprobarla, aunque no tenga cuenta en Mnemo.
 > Si alguien cambia un solo dato, la firma deja de ser válida.
 
-**Escena 4 — Pablo pregunta (26 s)**
+**Escena 4 — Pablo pregunta (22 s)**
 
 > Pablo no tiene que perseguir a María. Pregunta con sus palabras.
 > ¿Por qué es inestable el checkout?
 > Mnemo responde con lo que María dejó escrito, incluida la razón que tecleó al etiquetar
 > esos fallos, sin saber que estaba escribiendo para su sustituto.
 > Y cada respuesta dice de dónde sale.
-> ¿A quién pregunto por el sandbox del PSP? Al equipo de Pagos, en su canal de soporte.
+> ¿A quién le pregunto por el sandbox del PSP? Al equipo de Pagos, en su canal de soporte.
 
-**Escena 5 — De dónde sale (20 s)**
+**Escena 5 — De dónde sale (17 s)**
 
 > Esta memoria no sale de una sesión de documentación que nadie hace. Sale del trabajo de cada
 > día. Cada ejecución de la integración continua entra en Mnemo, un motor de reglas clasifica
 > cada fallo y dice qué regla aplicó. La inteligencia artificial solo desempata los casos
 > dudosos, y una persona lo aprueba.
 
-**Escena 6 — Cierre (12 s)**
+**Escena 6 — Cierre (9 s)**
 
 > Una wiki no sabe qué test falló ayer. Mnemo sí.
 > Por eso su memoria se llena con el trabajo, y se puede firmar.
 > Cuando un consultor rota, el conocimiento se queda.
 
-386 palabras: 2:28 de voz (voz Mirna, modelo `eleven_multilingual_v2`); con las pausas
-entre escenas, 2:34. En la escena 4 la respuesta del LLM tarda unos segundos en aparecer: la
+385 palabras: 2:01 de voz (voz Alexis, modelo `eleven_multilingual_v2`); con las pausas
+entre escenas, 2:07. Con esta voz, «se va a otro cliente» se oía «se va y asciende» y «¿A quién
+pregunto?» sonaba «preguntó»: de ahí «cambia de cliente» y «¿A quién le pregunto?». En la escena 4 la respuesta del LLM tarda unos segundos en aparecer: la
 versión montada corta la espera con un plano que ya tiene la respuesta cargada.
 
 ---
