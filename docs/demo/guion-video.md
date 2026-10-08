@@ -4,7 +4,7 @@ Vídeo de demostración con voz en off sintética (ElevenLabs) sobre una grabaci
 de **producción**. Es la versión grabada de `guion.md` (la demo en vivo, ~5 min): misma
 historia, mismos datos, más corta.
 
-- **Duración objetivo:** 2:30–3:00 (el dosier pide 2–3 min).
+- **Duración objetivo:** 2:30–3:00.
 - **Formato:** 1920×1080, 30 fps. Navegador a pantalla completa, zoom al 125 %.
 - **Voz:** una sola, en castellano de España, tono sereno y cercano. Ritmo de referencia:
   ~2,4 palabras por segundo (las duraciones de abajo salen de ahí).
@@ -14,11 +14,9 @@ historia, mismos datos, más corta.
 
 ## Antes de grabar
 
-- [ ] La PR #126 está desplegada en Vercel. Sin ella, `/verify` pinta un sello vacío para el
-      acta de traspaso.
 - [ ] Despertar el backend un par de minutos antes (`/v2/health`): en plan gratuito se duerme.
 - [ ] Sesión iniciada con la cuenta dueña de «Demo MTP».
-- [ ] **Ocultar el email de la cabecera** (o recortarlo en edición): es una cuenta real.
+- [ ] **Ocultar el email de la cabecera** (o recortarlo en edición).
 - [ ] Ensayar las dos preguntas del Acto 3 justo antes: la respuesta del LLM cambia de una
       vez a otra. Grabar una toma buena; la voz no lee la respuesta, la resume.
 - [ ] Preparar el enlace del acta **manipulado** (`runbook.md` §1c-bis) en una pestaña aparte.
@@ -26,8 +24,8 @@ historia, mismos datos, más corta.
 
 Emitir el acta en el Acto 2 escribe en producción: crea un acta nueva y pasa a ser la
 «última» de `checkout-suite`. Es inofensivo, pero si no quieres tocar nada, graba la escena
-con el formulario ya rellenado y salta al enlace del acta ya emitida
-(`docs/concurso/acta-traspaso-enlace.txt`).
+con el formulario ya rellenado y salta al enlace del acta ya emitida (el de la sección
+«Pruébalo» del [README](../../README.md)).
 
 ---
 
@@ -135,7 +133,7 @@ de este vídeo:
 | Se comprueba con un enlace, sin cuenta | `/verify` fuera de `/app`; `POST /v2/certificates/verify` público | E2E `verify.spec.ts` |
 | Si se cambia un solo dato, la firma deja de ser válida | E2E: el acta con el índice retocado da «Firma NO válida» | 2026-10-01 |
 | Responde con lo que dejó María y dice de dónde sale | `answer_over_sources` (cita ids); ensayo con Groq de las preguntas | 2026-10-01 |
-| La razón tecleada al etiquetar llega a la respuesta | La razón de María («Los timeouts correlan con runners fríos…», etiquetada el 2026-07-15) sale entre las fuentes de la pregunta del checkout; tiene su propio vector (PR #114) | ensayo 2026-10-01 |
+| La razón tecleada al etiquetar llega a la respuesta | La razón de María («Los timeouts correlan con runners fríos…», etiquetada el 2026-07-15) sale entre las fuentes de la pregunta del checkout; tiene su propio vector (migración `030`) | ensayo 2026-10-01 |
 | El equipo de Pagos y su canal | Contacto «El sandbox del PSP lo lleva el equipo de Pagos» (#pagos-soporte) | ensayo 2026-10-01 |
 | Un motor de reglas clasifica y dice qué regla aplicó | `src/triage/engine.py` (`rule_applied` en cada veredicto) | código |
 | La IA solo desempata los dudosos y una persona lo aprueba | R6 → `ambiguous`; el desempate deja `requires_approval=True` (`src/triage/service.py`) | código |

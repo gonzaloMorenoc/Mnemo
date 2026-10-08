@@ -1,8 +1,8 @@
-# Mnemo — visión funcional
+# Mnemo · QA Memory — visión funcional
 
 ## Qué es
 
-**Mnemo** es la memoria del proyecto de QA que se queda cuando las personas rotan. El
+**Mnemo** es la memoria de QA del proyecto, la que se queda cuando las personas rotan. El
 nombre viene de *Mnemosyne*, la personificación de la memoria.
 
 El problema: en una consultora de QA, el conocimiento que hace insustituible a un perfil
@@ -33,11 +33,16 @@ fuente citada.
 **Índice de continuidad por proyecto** (0-100): media ponderada de cuatro dimensiones,
 cada una con su recuento a la vista — memoria de defectos, el porqué de las etiquetas,
 oficio del proyecto y reglas con respaldo. Es un recuento recalculable: el mismo estado da
-siempre el mismo número, y sin datos dice «sin datos», no un 0.
+siempre el mismo número. Si menos de dos dimensiones tienen algo que medir, dice «sin
+datos suficientes», no un 0 ni un 100. Y no se infla con notas vacías: la razón de una
+etiqueta cuenta a partir de 20 caracteres, y un tipo de oficio solo cuenta si alguno de
+sus elementos tiene al menos 40 caracteres de contenido.
 
-**Acta de traspaso firmada** (rol owner/admin): congela el índice y su desglose en un
-documento firmado con Ed25519 que se verifica en la página pública `/verify`, sin cuenta.
-Es lo que la consultora entrega cuando rota a una persona. Módulo: `src/continuity/`.
+**Acta de traspaso firmada** (rol owner/admin): congela el índice y su desglose, quién se
+va y quién llega, y una huella SHA-256 de todo el conocimiento depositado, en un documento
+firmado con Ed25519 que se verifica en la página pública `/verify`, sin cuenta. Si después
+se cambia o se borra algo de lo depositado, la vista de Continuidad lo avisa. Es lo que la
+consultora entrega cuando rota a una persona. Módulo: `src/continuity/`.
 
 ### 2. Memoria del proyecto (`/app/knowledge`)
 
@@ -99,8 +104,9 @@ conocimiento, dominios sin lección, riesgos sin mitigación. Módulo: `src/grap
 
 ## Aislamiento multi-cliente
 
-Cada organización (cliente) tiene sus datos aislados: las tablas de datos del cliente llevan `org_id`,
-con RLS en la base de datos y filtros por pertenencia en cada consulta del backend.
+Cada organización (cliente) tiene sus datos aislados: las tablas de datos del cliente
+llevan `org_id`, el backend filtra por pertenencia en cada consulta y RLS en la base de
+datos actúa como red de seguridad.
 
 ## Estado
 
