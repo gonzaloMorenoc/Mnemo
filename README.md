@@ -177,3 +177,9 @@ python3 -m pytest -m "not integration"   # unitarios (sin BD ni LLM): lo que cor
 python3 -m pytest -m integration         # integración: OJO, corre contra la BD de DATABASE_URL
 cd frontend && npm run check:ci          # lint + vitest + build (lo que corre el CI)
 ```
+
+## Licencia
+
+Código fuente disponible, todos los derechos reservados: se puede consultar y ejecutar en
+local para estudio o evaluación, pero no usar en producción, redistribuir ni publicar obras
+derivadas sin permiso del autor. Texto completo en [`LICENSE`](LICENSE).

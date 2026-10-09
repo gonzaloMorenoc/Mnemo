@@ -2,6 +2,7 @@
   "name": "frontend",
   "version": "0.1.0",
   "private": true,
+  "license": "SEE LICENSE IN ../LICENSE",
   "packageManager": "npm@10.9.2",
   "engines": {
     "node": ">=22.0.0 <23.0.0"
