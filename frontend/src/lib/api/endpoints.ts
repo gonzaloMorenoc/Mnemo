@@ -19,6 +19,7 @@ import type {
   GateResult,
   GeneratedTest,
   GitHubConfigResponse,
+  GitHubInstallUrlResponse,
   Graph,
   HandoverAct,
   HealthResponse,
@@ -391,9 +392,25 @@ export function getGithubConfig(token: string, params: { org_id: string }) {
 
 export function saveGithubConfig(
   token: string,
-  body: { org_id: string; installation_id: string; repo_full_name: string },
+  body: {
+    org_id: string;
+    installation_id: string;
+    repo_full_name: string;
+    // Prueba de posesión (obligatoria en multi-tenant): `state` de install-url y
+    // `code` OAuth que GitHub entrega en el callback.
+    state?: string;
+    code?: string;
+  },
 ) {
   return apiRequest<GitHubConfigResponse>("/api/v2/integrations/github", "POST", { token, body });
+}
+
+export function getGithubInstallUrl(token: string, params: { org_id: string }) {
+  return apiRequest<GitHubInstallUrlResponse>(
+    `/api/v2/integrations/github/install-url?org_id=${encodeURIComponent(params.org_id)}`,
+    "GET",
+    { token },
+  );
 }
 
 export function indexRepo(token: string, body: { org_id: string }) {

@@ -29,7 +29,7 @@ vi.mock("@/lib/api/endpoints", () => ({
   pullJiraBugs: vi.fn(),
   ingestJiraFile: vi.fn(),
   getGithubConfig: vi.fn(),
-  saveGithubConfig: vi.fn(),
+  getGithubInstallUrl: vi.fn(),
   indexRepo: vi.fn(),
   listRepoTests: vi.fn(),
   // usados por IngestTokensPanel (dentro del acordeón CI)
@@ -222,7 +222,7 @@ describe("IntegrationsPage — pill de estado y help-text de formato", () => {
     expect(screen.queryByText("✓ Conectado")).not.toBeInTheDocument();
   });
 
-  it("muestra help-text de formato para Installation ID (numérico)", async () => {
+  it("ofrece «Conectar con GitHub» en vez de pedir el Installation ID a mano", async () => {
     (getGithubConfig as ReturnType<typeof vi.fn>).mockResolvedValue({
       configured: false,
       repo_full_name: null,
@@ -233,7 +233,8 @@ describe("IntegrationsPage — pill de estado y help-text de formato", () => {
     renderWithClient(<IntegrationsPage />);
     await expandGithub();
 
-    expect(await screen.findByTestId("gh-install-id-hint")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Conectar con GitHub" })).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Installation ID/i)).not.toBeInTheDocument();
   });
 
   it("muestra help-text de formato para owner/repo", async () => {

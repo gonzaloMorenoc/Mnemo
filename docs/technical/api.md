@@ -301,7 +301,7 @@ Estilo de `automation/generate`, en cascada: `style_sample` manual → tests rea
 3. El frontend manda esos valores, con `repo_full_name`, a `POST /v2/integrations/github`.
 4. El backend comprueba el `state` (firma, caducidad, misma org y mismo usuario: 403 si no), canjea el `code` por un token de usuario de GitHub (`GITHUB_APP_CLIENT_ID`/`GITHUB_APP_CLIENT_SECRET`) y exige que la instalación aparezca en `GET /user/installations` (403 si no). Después, la comprobación de siempre (cuenta de la instalación = owner del repo) y el upsert (409 si ya está vinculada a otra org; solo lo ve quien ha demostrado acceso).
 
-Errores: 400 sin `state`/`code`, 403 por `state` inválido o sin acceso, 503 si falta OAuth de la App o el secreto del `state` (`GITHUB_STATE_SECRET`, o derivado de `MNEMO_SECRET_KEY`). En self-host single-tenant no se exige la prueba (no hay otros tenants). Las vinculaciones ya existentes no se tocan. **Pendiente:** la página de callback del frontend; hasta entonces, en multi-tenant solo se puede vincular con el flujo anterior a mano (pidiendo la URL y mandando el POST).
+Errores: 400 sin `state`/`code`, 403 por `state` inválido o sin acceso, 503 si falta OAuth de la App o el secreto del `state` (`GITHUB_STATE_SECRET`, o derivado de `MNEMO_SECRET_KEY`). En self-host single-tenant no se exige la prueba (no hay otros tenants). Las vinculaciones ya existentes no se tocan. En el frontend, Integraciones → GitHub → «Conectar con GitHub» hace el paso 1 (guarda org y repositorio en `sessionStorage`) y la página `/app/integrations/github/callback` hace el paso 3; si GitHub no devuelve `installation_id` (flujo «solo autorizar») o el navegador no conserva el repositorio, la página los pide antes de enviar.
 
 ## Ajustes de IA por organización
 
