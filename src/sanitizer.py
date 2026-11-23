@@ -1,11 +1,18 @@
 import re
-from typing import Dict, List, Optional, Callable
+from typing import Dict, Iterator, List, Optional, Callable
+
+from src.sanitizer_rules import PII_RULES, SECRET_RULES, redact_pem_blocks
 
 
-# Defense-in-depth: cap the text length processed by regex patterns.
-# Realistic error messages are well under this limit; attacker-controlled
-# payloads beyond this limit cannot trigger catastrophic backtracking.
+# Defense-in-depth: the regex loop runs over chunks of at most this many
+# characters, so its cost stays linear in the text length and no attacker-
+# controlled payload can trigger catastrophic backtracking. EVERY chunk is
+# sanitized: secrets in the tail of a long trace are redacted too (auditoría
+# 23-nov, #17 — antes la cola a partir de 20.000 caracteres pasaba tal cual).
 _MAX_SANITIZE_LEN = 20_000
+# El corte se busca en un salto de línea (o, si no hay, un espacio) dentro de la
+# segunda mitad del trozo: así un token no se parte entre dos trozos.
+_MIN_CHUNK_FRACTION = 2
 
 # ---------------------------------------------------------------------------
 # Sensitive pattern definitions
@@ -40,6 +47,10 @@ _INTERNAL_RE = re.compile(
 )
 
 SENSITIVE_PATTERNS: List[tuple] = [
+    # Secretos con forma reconocible primero: los patrones genéricos de abajo
+    # (URL, ruta) partirían un token base64 que contenga «/».
+    *SECRET_RULES,
+    *PII_RULES,
     (_EMAIL_RE, "[REDACTED_EMAIL]", lambda t: "@" in t),
     (re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b"), "[REDACTED_IP]", None),
     (
@@ -91,24 +102,41 @@ ERROR_TYPE_RULES = [
 ]
 
 
-def sanitize_text(text: str) -> str:
-    # Cap the portion that goes through the regex loop.  Text beyond the cap
-    # cannot contain sensitive data that wasn't already present in the head,
-    # and skipping the tail avoids any O(n²) degradation on large inputs.
-    if len(text) > _MAX_SANITIZE_LEN:
-        head = text[:_MAX_SANITIZE_LEN]
-        tail = text[_MAX_SANITIZE_LEN:]
-    else:
-        head = text
-        tail = ""
+def _chunks(text: str, size: int = _MAX_SANITIZE_LEN) -> Iterator[str]:
+    """Trocea por líneas en piezas de como mucho `size` caracteres (lineal)."""
+    start = 0
+    length = len(text)
+    while start < length:
+        end = min(start + size, length)
+        if end < length:
+            floor = start + size // _MIN_CHUNK_FRACTION
+            cut = text.rfind("\n", floor, end)
+            if cut == -1:
+                cut = text.rfind(" ", floor, end)
+            if cut != -1:
+                end = cut + 1
+        yield text[start:end]
+        start = end
 
-    sanitized = head
+
+def _sanitize_chunk(chunk: str) -> str:
+    sanitized = chunk
     for pattern, replacement, guard in SENSITIVE_PATTERNS:
         if guard is not None and not guard(sanitized):
             continue
         sanitized = pattern.sub(replacement, sanitized)
+    return sanitized
 
-    return sanitized + tail
+
+def sanitize_text(text: str) -> str:
+    """Redacta secretos y datos personales de TODO el texto, sea cual sea su longitud.
+
+    Los bloques PEM se quitan primero sobre el texto entero (pueden cruzar el corte
+    entre trozos); el resto de patrones corre trozo a trozo, con coste lineal."""
+    if not text:
+        return text
+    without_pem = redact_pem_blocks(text)
+    return "".join(_sanitize_chunk(chunk) for chunk in _chunks(without_pem))
 
 
 def extract_tech_tags(text: str) -> List[str]:
