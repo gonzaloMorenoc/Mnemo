@@ -1,29 +1,29 @@
-langchain-core==1.2.7
-langchain-huggingface==1.2.0
-langchain-ollama==1.0.1
+langchain-core==1.8.4
+langchain-huggingface==1.2.3
+langchain-ollama==1.1.0
 sentence-transformers==5.2.0
-python-dotenv==1.2.1
+python-dotenv==1.2.4
 atlassian-python-api==4.0.7
 pypdf==6.6.0
-fastapi==0.128.0
-uvicorn==0.40.0
-pydantic==2.12.4
-pytest==9.0.2
-pytest-cov==7.0.0
-psycopg[binary,pool]==3.3.3
-pgvector==0.4.2
-pyjwt==2.11.0
-python-multipart==0.0.22
-requests==2.32.5
+fastapi==0.165.0
+uvicorn==0.54.0
+pydantic==2.14.4
+pytest==9.2.0
+pytest-cov==7.1.0
+psycopg[binary,pool]==3.3.9
+pgvector==0.5.1
+pyjwt==2.15.1
+python-multipart==0.0.34
+requests==2.34.2
 # Importado directamente en src/jira/safe_url.py (revalidación de la IP conectada).
-urllib3==2.5.0
+urllib3==2.8.0
 cryptography==44.0.0
 defusedxml==0.7.1
 openai==2.43.0
 anthropic==0.111.0
-beautifulsoup4==4.14.3
-xhtml2pdf==0.2.16
+beautifulsoup4==4.15.0
+xhtml2pdf==0.2.28
 # Declarada aunque llegue con xhtml2pdf: los tests de ingesta de PDF la importan
 # directamente (un import sin declarar ya tumbó prod una vez, con defusedxml).
 reportlab==4.4.10
-python-docx==1.1.2
+python-docx==1.2.0
