@@ -1,0 +1,131 @@
+name: Desplegar backend
+
+# Al fusionar en main, si el Backend CI de ese commit acaba en verde:
+#   1) migraciones pendientes de db/migrations/ (scripts/migrate.py, con registro) y
+#   2) reconstrucción del Space de Hugging Face (clona main en el build), esperando a que
+#      vuelva a responder /v2/health con la BD.
+# Sin pasos manuales. Si las migraciones fallan, NO se reconstruye: sigue sirviendo el
+# backend anterior y el workflow falla (aviso por email de GitHub).
+#
+# Secretos del repositorio (Settings → Secrets and variables → Actions):
+#   PROD_DATABASE_URL  cadena del Session pooler de Supabase (la misma que usa el backend)
+#   HF_TOKEN           token de Hugging Face con permiso de escritura sobre el Space
+# Variables: HF_SPACE_ID (por defecto Gonzalo7/Mnemo) y BACKEND_HEALTH_URL (ya existe).
+
+on:
+  workflow_run:
+    workflows: ["Backend CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# Un despliegue cada vez, en cola (nunca cancelar uno a medias).
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+env:
+  HF_SPACE_ID: ${{ vars.HF_SPACE_ID || 'Gonzalo7/Mnemo' }}
+  HEALTH_URL: ${{ vars.BACKEND_HEALTH_URL || 'https://gonzalo7-mnemo.hf.space/v2/health' }}
+  # Estado de prod cuando nació el registro de migraciones (todas las <= 030 aplicadas
+  # a mano). Solo se usa la primera vez, si el registro aún no existe.
+  MIGRATIONS_BASELINE_THROUGH: "030"
+
+jobs:
+  guard:
+    name: ¿Desplegar este commit?
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
+    outputs:
+      sha: ${{ steps.pick.outputs.sha }}
+      deploy: ${{ steps.pick.outputs.deploy }}
+    steps:
+      - id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          head=$(gh api "repos/${{ github.repository }}/commits/main" --jq .sha)
+          sha="${RUN_SHA:-$head}"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          # El Space construye la PUNTA de main. Si ya hay un commit más nuevo, su propio
+          # CI lo desplegará (con sus migraciones): desplegar ahora mezclaría esquema viejo
+          # y código nuevo.
+          if [ "$sha" = "$head" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::$sha ya no es la punta de main ($head): lo desplegará su propio CI."
+          fi
+
+  migrate:
+    name: Migraciones
+    needs: guard
+    if: needs.guard.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.guard.outputs.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Instalar el driver
+        # Solo psycopg (misma versión que requirements.txt): el runner no necesita torch.
+        run: pip install "$(grep -E '^psycopg\[' requirements.txt)"
+      - name: Plan
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: python scripts/migrate.py --dry-run
+      - name: Aplicar
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: python scripts/migrate.py
+
+  deploy:
+    name: Reconstruir el Space
+    needs: [guard, migrate]
+    if: needs.guard.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Reconstrucción (factory rebuild)
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          test -n "$HF_TOKEN" || { echo "::error::falta el secreto HF_TOKEN"; exit 1; }
+          curl -fsS -X POST -H "Authorization: Bearer $HF_TOKEN" \
+            "https://huggingface.co/api/spaces/${HF_SPACE_ID}/restart?factory=true" > /dev/null
+      - name: Esperar a que el Space vuelva a estar en marcha
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          left_running=false
+          for i in $(seq 1 120); do            # hasta ~20 min (build de torch incluido)
+            stage=$(curl -fsS -H "Authorization: Bearer $HF_TOKEN" \
+              "https://huggingface.co/api/spaces/${HF_SPACE_ID}/runtime" | jq -r .stage || echo "?")
+            echo "estado: $stage"
+            case "$stage" in
+              BUILD_ERROR|RUNTIME_ERROR|CONFIG_ERROR) echo "::error::el Space falló ($stage)"; exit 1 ;;
+              RUNNING) [ "$left_running" = true ] && break ;;
+              *) left_running=true ;;
+            esac
+            # Si la reconstrucción fue tan rápida que no se vio salir de RUNNING, al 3.er
+            # intento se da por buena y decide el health check.
+            [ "$i" -ge 3 ] && [ "$stage" = RUNNING ] && break
+            sleep 10
+          done
+      - name: Health check (con BD)
+        run: |
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 120 "$HEALTH_URL" || echo 000)
+            echo "intento $i: $code"
+            [ "$code" = 200 ] && exit 0
+            sleep 10
+          done
+          echo "::error::el backend no responde 200 en $HEALTH_URL"
+          exit 1

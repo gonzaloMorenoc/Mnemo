@@ -58,18 +58,22 @@ def org_poblada():
                         " values (%s,%s,%s,'t','m',%s)",
                         (run_id, org, fam_id, uuid.uuid4().hex[:16]))
 
-        r1, r_otro = run(PROJ), run("otro-proyecto")
+        r1, r2, r_otro = run(PROJ), run(PROJ), run("otro-proyecto")
         # fam_a: recurrente, etiquetada, con lección y con razón → suma en todo
         ids["fam_a"] = familia(3, label="real")
         # fam_b: recurrente, etiquetada, SIN lección y SIN razón
         ids["fam_b"] = familia(2, label="flaky")
-        # fam_c: una sola ocurrencia (fuera de memoria_defectos) y SIN triar
-        # (label 'unknown') → tampoco entra en el denominador de razon_etiquetas
-        ids["fam_c"] = familia(1)
+        # fam_c: muchos fallos pero en UN solo run (no es recurrente: «recurrente»
+        # cuenta runs distintos, no fallos) y SIN triar (label 'unknown') →
+        # tampoco entra en el denominador de razon_etiquetas
+        ids["fam_c"] = familia(30)
         # fam_otro: recurrente y etiquetada, pero de otro proyecto
         ids["fam_otro"] = familia(5, label="real")
         for f in ("fam_a", "fam_b", "fam_c"):
             fallo(r1, ids[f])
+        for f in ("fam_a", "fam_b"):  # recurrentes: segundo run distinto del proyecto
+            fallo(r2, ids[f])
+        fallo(r1, ids["fam_c"])       # segundo fallo de fam_c, en el MISMO run
         fallo(r_otro, ids["fam_otro"])
 
         cur.execute("insert into public.triage_corrections (org_id, family_id,"

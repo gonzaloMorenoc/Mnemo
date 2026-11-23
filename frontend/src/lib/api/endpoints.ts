@@ -19,6 +19,7 @@ import type {
   GateResult,
   GeneratedTest,
   GitHubConfigResponse,
+  GitHubInstallUrlResponse,
   Graph,
   HandoverAct,
   HealthResponse,
@@ -391,9 +392,25 @@ export function getGithubConfig(token: string, params: { org_id: string }) {
 
 export function saveGithubConfig(
   token: string,
-  body: { org_id: string; installation_id: string; repo_full_name: string },
+  body: {
+    org_id: string;
+    installation_id: string;
+    repo_full_name: string;
+    // Prueba de posesión (obligatoria en multi-tenant): `state` de install-url y
+    // `code` OAuth que GitHub entrega en el callback.
+    state?: string;
+    code?: string;
+  },
 ) {
   return apiRequest<GitHubConfigResponse>("/api/v2/integrations/github", "POST", { token, body });
+}
+
+export function getGithubInstallUrl(token: string, params: { org_id: string }) {
+  return apiRequest<GitHubInstallUrlResponse>(
+    `/api/v2/integrations/github/install-url?org_id=${encodeURIComponent(params.org_id)}`,
+    "GET",
+    { token },
+  );
 }
 
 export function indexRepo(token: string, body: { org_id: string }) {
@@ -441,4 +458,30 @@ export function emitHandover(token: string, orgId: string, project: string,
 export function getLatestHandover(token: string, orgId: string, project: string) {
   const qs = new URLSearchParams({ org_id: orgId, project });
   return apiRequest<HandoverAct>(`/api/v2/continuity/handover/latest?${qs}`, "GET", { token });
+}
+
+// ── Ajustes de IA por organización (solo owner/admin) ───────────────────────
+
+export interface LlmSettings {
+  org_id: string;
+  allow_external_llm: boolean;
+  provider: string;
+  provider_is_external: boolean;
+  global_external_allowed: boolean;
+}
+
+export function getLlmSettings(token: string, orgId: string) {
+  return apiRequest<LlmSettings>(
+    `/api/v2/orgs/${encodeURIComponent(orgId)}/llm-settings`,
+    "GET",
+    { token },
+  );
+}
+
+export function putLlmSettings(token: string, orgId: string, allowExternalLlm: boolean) {
+  return apiRequest<LlmSettings>(
+    `/api/v2/orgs/${encodeURIComponent(orgId)}/llm-settings`,
+    "PUT",
+    { token, body: { allow_external_llm: allowExternalLlm } },
+  );
 }

@@ -27,6 +27,9 @@ class IngestItem:
     embedding: Sequence[float]
     external_ref: Optional[str] = None
     external_url: Optional[str] = None
+    # False → solo se une a una familia por huella exacta (mensaje vacío/genérico
+    # o redactado por el saneador; ver src/defects/item_prep.py).
+    allow_similarity: bool = True
 
 
 class AssuranceRepository:
@@ -270,6 +273,7 @@ class AssuranceRepository:
         )
         decision = decide_match(
             fingerprint=item.fingerprint, embedding=item.embedding, candidates=cands,
+            allow_similarity=item.allow_similarity,
         )
         family_id = self._insert_family_or_none(cur, org_id=org_id, item=item) \
             if decision.is_new else None
@@ -650,8 +654,14 @@ class AssuranceRepository:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    select f.id, f.org_id, f.title, f.status, f.occurrence_count, f.root_cause
+                    select f.id, f.org_id, f.title, f.status, f.occurrence_count, f.root_cause,
+                           f.label, c.reason as label_reason
                     from public.defect_families f
+                    left join lateral (
+                        select tc.reason from public.triage_corrections tc
+                        where tc.family_id = f.id and tc.reason is not null and tc.reason <> ''
+                        order by tc.corrected_at desc limit 1
+                    ) c on true
                     where f.id = %s
                       and (f.scope = 'global' or exists (
                           select 1 from public.memberships m
@@ -682,6 +692,8 @@ class AssuranceRepository:
                 "family": {
                     "id": str(fam["id"]), "title": fam["title"], "status": fam["status"],
                     "occurrence_count": fam["occurrence_count"], "root_cause": fam["root_cause"],
+                    # Etiqueta y razón humanas: el prompt de la causa raíz parte de ellas.
+                    "label": fam.get("label"), "label_reason": fam.get("label_reason"),
                     # org_id para el hook causa-raíz→propuesta (None en familias globales)
                     "org_id": str(fam["org_id"]) if fam["org_id"] else None,
                 },
@@ -1281,7 +1293,9 @@ class AssuranceRepository:
                     "   f.title, c.reason as label_reason,"
                     "   f.centroid <=> %s as dist_errores,"
                     "   case when c.reason_embedding is null then f.centroid <=> %s"
-                    "        else ((f.centroid <=> %s) + (c.reason_embedding <=> %s)) / 2 end as dist"
+                    "        else ((f.centroid <=> %s) + (c.reason_embedding <=> %s)) / 2 end as dist,"
+                    "   exists (select 1 from public.qa_knowledge k where k.defect_family_id = f.id"
+                    "           and k.org_id = f.org_id and k.status = 'activo') as has_lesson"
                     "  from public.defect_families f"
                     "  left join lateral ("
                     "    select tc.reason, tc.reason_embedding from public.triage_corrections tc"
@@ -1296,7 +1310,11 @@ class AssuranceRepository:
                 return [
                     {"family_id": str(r["id"]), "signature": r["signature"], "label": r["label"],
                      "root_cause": r["root_cause"], "occurrence_count": r["occurrence_count"],
-                     "title": r["title"], "label_reason": r["label_reason"]}
+                     "title": r["title"], "label_reason": r["label_reason"],
+                     # dist y has_lesson: la búsqueda unificada mezcla por relevancia y
+                     # reserva huecos a familias con razón o lección (auditoría 23-nov, #8).
+                     "dist": float(r["dist"]) if r.get("dist") is not None else None,
+                     "has_lesson": bool(r.get("has_lesson"))}
                     for r in cur.fetchall()
                 ]
 

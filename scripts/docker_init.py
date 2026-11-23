@@ -3,7 +3,7 @@
 Idempotente: re-ejecutar no duplica. Pensado para correr como el servicio `init`.
 """
 
-import glob
+import logging
 import os
 import sys
 import time
@@ -20,13 +20,15 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 load_dotenv(ROOT / ".env")
 
+from src.db.migrate import load_migrations, migrate  # noqa: E402
+
 DBURL = os.environ["DATABASE_URL"]
 SUPABASE_URL = os.environ["SUPABASE_URL"]
 SERVICE_ROLE_KEY = os.environ["SERVICE_ROLE_KEY"]
 DEMO_EMAIL = os.environ["DEMO_EMAIL"]
 DEMO_PASSWORD = os.environ["DEMO_PASSWORD"]
 
-MIGRATIONS = sorted(glob.glob(str(ROOT / "db" / "migrations" / "*.sql")))
+MIGRATIONS_DIR = ROOT / "db" / "migrations"
 
 
 def _wait_db():
@@ -40,14 +42,10 @@ def _wait_db():
 
 
 def _apply_migrations():
-    with psycopg.connect(DBURL) as conn:
-        for path in MIGRATIONS:
-            with open(path) as fh:
-                sql = fh.read()
-            with conn.cursor() as cur:
-                cur.execute(sql)
-            conn.commit()
-            print(f"migración aplicada: {path}")
+    """Mismo runner que el despliegue: aplica solo las pendientes y registra cada una."""
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    with psycopg.connect(DBURL, autocommit=True) as conn:
+        migrate(conn, load_migrations(MIGRATIONS_DIR))
 
 
 def _ensure_demo_user() -> str:

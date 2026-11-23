@@ -2,6 +2,11 @@ from typing import Any, Dict, List
 
 from src.ai import nl_query
 from src.defects.embedder import get_shared_embedder
+from src.knowledge.ranking import merge_by_relevance
+
+# Claves internas del ranking que no salen de la búsqueda (la distancia sale como
+# `score` = 1 - distancia, más fácil de leer: mayor = más relevante).
+_INTERNAL_KEYS = ("dist", "priority")
 
 
 class KnowledgeService:
@@ -11,26 +16,36 @@ class KnowledgeService:
         self.embedder = embedder or get_shared_embedder()
 
     def search_unified(self, *, user_id: str, org_id: str, query: str, k: int = 8) -> List[Dict[str, Any]]:
+        """Conocimiento + familias, mezclados por relevancia (ranking.merge_by_relevance)."""
         emb = self.embedder.embed(query)
         items = self.knowledge.search_semantic(user_id=user_id, org_id=org_id, query_embedding=emb, k=k)
         fams = self.assurance.search_families_semantic(user_id=user_id, org_id=org_id, query_embedding=emb, k=k)
-        out = [{"id": str(i["id"]), "type": "knowledge", "title": i.get("title"),
-                "content": " ".join(str(i.get(x) or "") for x in ("title", "challenge", "approach", "outcome")).strip(),
-                "confidence": i.get("confidence")} for i in items]
+        knowledge = [{"id": str(i["id"]), "type": "knowledge", "title": i.get("title"),
+                      "content": " ".join(str(i.get(x) or "") for x in ("title", "challenge", "approach", "outcome")).strip(),
+                      "confidence": i.get("confidence"), "dist": i.get("dist")} for i in items]
         # search_families_semantic devuelve la familia bajo "family_id" (no "id").
         # family_content incluye la razón de la etiqueta humana (el "por qué" del
         # senior) cuando existe — ver auditoría 12-ago, H1.
         # display_title: lo que identifica la familia para quien pregunta. Su `title`
         # es el tipo de error («TimeoutError»); la razón del etiquetador dice qué es.
-        out += [{"id": str(f["family_id"]), "type": "defect", "title": f.get("title"),
-                 "display_title": f.get("label_reason") or f.get("title"),
-                 "content": nl_query.family_content(f), "confidence": "confirmado"} for f in fams]
-        return out
+        families = [{"id": str(f["family_id"]), "type": "defect", "title": f.get("title"),
+                     "display_title": f.get("label_reason") or f.get("title"),
+                     "content": nl_query.family_content(f), "confidence": "confirmado",
+                     "dist": f.get("dist"),
+                     "priority": bool(f.get("label_reason") or f.get("has_lesson"))}
+                    for f in fams]
+        return [_public(s) for s in merge_by_relevance(knowledge, families)]
 
     def ask(self, *, user_id: str, org_id: str, question: str) -> Dict[str, Any]:
         sources = self.search_unified(user_id=user_id, org_id=org_id, query=question)
         out = nl_query.answer_over_sources(question=question, sources=sources)
         return {**out, "sources": _cited_sources(out.get("citations") or [], sources)}
+
+
+def _public(source: Dict[str, Any]) -> Dict[str, Any]:
+    dist = source.get("dist")
+    out = {k: v for k, v in source.items() if k not in _INTERNAL_KEYS}
+    return {**out, "score": None if dist is None else round(1.0 - float(dist), 4)}
 
 
 def _cited_sources(citations: List[str], sources: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

@@ -9,12 +9,14 @@ distintos — el coseno entre ellos no significa nada. Sin re-embeber:
     deja de agrupar y fragmenta familias nuevas.
 
 Qué re-embebe (todas las columnas vector(384) del API v2):
-  - public.failures.embedding        ← f"{error_type} {message}" (misma receta
-                                        que la ingesta: ingestion_service.py)
+  - public.failures.embedding        ← embedding_source(fallo saneado) (misma
+                                        receta que la ingesta: defects/item_prep.py)
   - public.defect_families.centroid  ← media de los embeddings nuevos de sus
                                         fallos (familias sin fallos: centroide
                                         a NULL, dejan de participar en el match)
   - public.qa_knowledge.embedding    ← embedding_text(title, challenge, approach)
+  - public.qa_knowledge_chunks       ← un embedding por fragmento del texto largo
+                                        (migración 033; si no está aplicada, se omite)
   - public.test_assets.embedding     ← asset_descriptor(path, content): ruta +
                                         títulos de los tests + comentarios
   - public.triage_corrections.reason_embedding ← reason (solo filas con razón;
@@ -30,6 +32,7 @@ otra vez. Uso:
 
     python3 -m scripts.reembed            # todo
     python3 -m scripts.reembed --dry-run  # solo contar, sin escribir
+    python3 -m scripts.reembed --only-knowledge  # fragmentos del conocimiento (033)
 """
 import argparse
 import sys
@@ -41,6 +44,9 @@ from psycopg.rows import dict_row
 
 from src.config import DATABASE_URL, EMBEDDING_MODEL
 from src.defects.embedder import LocalEmbedder
+from src.defects.item_prep import embedding_source
+from src.ingest.models import FailureRecord
+from src.knowledge.chunk_store import chunk_embeddings, replace_chunks
 from src.knowledge.repository import embedding_text
 from src.repo_ingest.descriptor import asset_descriptor
 
@@ -65,6 +71,12 @@ def _count(cur, sql: str, params=()) -> int:
     return cur.fetchone()["n"]
 
 
+def _stored_failure(r) -> FailureRecord:
+    """Fila de failures (ya saneada) → FailureRecord para la receta de la ingesta."""
+    return FailureRecord(test_name=r["test_name"] or "", error_type=r["error_type"],
+                         message=r["message"] or "", trace=r["trace"], project="", source="")
+
+
 def reembed_failures(conn, embedder, *, dry_run: bool) -> int:
     """failures.embedding — misma receta de texto que la ingesta."""
     with conn.cursor() as cur:
@@ -76,15 +88,14 @@ def reembed_failures(conn, embedder, *, dry_run: bool) -> int:
         while True:
             # Paginación por id (estable frente a updates de la propia pasada)
             cur.execute(
-                "select id, error_type, message from public.failures"
+                "select id, test_name, error_type, message, trace from public.failures"
                 " where (%s::uuid is null or id > %s) order by id limit %s",
                 (last_id, last_id, _BATCH))
             rows = cur.fetchall()
             if not rows:
                 break
             for r in rows:
-                text = f"{r['error_type'] or ''} {r['message'] or ''}".strip()
-                emb = Vector(list(embedder.embed(text))) if text else None
+                emb = Vector(list(embedder.embed(embedding_source(_stored_failure(r)))))
                 cur.execute("update public.failures set embedding=%s where id=%s",
                             (emb, r["id"]))
             conn.commit()
@@ -125,13 +136,17 @@ def reembed_qa_knowledge(conn, embedder, *, dry_run: bool) -> int:
         total = _count(cur, "select count(*) as n from public.qa_knowledge")
         if dry_run:
             return total
-        cur.execute("select id, title, challenge, approach from public.qa_knowledge order by id")
+        cur.execute("select id, org_id, title, challenge, approach from public.qa_knowledge"
+                    " order by id")
         rows = cur.fetchall()
         for i, r in enumerate(rows, 1):
             emb = Vector(list(embedder.embed(
                 embedding_text(r["title"] or "", r["challenge"], r["approach"]))))
             cur.execute("update public.qa_knowledge set embedding=%s where id=%s",
                         (emb, r["id"]))
+            replace_chunks(cur, knowledge_id=r["id"], org_id=r["org_id"],
+                           embeddings=chunk_embeddings(embedder, r["title"] or "",
+                                                       r["challenge"], r["approach"]))
             if i % _BATCH == 0:
                 conn.commit()
                 print(f"  qa_knowledge: {i}/{total}", flush=True)
@@ -182,6 +197,8 @@ def main() -> None:
                         help="solo contar filas afectadas, sin escribir")
     parser.add_argument("--only-reasons", action="store_true",
                         help="solo las razones de etiqueta (backfill de la migración 030)")
+    parser.add_argument("--only-knowledge", action="store_true",
+                        help="solo qa_knowledge y sus fragmentos (backfill de la migración 033)")
     parser.add_argument("--only-test-assets", action="store_true",
                         help="solo los tests indexados (cambio de descriptor, umbral de cobertura 0,42)")
     args = parser.parse_args()
@@ -196,6 +213,9 @@ def main() -> None:
     with _connect() as conn:
         modo = "DRY-RUN (sin escribir)" if args.dry_run else "re-embebiendo"
         print(f"{modo}…")
+        if args.only_knowledge:
+            print(f"OK — qa_knowledge={reembed_qa_knowledge(conn, embedder, dry_run=args.dry_run)}")
+            return
         if args.only_test_assets:
             print(f"OK — test_assets={reembed_test_assets(conn, embedder, dry_run=args.dry_run)}")
             return

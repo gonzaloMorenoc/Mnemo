@@ -8,7 +8,9 @@ export interface ApiErrorShape {
 export interface OrganizationResponse {
   id: string;
   name: string;
-  join_code: string;
+  // Solo owner/admin reciben el código de unión y su caducidad (el resto: null).
+  join_code: string | null;
+  join_code_expires_at?: string | null;
   role: string | null;
   created_at: string | null;
 }
@@ -87,6 +89,12 @@ export interface GitHubConfigResponse {
   configured: boolean;
   repo_full_name: string | null;
   installation_id: string | null;
+}
+
+export interface GitHubInstallUrlResponse {
+  state: string;
+  install_url: string;
+  authorize_url: string;
 }
 
 export interface JiraIngestResponse {

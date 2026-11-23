@@ -79,7 +79,19 @@ class TestIngestReportPipeline:
         pipe.assert_not_called()
         propose.assert_not_called()
 
-    def test_non_member_is_rejected_before_reading_the_file(self):
+    def test_non_member_is_rejected_before_reading_the_file(self, monkeypatch):
+        # La subida exige membresía Y rol (matriz de roles): sin rol en la org → 403.
+        import src.orgs.access as access_module
+
+        class _NoRole:
+            def role_of(self, *, org_id, user_id):
+                return None
+
+            def org_of(self, *, resource, resource_id):
+                return None
+
+        monkeypatch.setattr(access_module, "_access_factory",
+                            lambda: access_module.OrgAccess(_NoRole()))
         svc = _ingestion(member=False)
         with patch.object(api_v2, "_read_upload_capped_async") as read:
             r = _upload(_client(ingestion=svc))
@@ -210,6 +222,8 @@ def test_ci_ingest_resolves_token_off_the_event_loop():
 def test_webhook_chunked_body_over_cap_413_without_reading_it_all(monkeypatch):
     """Sin Content-Length (chunked) el tope se aplica mientras se lee el cuerpo."""
     monkeypatch.setattr(api_v2, "CI_MAX_BODY_BYTES", 100)
+    # Sin CI_SERVICE_ORG_ID el webhook global responde 503 sin leer nada.
+    monkeypatch.setattr(api_v2, "CI_SERVICE_ORG_ID", "o1")
 
     def chunks():
         for _ in range(50):

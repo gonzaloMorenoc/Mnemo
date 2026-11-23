@@ -55,9 +55,9 @@ Mnemo no usa la Data API de Supabase (PostgREST): el frontend solo usa Supabase 
 acceso a datos pasa por el backend. La migración **`999_cerrar_data_api.sql`** retira a `anon` y
 `authenticated` todos los permisos sobre las tablas y secuencias de `public`, el `EXECUTE` de las
 funciones de la app (también a `PUBLIC`, para cerrar `/rest/v1/rpc/*`) y los privilegios por
-defecto, para que un objeto nuevo no nazca expuesto. Es siempre la última en aplicarse: varias
-migraciones antiguas vuelven a conceder `select, insert, update, delete` a `authenticated` al
-re-aplicarse, y la 999 lo neutraliza cada vez (`tests/test_migrations_data_api.py` lo vigila).
+defecto, para que un objeto nuevo no nazca expuesto. Es siempre la última y el runner
+(`scripts/migrate.py`) la re-aplica en cada despliegue, después de las pendientes: neutraliza
+cualquier grant que una migración haya concedido (`tests/test_migrations_data_api.py` lo vigila).
 
 Si algún día se quiere usar PostgREST, hay que rehacer antes las policies por rol: hoy son
 «cualquier miembro puede todo» y dejarían a un miembro saltarse las validaciones del backend.
@@ -68,7 +68,7 @@ Si algún día se quiere usar PostgREST, hay que rehacer antes las policies por 
 |---|---|
 | `is_org_member(org)` | `exists` en `memberships` con `user_id = (select auth.uid())`. Reescrita en `016` con subconsulta para que el planner evalúe `auth.uid()` una vez y no por fila. |
 | `is_org_admin(org)` | Igual, con `role in ('owner','admin')`. |
-| `join_organization_by_code(code)` | `security definer`: busca la org por `join_code` (sin distinguir mayúsculas) e inserta la pertenencia con rol `member`. |
+| `join_organization_by_code(code)` | `security definer`: busca la org por `join_code` (sin distinguir mayúsculas) y, si el código no ha caducado (`join_code_expires_at`, migración 032), inserta la pertenencia con rol `viewer`. |
 | `create_owner_membership()` | Trigger `after insert` en `organizations`: crea la pertenencia `owner` del creador. |
 | `set_default_org_owner_membership()` | Trigger `before insert` en `organizations`: **genera el `join_code`** (10 hex) si viene nulo. El nombre es engañoso. |
 | `search_chunks_scoped(vec, n)` | Resto del v1, sin uso. |
@@ -103,7 +103,7 @@ Notas:
 
 | Tabla | Propósito | Columnas clave |
 |---|---|---|
-| `organizations` | Org / cliente | `name`, `created_by` (FK `auth.users`, `on delete restrict`), `join_code` unique, `created_at` |
+| `organizations` | Org / cliente | `name`, `created_by` (FK `auth.users`, `on delete restrict`), `join_code` unique, `join_code_expires_at`, `created_at` |
 | `memberships` | **Fuente de verdad del aislamiento** | PK `(org_id, user_id)`, `role` enum `org_role` ∈ `owner`/`admin`/`member`/`viewer` |
 | `profiles` | Perfil por usuario (resto del v1) | PK `user_id`, `display_name`, `default_org_id` (FK, `set null`). El código actual no la usa. |
 
@@ -286,7 +286,7 @@ La reingesta de un repo borra e inserta todas sus filas (`replace_for_repo`).
 - **Dedup de familias por firma:** el matching busca primero la familia con la `signature` exacta (además del top-K por coseno) y el índice único `(org_id, signature)` de `003` impide duplicarla.
 - **Idempotencia de ingesta:** un `run_uid` repetido devuelve el run existente y su `summary` en vez de duplicar fallos y `occurrence_count`.
 - **Los kinds van en dos sitios:** el CHECK de `qa_knowledge` y el de `knowledge_proposals` deben llevar la misma lista que `_KINDS`; el refine del LLM escribe el kind en la propuesta.
-- **Migraciones idempotentes:** `scripts/docker_init.py` re-aplica todas las migraciones en cada arranque, en orden. Por eso las recientes usan `if not exists`, `drop constraint if exists` y `drop policy if exists` antes de `create policy`.
+- **Migraciones con registro:** `scripts/migrate.py` (CI al fusionar en `main`, y `scripts/docker_init.py`) aplica solo las pendientes y las registra en `mnemo_meta.schema_migrations` con su sha256; una migración aplicada no se edita, se crea otra. Siguen escribiéndose idempotentes (`if not exists`, `drop policy if exists`…) por si se re-aplican en una BD a medias. La `999` se re-aplica siempre.
 
 ---
 
@@ -324,6 +324,7 @@ La reingesta de un repo borra e inserta todas sus filas (`replace_for_repo`).
 | 028 | Tabla `handover_acts` (actas de traspaso). |
 | 029 | Veredicto `sin_confirmar` en el CHECK de `certificates`. |
 | 030 | `triage_corrections.reason_embedding vector(384)`. |
+| 032 | `organizations.join_code_expires_at` (7 días por defecto) y `join_organization_by_code` da `viewer` y rechaza códigos caducados. |
 | 999 | Cierra la Data API: revoca todo a `anon`/`authenticated` en `public`. Siempre la última. |
 
 ---

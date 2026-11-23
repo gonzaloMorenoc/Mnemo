@@ -3,12 +3,15 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { useAuth } from "@/components/providers/auth-provider";
+import { useActiveOrg } from "@/components/providers/org-provider";
+import { ExternalLlmToggle } from "@/components/settings/ExternalLlmToggle";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { getHealth } from "@/lib/api/endpoints";
 
 export default function SettingsPage() {
-  const { user } = useAuth();
+  const { user, accessToken } = useAuth();
+  const { activeOrgId } = useActiveOrg();
 
   const healthQuery = useQuery({
     queryKey: ["health"],
@@ -57,6 +60,18 @@ export default function SettingsPage() {
           )}
         </CardContent>
       </Card>
+
+      {accessToken && activeOrgId && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Inteligencia artificial</CardTitle>
+            <CardDescription>Qué datos de esta organización pueden salir a un LLM externo.</CardDescription>
+          </CardHeader>
+          <CardContent className="text-sm text-zinc-700">
+            <ExternalLlmToggle token={accessToken} orgId={activeOrgId} />
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

@@ -12,9 +12,10 @@
 -- por el backend FastAPI, que conecta con el rol del pooler (propietario, salta RLS). Las
 -- políticas RLS se quedan como defensa en profundidad.
 --
--- ESTA MIGRACIÓN DEBE SER SIEMPRE LA ÚLTIMA (de ahí el 999): el despliegue re-aplica todas
--- las migraciones en orden y varias antiguas vuelven a conceder permisos a authenticated;
--- esta las neutraliza cada vez. Un test (tests/test_migrations_data_api.py) lo comprueba.
+-- ESTA MIGRACIÓN DEBE SER SIEMPRE LA ÚLTIMA (de ahí el 999): el runner (scripts/migrate.py)
+-- la re-aplica en CADA despliegue, después de las pendientes, para neutralizar cualquier
+-- grant que una migración nueva (o un re-aplicado completo en Docker) haya concedido.
+-- Un test (tests/test_migrations_data_api.py) comprueba que sigue siendo la última.
 -- Idempotente.
 
 -- 1) Tablas, vistas y secuencias existentes: fuera todo para anon y authenticated.

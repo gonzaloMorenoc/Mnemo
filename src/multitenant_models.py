@@ -1,5 +1,5 @@
 import re
-from typing import Annotated, Any, Dict, List, Optional
+from typing import Annotated, Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -15,9 +15,28 @@ class JoinOrgRequest(BaseModel):
 class OrganizationResponse(BaseModel):
     id: str
     name: str
-    join_code: str
+    # Solo owner/admin reciben el código de unión y su caducidad (auditoría 23-nov, #11).
+    join_code: Optional[str] = None
+    join_code_expires_at: Optional[str] = None
     role: Optional[str] = None
     created_at: Optional[str] = None
+
+
+class MemberResponse(BaseModel):
+    user_id: str
+    role: str
+    email: Optional[str] = None
+    display_name: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+class ChangeMemberRoleRequest(BaseModel):
+    role: Literal["owner", "admin", "member", "viewer"]
+
+
+class JoinCodeResponse(BaseModel):
+    join_code: str
+    join_code_expires_at: Optional[str] = None
 
 
 class ErrorResponse(BaseModel):
@@ -111,6 +130,10 @@ class GitHubConfigRequest(BaseModel):
     org_id: str
     installation_id: str
     repo_full_name: str
+    # Prueba de posesión (obligatoria en multi-tenant): `state` firmado de
+    # /v2/integrations/github/install-url y `code` OAuth del callback de GitHub.
+    state: Optional[str] = Field(default=None, max_length=1024)
+    code: Optional[str] = Field(default=None, max_length=512)
 
     @field_validator("repo_full_name")
     @classmethod

@@ -27,16 +27,45 @@ no tiene que ver con el LLM.
    (Project → Settings → Database → Connection string → *Session pooler*, puerto 5432).
    La conexión directa `db.<ref>.supabase.co` es solo IPv6 en proyectos nuevos y puede
    no enrutar desde el host del backend.
-2. Aplica **todas las migraciones de `db/migrations/`, en orden**, antes de desplegar el
-   backend: el código asume el esquema ya migrado.
+2. Las migraciones de `db/migrations/` las aplica **el CI**: ver «Despliegue automático».
+   Para una BD nueva fuera del CI: `DATABASE_URL=... python3 scripts/migrate.py`.
 
-   ```bash
-   for f in db/migrations/*.sql; do psql "$DATABASE_URL" -f "$f"; done
-   ```
+## Despliegue automático (al fusionar en main)
 
-   Son idempotentes (`if exists` / `if not exists`), así que volver a aplicarlas no rompe
-   nada; `scripts/docker_init.py` las re-aplica en cada arranque del entorno Docker. Cuando
-   haya migraciones nuevas, se aplican antes de desplegar el backend que las necesita.
+Sin pasos manuales. El workflow **«Desplegar backend»** (`.github/workflows/deploy-backend.yml`)
+arranca cuando el **Backend CI** de un push a `main` acaba en verde:
+
+1. **Comprueba que el commit sigue siendo la punta de `main`.** Si no lo es, no hace nada:
+   el commit más nuevo se desplegará cuando acabe su propio CI. Así nunca se mezcla un
+   esquema viejo con código nuevo, porque el Space construye siempre la punta de `main`.
+2. **Migraciones** con `scripts/migrate.py`:
+   - aplica solo las pendientes, en orden, cada una en su transacción;
+   - las registra en `mnemo_meta.schema_migrations` (nombre y sha256, fuera de `public`);
+   - re-aplica siempre la `999` al final, la que cierra la Data API.
+
+   Si una falla, se deshace, el workflow falla y **no** se reconstruye el backend: sigue
+   sirviendo la versión anterior. Editar una migración ya aplicada también hace fallar el
+   despliegue: hay que crear otra nueva.
+3. **Reconstrucción del Space** de Hugging Face (*factory rebuild*, clona `main`) y espera
+   hasta que `/v2/health` responde 200 con la BD.
+4. **Al arrancar**, el backend rellena en segundo plano los datos derivados que falten (los
+   fragmentos del conocimiento de la migración 033). Se desactiva con
+   `MNEMO_CHUNK_BACKFILL_ON_START=false`.
+
+También se puede lanzar a mano desde *Actions → Desplegar backend → Run workflow*.
+
+**Configuración única del repositorio:**
+
+| Tipo | Nombre | Valor |
+|---|---|---|
+| Secreto | `PROD_DATABASE_URL` | cadena del *Session pooler* (la misma `DATABASE_URL` del backend) |
+| Secreto | `HF_TOKEN` | token de Hugging Face con escritura sobre el Space |
+| Variable (opcional) | `HF_SPACE_ID` | por defecto `Gonzalo7/Mnemo` |
+| Variable | `BACKEND_HEALTH_URL` | ya existe (keep-warm) |
+
+El registro arrancó con prod en la `030`: la primera ejecución da por aplicadas las
+`<= 030` (`MIGRATIONS_BASELINE_THROUGH`) y aplica las posteriores. En una BD nueva no hay
+baseline: se aplican todas.
 
 ## Paso 2 — Backend en Render
 
@@ -68,9 +97,8 @@ En **Vercel → proyecto → Settings → Environment Variables**:
 - `NEXT_PUBLIC_API_BASE_URL` = la URL del backend (p. ej.
   `https://mnemo-backend-XXXX.onrender.com`), **sin barra final**.
 - `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` (para el login).
-- Opcional: `NEXT_PUBLIC_GITHUB_APP_URL` = página de instalación de la GitHub App
-  (`https://github.com/apps/<tu-app>/installations/new`); activa el enlace «instalar
-  ahora» en Integraciones.
+- `NEXT_PUBLIC_GITHUB_APP_URL` ya no se usa: «Conectar con GitHub» pide la URL de
+  instalación al backend (ver «GitHub App: Callback URL» más abajo).
 - Root Directory = `frontend`; Node 22.x (`frontend/.nvmrc`).
 
 Las `NEXT_PUBLIC_*` se fijan en el build: tras cambiarlas hay que volver a desplegar el
@@ -161,6 +189,35 @@ configurada"` y no se puede emitir ni verificar ningún acta.
 
 ---
 
+## Seguridad: variables nuevas (auditoría 23-nov)
+
+| Variable | Qué es |
+|----------|--------|
+| `GITHUB_APP_SLUG`, `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET` | Necesarias para **vincular** la GitHub App en multi-tenant: se exige prueba de posesión de la instalación (`state` firmado + `code` OAuth de GitHub). Sin ellas, `POST /v2/integrations/github` responde 503. En la App hay que activar «Request user authorization (OAuth) during installation». Ver `docs/technical/api.md` |
+| `GITHUB_STATE_SECRET` | Opcional: secreto para firmar el `state`. Si falta, se deriva de `MNEMO_SECRET_KEY` |
+| `MNEMO_EXPOSE_API_DOCS` | `true` para publicar `/docs`, `/redoc` y `/openapi.json`. Por defecto están **desactivados** |
+
+### GitHub App: Callback URL
+
+En **GitHub → Settings → Developer settings → GitHub Apps → (la App de Mnemo) → General**:
+
+- **Callback URL** = `https://<dominio-del-frontend>/app/integrations/github/callback`
+  (el dominio de Vercel, no el del backend; p. ej.
+  `https://mnemo.vercel.app/app/integrations/github/callback`). Si hay varios
+  entornos (preview, local), añade una Callback URL por cada uno.
+- Activa **«Request user authorization (OAuth) during installation»**: sin él GitHub
+  no devuelve el `code` y la página de callback muestra «GitHub no devolvió la
+  autorización».
+- Deja vacía la *Setup URL* (con OAuth durante la instalación, GitHub usa la Callback URL).
+
+Flujo en la app: Integraciones → GitHub → indicar `owner/repo` → «Conectar con GitHub»
+→ instalar/autorizar en GitHub → vuelta a la página de callback, que guarda la
+vinculación y regresa a Integraciones.
+
+Cada organización puede además desactivar el LLM externo desde **Ajustes** (owner/admin) o con `PUT /v2/orgs/{org_id}/llm-settings`. Requiere la migración 035.
+
+---
+
 ## Webhook de CI (ingesta automática desde el CI del cliente)
 
 Para que `POST /v2/ci/webhook` funcione (reporter de Playwright o cualquier emisor del
@@ -170,7 +227,7 @@ artefacto), el backend necesita estas variables (sin ellas responde 401/503):
 |----------|--------|
 | `CI_WEBHOOK_SECRET` | Secreto compartido para la firma HMAC-SHA256 (`X-Hub-Signature-256`) |
 | `CI_SERVICE_USER_ID` | UUID del usuario de servicio al que se atribuye la ingesta (debe ser miembro de la organización) |
-| `CI_SERVICE_ORG_ID` | Opcional: si se define, el webhook rechaza (403) artefactos de cualquier otra organización |
+| `CI_SERVICE_ORG_ID` | **Obligatoria para el webhook global** `/v2/ci/webhook`: la única organización aceptada (403 al resto). Sin ella el webhook responde 503 en vez de confiar en el `org_id` del cuerpo. Para varias organizaciones, usa `/v2/ci/ingest` con un token de ingesta por organización |
 
 La alternativa sin secreto compartido es `POST /v2/ci/ingest` con un token de ingesta por
 organización, que se crea desde la app (Integraciones).
@@ -217,8 +274,8 @@ despliegue) y [`docs/demo/guion.md`](../demo/guion.md) (guion de la presentació
 
 ## Lista de comprobación
 
-- [ ] Todas las migraciones de `db/migrations/` aplicadas en orden (se puede comprobar que
-      RLS está activo con `relrowsecurity` en `pg_class`).
+- [ ] Último «Desplegar backend» en verde (migraciones aplicadas: `select * from
+      mnemo_meta.schema_migrations order by filename`).
 - [ ] `GET https://<backend>/v2/health` responde 200.
 - [ ] `GET https://<backend>/v2/certificates/pubkey` responde 200 con la clave pública (las
       actas firmadas están operativas).

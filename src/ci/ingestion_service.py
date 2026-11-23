@@ -1,13 +1,11 @@
 import hashlib
-from dataclasses import replace
 from typing import Any, Dict
 
 from src.ci.mapping import to_failure_records
 from src.ci.models import CiRunArtifact
 from src.defects.embedder import Embedder
-from src.defects.fingerprint import fingerprint
-from src.defects.repository import AssuranceRepository, IngestItem
-from src.sanitizer import sanitize_text
+from src.defects.item_prep import build_ingest_item
+from src.defects.repository import AssuranceRepository
 
 
 class CiIngestionService:
@@ -26,14 +24,8 @@ class CiIngestionService:
         # Membresía ANTES de embeber (03-técnica E9); la definitiva sigue en la transacción.
         if not self.repo.is_member(user_id=user_id, org_id=artifact.org_id):
             raise PermissionError("user is not a member of the organization")
-        items = []
-        for rec in to_failure_records(artifact):
-            message = sanitize_text(rec.message)
-            trace = sanitize_text(rec.trace) if rec.trace else None
-            clean = replace(rec, message=message, trace=trace)
-            fp = fingerprint(clean)
-            embedding = self.embedder.embed(f"{clean.error_type or ''} {message}".strip())
-            items.append(IngestItem(rec=clean, fingerprint=fp, embedding=embedding))
+        # Huella del crudo, guardado y embedding del saneado (auditoría 23-nov, #3).
+        items = [build_ingest_item(rec, self.embedder) for rec in to_failure_records(artifact)]
 
         results = [
             {"test_name": t.test_name, "status": t.status, "retried": t.retried}
