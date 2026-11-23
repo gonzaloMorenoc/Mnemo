@@ -21,7 +21,7 @@ interface ApiRequestOptions {
 
 export async function apiRequest<T>(
   path: string,
-  method: "GET" | "POST" | "PATCH" | "DELETE",
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
   options: ApiRequestOptions = {},
 ) {
   const headers = new Headers(options.headers ?? {});

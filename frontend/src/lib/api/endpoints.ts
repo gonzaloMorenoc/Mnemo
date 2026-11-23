@@ -442,3 +442,29 @@ export function getLatestHandover(token: string, orgId: string, project: string)
   const qs = new URLSearchParams({ org_id: orgId, project });
   return apiRequest<HandoverAct>(`/api/v2/continuity/handover/latest?${qs}`, "GET", { token });
 }
+
+// ── Ajustes de IA por organización (solo owner/admin) ───────────────────────
+
+export interface LlmSettings {
+  org_id: string;
+  allow_external_llm: boolean;
+  provider: string;
+  provider_is_external: boolean;
+  global_external_allowed: boolean;
+}
+
+export function getLlmSettings(token: string, orgId: string) {
+  return apiRequest<LlmSettings>(
+    `/api/v2/orgs/${encodeURIComponent(orgId)}/llm-settings`,
+    "GET",
+    { token },
+  );
+}
+
+export function putLlmSettings(token: string, orgId: string, allowExternalLlm: boolean) {
+  return apiRequest<LlmSettings>(
+    `/api/v2/orgs/${encodeURIComponent(orgId)}/llm-settings`,
+    "PUT",
+    { token, body: { allow_external_llm: allowExternalLlm } },
+  );
+}
