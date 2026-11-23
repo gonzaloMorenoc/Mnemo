@@ -87,6 +87,12 @@ MNEMO_SIGNING_RETIRED_PUBLIC_KEYS = os.getenv("MNEMO_SIGNING_RETIRED_PUBLIC_KEYS
 MNEMO_PUBLIC_APP_URL = os.getenv("MNEMO_PUBLIC_APP_URL", "").rstrip("/")
 
 
+def api_docs_exposed() -> bool:
+    """/docs, /redoc y /openapi.json solo con MNEMO_EXPOSE_API_DOCS=true: en producción
+    no se publica el mapa completo de la API (auditoría 23-nov, H9.5)."""
+    return os.getenv("MNEMO_EXPOSE_API_DOCS", "").lower() == "true"
+
+
 def multi_tenant_enabled() -> bool:
     """True solo si hay BD Postgres y Supabase configurados."""
     return bool(DATABASE_URL and SUPABASE_URL)

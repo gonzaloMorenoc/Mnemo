@@ -13,7 +13,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from src.api_v2 import router as v2_router
-from src.config import CI_MAX_BODY_BYTES, INGEST_MAX_BYTES
+from src.config import CI_MAX_BODY_BYTES, INGEST_MAX_BYTES, api_docs_exposed
 from src.db.pool import get_pool, close_pool
 from src.http.body_limit import BodySizeLimitMiddleware
 
@@ -50,7 +50,13 @@ async def lifespan(app: FastAPI):
     close_pool()
 
 
-app = FastAPI(title="Mnemo Autopilot", version="2.0.0", lifespan=lifespan)
-app.include_router(v2_router)
-app.add_middleware(BodySizeLimitMiddleware, limits=BODY_LIMITS,
-                   default_limit=DEFAULT_MAX_BODY_BYTES)
+def create_app(*, expose_api_docs: bool) -> FastAPI:
+    docs = {} if expose_api_docs else {"docs_url": None, "redoc_url": None, "openapi_url": None}
+    application = FastAPI(title="Mnemo Autopilot", version="2.0.0", lifespan=lifespan, **docs)
+    application.include_router(v2_router)
+    application.add_middleware(BodySizeLimitMiddleware, limits=BODY_LIMITS,
+                               default_limit=DEFAULT_MAX_BODY_BYTES)
+    return application
+
+
+app = create_app(expose_api_docs=api_docs_exposed())
