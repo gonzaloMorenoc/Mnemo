@@ -42,6 +42,8 @@ from src.actions.service import ActionService
 from src.actions.ticket import TicketActuator
 from src.ci.github_app import GitHubCodeHost, GitHubError
 from src.ci.github_auth import GitHubAppAuth, GitHubAppNotConfigured, GitHubAuthError
+from src.ci.ingest_fields import (PROJECT_MAX_LEN, optional_text, parse_branch,
+                                  parse_commit_sha)
 from src.ci.ingestion_service import CiIngestionService
 from src.triage.service import TriageService
 from src.ci.models import CiRunArtifact
@@ -648,26 +650,98 @@ async def _read_upload_capped_async(file: UploadFile) -> bytes:
     return data
 
 
-@router.post("/ingest/report", response_model=IngestReportResponse)
-def ingest_report_v2(
-    file: UploadFile = File(...),
-    project: str = Form(...),
-    source: str = Form("auto"),
-    org_id: str = Form(...),
-    user: AuthenticatedUser = Depends(get_current_user),
-    service: IngestionService = Depends(get_ingestion_service),
-) -> IngestReportResponse:
+_MULTIPART_MARGIN_BYTES = 65536  # cabeceras/boundaries del multipart sobre el archivo
+
+
+def _reject_declared_oversize(request: Request) -> None:
+    """413 por `Content-Length` ANTES de leer el cuerpo (margen para el multipart)."""
+    declared = request.headers.get("content-length")
+    if (declared is not None and declared.isdigit()
+            and int(declared) > INGEST_MAX_BYTES + _MULTIPART_MARGIN_BYTES):
+        raise HTTPException(status_code=413, detail="payload too large")
+
+
+def _pipeline_pending(user_id: str, result: Dict[str, Any]) -> bool:
+    """¿Hay que correr triaje + acta + gate tras esta ingesta?
+
+    Siempre si el run es nuevo. Si llegó deduplicado, solo si se quedó sin
+    triaje o sin acta (el pipeline es best-effort: un fallo dejaba el run cojo para
+    siempre porque el reintento del CI solo devolvía «deduplicado»)."""
+    if not result.get("deduplicated"):
+        return True
     try:
-        data = _read_upload_capped(file)
-        result = service.ingest_report(
-            user_id=user.user_id, org_id=org_id, project=project, source=source, data=data
-        )
+        return get_assurance_repo().run_needs_pipeline(user_id=user_id,
+                                                       run_id=result["run_id"])
+    except Exception:  # noqa: BLE001 — sin poder comprobarlo, no relanzar (como antes)
+        logger.exception("no se pudo comprobar el pipeline del run %s", result.get("run_id"))
+        return False
+
+
+def _ingest_and_run_pipeline(service: IngestionService, *, user_id: str, org_id: str,
+                             project: str, source: str, data: bytes,
+                             commit_sha: Optional[str] = None,
+                             branch: Optional[str] = None) -> Dict[str, Any]:
+    """Ingesta del report + pipeline post-ingesta. Bloqueante (embeddings, BD, LLM):
+    llamar SIEMPRE desde el threadpool. Compartido por la subida web y /ci/ingest."""
+    result = service.ingest_report(user_id=user_id, org_id=org_id, project=project,
+                                   source=source, data=data, commit_sha=commit_sha,
+                                   branch=branch)
+    triage, verdict, gate = None, None, None
+    if _pipeline_pending(user_id, result):
+        triage, verdict, gate = _post_ingest_pipeline(user_id, result["run_id"])
+    return {**result, "triage": triage, "verdict": verdict, "gate": gate}
+
+
+async def _ingest_report_off_loop(service: IngestionService, **kwargs) -> Dict[str, Any]:
+    """Corre la ingesta + pipeline en el threadpool y traduce los errores a HTTP."""
+    try:
+        return await run_in_threadpool(_ingest_and_run_pipeline, service, **kwargs)
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except (ValueError, OSError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail="Database error") from exc
+
+
+@router.post("/ingest/report", response_model=IngestReportResponse)
+async def ingest_report_v2(
+    request: Request,
+    background: BackgroundTasks,
+    user: AuthenticatedUser = Depends(get_current_user),
+    service: IngestionService = Depends(get_ingestion_service),
+) -> IngestReportResponse:
+    """Subida de un report desde la web: ingesta + triaje + acta + gate (como
+    /ci/ingest) y propuestas de conocimiento tras responder.
+
+    El multipart se parsea a mano: con `UploadFile = File(...)` en la firma, FastAPI
+    lee el cuerpo ANTES de autenticar. Orden: auth (JWT) → cota → campos →
+    membresía → lectura del archivo → parseo/embeddings (en el threadpool)."""
+    _reject_declared_oversize(request)
+    form = await request.form()
+    upload = form.get("file")
+    project = form.get("project")
+    org_id = form.get("org_id")
+    source = str(form.get("source") or "auto")
+    if (upload is None or isinstance(upload, str) or not isinstance(project, str)
+            or not project or not isinstance(org_id, str) or not org_id):
+        raise HTTPException(status_code=422,
+                            detail="faltan los campos multipart: file, project y org_id")
+    if len(project) > PROJECT_MAX_LEN:
+        raise HTTPException(status_code=400,
+                            detail=f"project demasiado largo (máx. {PROJECT_MAX_LEN})")
+    try:
+        member = await run_in_threadpool(service.is_member, user_id=user.user_id,
+                                         org_id=org_id)
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    if not member:
+        raise HTTPException(status_code=403, detail="user is not a member of the organization")
+    data = await _read_upload_capped_async(upload)
+    result = await _ingest_report_off_loop(service, user_id=user.user_id, org_id=org_id,
+                                           project=project, source=source, data=data)
+    if not result.get("deduplicated"):
+        background.add_task(_propose_knowledge_after_ingest, user.user_id, org_id)
     return IngestReportResponse(**result)
 
 
@@ -748,10 +822,23 @@ def _process_ci_artifact(artifact: CiRunArtifact) -> CiWebhookResponse:
     triage_summary = None
     verdict = None
     gate = None
-    if not result.get("deduplicated"):
+    if _pipeline_pending(CI_SERVICE_USER_ID, result):
         triage_summary, verdict, gate = _post_ingest_pipeline(
             CI_SERVICE_USER_ID, result["run_id"])
     return CiWebhookResponse(**result, triage=triage_summary, verdict=verdict, gate=gate)
+
+
+async def _read_body_capped(request: Request, cap: int) -> bytes:
+    """Lee el cuerpo por trozos cortando en cuanto supera `cap`: sin Content-Length
+    (Transfer-Encoding: chunked) `request.body()` lo leería entero antes de mirar."""
+    chunks: List[bytes] = []
+    size = 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > cap:
+            raise HTTPException(status_code=413, detail="payload too large")
+        chunks.append(chunk)
+    return b"".join(chunks)
 
 
 @router.post("/ci/webhook", response_model=CiWebhookResponse)
@@ -759,9 +846,7 @@ async def ci_webhook(request: Request, background: BackgroundTasks) -> CiWebhook
     declared = request.headers.get("content-length")
     if declared is not None and declared.isdigit() and int(declared) > CI_MAX_BODY_BYTES:
         raise HTTPException(status_code=413, detail="payload too large")
-    body = await request.body()
-    if len(body) > CI_MAX_BODY_BYTES:
-        raise HTTPException(status_code=413, detail="payload too large")
+    body = await _read_body_capped(request, CI_MAX_BODY_BYTES)
     signature = request.headers.get("X-Hub-Signature-256", "")
     if not verify_signature(body, signature, CI_WEBHOOK_SECRET):
         raise HTTPException(status_code=401, detail="invalid signature")
@@ -843,7 +928,11 @@ async def ci_ingest(
 
         curl -H "Authorization: Bearer mnemo_it_…" \\
              -F file=@junit.xml -F project=mi-proyecto \\
+             -F commit_sha=$GITHUB_SHA -F branch=$GITHUB_REF_NAME \\
              https://…/v2/ci/ingest
+
+    `commit_sha` (hex 7-40) y `branch` son opcionales: con el commit, el gate puede
+    publicar el check en el PR y el triaje detecta intermitencias en el mismo SHA.
 
     El multipart se parsea A MANO y DESPUÉS de autenticar + acotar el tamaño:
     con `file: UploadFile = File(...)` en la firma, FastAPI bufferiza el cuerpo
@@ -852,19 +941,24 @@ async def ci_ingest(
     """
     # 1) Autenticación antes de tocar el cuerpo. Un token sin el prefijo
     #    mnemo_it_ se rechaza sin consultar la BD (resolve corta por formato).
+    #    resolve hace un UPDATE en Postgres → threadpool, no en el event loop.
     auth = request.headers.get("Authorization", "")
     token = (auth[7:] if auth.startswith("Bearer ") else
              request.headers.get("X-Mnemo-Token", "")).strip()
     try:
-        info = repo.resolve(token=token)
+        info = await run_in_threadpool(repo.resolve, token=token)
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail="Database error") from exc
     if info is None:
         raise HTTPException(status_code=401, detail="token de ingesta inválido o revocado")
+    # El token autoriza por SU ORG; el pipeline corre con el actor que resolve
+    # eligió (el creador si sigue siendo owner/admin, si no otro owner/admin).
+    actor = info.get("acting_user_id")
+    if not actor:
+        raise HTTPException(status_code=403,
+                            detail="la organización del token no tiene ningún owner/admin")
     # 2) Cota de tamaño antes de parsear (patrón de /ci/webhook; margen multipart)
-    declared = request.headers.get("content-length")
-    if declared is not None and declared.isdigit() and int(declared) > INGEST_MAX_BYTES + 65536:
-        raise HTTPException(status_code=413, detail="payload too large")
+    _reject_declared_oversize(request)
     # 3) Parseo del multipart (async; no bloquea el event loop)
     form = await request.form()
     upload = form.get("file")
@@ -872,30 +966,22 @@ async def ci_ingest(
     source = str(form.get("source") or "auto")
     if upload is None or isinstance(upload, str) or not project or not isinstance(project, str):
         raise HTTPException(status_code=422, detail="faltan los campos multipart: file y project")
-    if len(project) > 200:
-        raise HTTPException(status_code=400, detail="project demasiado largo (máx. 200)")
+    if len(project) > PROJECT_MAX_LEN:
+        raise HTTPException(status_code=400,
+                            detail=f"project demasiado largo (máx. {PROJECT_MAX_LEN})")
+    try:
+        commit_sha = parse_commit_sha(optional_text(form.get("commit_sha")))
+        branch = parse_branch(optional_text(form.get("branch")))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     data = await _read_upload_capped_async(upload)
 
-    def _work() -> Dict[str, Any]:
-        result = service.ingest_report(user_id=info["created_by"], org_id=info["org_id"],
-                                       project=project, source=source, data=data)
-        triage, verdict, gate = None, None, None
-        if not result.get("deduplicated"):
-            triage, verdict, gate = _post_ingest_pipeline(info["created_by"], result["run_id"])
-        return {**result, "triage": triage, "verdict": verdict, "gate": gate}
-
-    try:
-        result = await run_in_threadpool(_work)
-    except PermissionError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
-    except (ValueError, OSError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except psycopg.Error as exc:
-        raise HTTPException(status_code=502, detail="Database error") from exc
+    result = await _ingest_report_off_loop(
+        service, user_id=actor, org_id=info["org_id"], project=project, source=source,
+        data=data, commit_sha=commit_sha, branch=branch)
     if not result.get("deduplicated"):
         # Igual que en el webhook: tras responder, no dentro de la respuesta.
-        background.add_task(_propose_knowledge_after_ingest,
-                            info["created_by"], info["org_id"])
+        background.add_task(_propose_knowledge_after_ingest, actor, info["org_id"])
     return result
 
 
@@ -1694,7 +1780,8 @@ def import_knowledge(
     """Import determinista desde Jira (claves) a la bandeja de propuestas. Sin LLM
     aquí: el refinado es por-propuesta. Errores por-ref en la respuesta."""
     try:
-        out = svc.import_refs(user_id=user.user_id, org_id=req.org_id, refs=req.refs)
+        out = svc.import_refs(user_id=user.user_id, org_id=req.org_id, refs=req.refs,
+                              project=req.project)
     except ImportNotConfigured as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ImportRateLimited as exc:

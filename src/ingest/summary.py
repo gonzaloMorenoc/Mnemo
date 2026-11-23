@@ -146,8 +146,11 @@ def summarize(source: str, data: bytes) -> Optional[RunSummary]:
 
 
 def to_manifest(summary: RunSummary, *, artifact_sha256: str,
-                commit_sha: Optional[str]) -> dict:
-    return {"total": summary.total, "passed": summary.passed, "failed": summary.failed,
-            "skipped": summary.skipped, "flaky": summary.flaky, "complete": summary.complete,
-            "source_format": summary.source_format, "artifact_sha256": artifact_sha256,
-            "commit_sha": commit_sha}
+                commit_sha: Optional[str], branch: Optional[str] = None) -> dict:
+    manifest = {"total": summary.total, "passed": summary.passed, "failed": summary.failed,
+                "skipped": summary.skipped, "flaky": summary.flaky,
+                "complete": summary.complete, "source_format": summary.source_format,
+                "artifact_sha256": artifact_sha256, "commit_sha": commit_sha}
+    # La rama solo entra si viene: los manifiestos (firmados en el acta) de las
+    # ingestas sin rama conservan exactamente la forma de siempre.
+    return {**manifest, "branch": branch} if branch else manifest

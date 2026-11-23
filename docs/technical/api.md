@@ -67,12 +67,12 @@ El LLM es opcional en casi toda la API. Si el proveedor no se puede construir o 
 
 | Método | Ruta | Descripción | Auth |
 |---|---|---|---|
-| `POST` | `/v2/ingest/report` | Multipart: `file`, `project`, `org_id`, `source` (por defecto `auto`). → `IngestReportResponse {run_id, ingested, known, novel, deduplicated}`. Solo ingesta (no encadena triaje ni acta) | JWT + miembro |
+| `POST` | `/v2/ingest/report` | Multipart: `file`, `project`, `org_id`, `source` (por defecto `auto`). → `IngestReportResponse {run_id, ingested, known, novel, deduplicated, triage, verdict, gate}`. Encadena el mismo pipeline que `/ci/ingest` (ver abajo). Orden: JWT → cota `Content-Length` (413) → campos (422) → membresía (403) → lectura del archivo y embeddings | JWT + miembro |
 | `POST` | `/v2/ingest/jira/file` | Multipart: `file` (export de Jira), `project`, `org_id` → `JiraIngestResponse {run_id, ingested, known, novel, skipped}` | JWT + miembro |
 | `POST` | `/v2/ingest/jira/pull` | `{org_id, project}`: pull vía la integración Jira configurada → `JiraIngestResponse`; 502 si falla la API de Jira | JWT + miembro |
 | `GET` | `/v2/runs?org_id=&project=&limit=&offset=` | Histórico de runs (más reciente primero) con el veredicto del acta más reciente, `risk_score` y nº de fallos. `limit` por defecto 50, acotado a 1–100; lista vacía si no es miembro | JWT + miembro |
 | `POST` | `/v2/ci/webhook` | Artefacto JSON de CI firmado (ver abajo) → `CiWebhookResponse` | HMAC |
-| `POST` | `/v2/ci/ingest` | Ingesta genérica: multipart `file` + `project` (+ `source`, por defecto `auto`) | Token de ingesta |
+| `POST` | `/v2/ci/ingest` | Ingesta genérica: multipart `file` + `project` (+ `source`, por defecto `auto`; opcionales `commit_sha` y `branch`) | Token de ingesta |
 | `POST` | `/v2/ingest/tokens` | `{org_id, name}` → crea un token. El token en claro **solo se devuelve aquí**; en BD vive su sha256 | JWT + owner/admin |
 | `GET` | `/v2/ingest/tokens?org_id=` | Lista los tokens de la org (sin el claro) | JWT + miembro |
 | `POST` | `/v2/ingest/tokens/{token_id}/revoke` | Revoca un token → `{revoked: true}`; 403 si no existe, ya estaba revocado o falta el rol | JWT + owner/admin |
@@ -91,22 +91,25 @@ Respuesta `CiWebhookResponse = {run_id, ingested, known, novel, results_recorded
 
 Cualquier CI se enchufa **con un token, sin instalar nada propietario**: se sube el report tal cual lo genera el runner (JUnit, TestNG, Robot, Allure, Playwright, Cypress o Cucumber, con autodetección).
 
-Orden: autenticación por token (401) → cota por `Content-Length` (413) → parseo del multipart (422 si faltan `file` o `project`; 400 si `project` supera 200 caracteres). El multipart se parsea a mano **después** de autenticar, para que un anónimo no pueda forzar el volcado de archivos enormes.
+Orden: autenticación por token (401; 403 si la org del token no tiene ningún owner/admin) → cota por `Content-Length` (413) → parseo del multipart (422 si faltan `file` o `project`; 400 si `project` supera 200 caracteres, si `commit_sha` no es un SHA hexadecimal de 7-40 caracteres o si `branch` supera 255 o lleva caracteres de control). El multipart se parsea a mano **después** de autenticar, para que un anónimo no pueda forzar el volcado de archivos enormes.
 
 ```bash
 curl -sS -H "Authorization: Bearer $MNEMO_INGEST_TOKEN" \
      -F file=@test-results/junit.xml \
      -F project=mi-proyecto \
+     -F commit_sha=$GITHUB_SHA -F branch=$GITHUB_REF_NAME \
      https://<backend>/v2/ci/ingest
 # → {"run_id": "…", "ingested": …, "known": …, "novel": …, "deduplicated": false,
 #    "triage": {...}, "verdict": "apto|apto-con-reservas|no-apto|sin_confirmar", "gate": "…"}
 ```
 
-El token actúa con la identidad de quien lo creó (owner/admin): las comprobaciones de pertenencia del pipeline aplican tal cual, y si esa persona deja la organización sus tokens dejan de funcionar. **Nota operativa:** degradar a alguien de owner/admin a member NO revoca sus tokens existentes; si se le retira la confianza, hay que revocarlos explícitamente. Tabla `ingest_tokens` (migración `024`): RLS con lectura para miembros y escritura solo admin, sin grants de escritura a `authenticated`; la gestión va siempre por la API.
+Con `commit_sha`, el run queda ligado al commit: el gate puede publicar el check en el PR, el manifiesto del acta lo lleva (y `branch`, si viene) y el triaje detecta intermitencias en el mismo SHA. Para JUnit, Playwright, Cypress y Allure se guarda además el resultado de cada test, pasados incluidos (`test_results`), que alimenta las señales `retry_passed_in_run` e `intermittent_same_sha`; Robot, TestNG y Cucumber aún no lo aportan.
 
-### Pipeline post-ingesta (webhook y `/ci/ingest`)
+El token es una **credencial de la organización**, no de la persona que lo creó: la ingesta se autoriza por la org del token (válido y no revocado). El pipeline corre con el creador si sigue siendo owner/admin y, si no (p. ej. dejó la organización), con el owner —o, en su defecto, el admin— vigente más antiguo; `created_by` queda solo para auditoría. Para cortar el acceso hay que **revocar el token**: ni la salida ni la degradación de quien lo creó lo desactivan. Tabla `ingest_tokens` (migración `024`): RLS con lectura para miembros y escritura solo admin, sin grants de escritura a `authenticated`; la gestión va siempre por la API.
 
-Si el run no está deduplicado, ambos endpoints encadenan **ingesta → triaje → acta firmada → gate**, cada etapa best-effort: si una falla queda en el log, su campo de la respuesta vuelve `null` y lo ya commiteado se conserva.
+### Pipeline post-ingesta (webhook, `/ci/ingest` y `/ingest/report`)
+
+Si el run es nuevo —o llega deduplicado pero se quedó sin triaje (tiene fallos y ningún veredicto) o sin acta—, los tres endpoints encadenan **ingesta → triaje → acta firmada → gate**, cada etapa best-effort: si una falla queda en el log, su campo de la respuesta vuelve `null` y lo ya commiteado se conserva.
 
 Después de enviar la respuesta, una `BackgroundTask` genera **propuestas de conocimiento** para hasta 3 familias sin lección (el CI no espera al LLM). Se omite si el stack multitenant o el LLM no están configurados; los fallos solo se registran en el log.
 
@@ -234,7 +237,7 @@ Se verifica por la misma puerta pública que el acta de release. Las actas v1 si
 | `POST` | `/v2/knowledge/proposals/{id}/approve` | `{kind (por defecto leccion), title, challenge?, approach?, domain?, outcome?, tags[]}`: aprueba e inserta en la memoria de forma atómica. 403 si falta el rol o ya no está pendiente | JWT + owner/admin |
 | `POST` | `/v2/knowledge/proposals/{id}/reject` | `{reason}` (≤500) → `{rejected: true}`; 403 si falta el rol o ya no está pendiente (una propuesta resuelta no se reabre) | JWT + owner/admin |
 | `POST` | `/v2/knowledge/proposals/{id}/refine` | Una llamada LLM que condensa la propuesta y sugiere `kind`/`domain`. 404 si no existe o ya está resuelta; 503 si el LLM cae (la propuesta queda como estaba) | JWT + miembro |
-| `POST` | `/v2/knowledge/import` | `{org_id, refs[]}` (1–10, cada una ≤500) → `{created[], refreshed[], skipped[], errors[{ref, reason}]}` | JWT + miembro |
+| `POST` | `/v2/knowledge/import` | `{org_id, refs[], project?}` (1–10, cada una ≤500; `project` ≤200, obligatorio para páginas de Confluence —sin él, error por ref— y, para Jira, sustituye a la clave del proyecto) → `{created[], refreshed[], skipped[], errors[{ref, reason}]}` | JWT + miembro |
 
 Además de `generate`, las propuestas nacen automáticamente al calcular una causa raíz y tras cada ingesta de CI (ver *Pipeline post-ingesta*).
 

@@ -53,6 +53,26 @@ class RefError:
     reason: str
 
 
+_PROJECT_REQUIRED = ("Indica el proyecto al que pertenece la página de Confluence:"
+                     " sin proyecto no cuenta para el índice ni para el acta.")
+
+
+def _clean_project(project: Optional[str]) -> Optional[str]:
+    value = (project or "").strip()
+    return value or None
+
+
+def _split_confluence_without_project(parsed: List[ParsedRef], project: Optional[str],
+                                      errors: List[RefError]) -> List[ParsedRef]:
+    """Sin proyecto, las páginas de Confluence se rechazan por ref (sin fetch); los
+    issues de Jira siguen (su proyecto por defecto es la clave)."""
+    if project:
+        return parsed
+    errors.extend(RefError(ref=p.key, reason=_PROJECT_REQUIRED)
+                  for p in parsed if p.source == "confluence")
+    return [p for p in parsed if p.source != "confluence"]
+
+
 def parse_refs(refs: List[str],
                configured_base_url: str) -> Tuple[List[ParsedRef], List[RefError]]:
     """Valida cada ref con regex ESTRICTA (nunca se interpola texto crudo en un path
@@ -93,9 +113,10 @@ def parse_refs(refs: List[str],
     return parsed, errors
 
 
-def _draft_from_issue(issue: JiraIssue, base_url: str) -> Dict[str, Any]:
+def _draft_from_issue(issue: JiraIssue, base_url: str,
+                      project: Optional[str] = None) -> Dict[str, Any]:
     key = issue.key
-    project = key.split("-")[0]
+    jira_project = key.split("-")[0]
     outcome = None
     if issue.resolution:
         fecha = issue.resolution_date[:10] if issue.resolution_date else ""
@@ -109,14 +130,15 @@ def _draft_from_issue(issue: JiraIssue, base_url: str) -> Dict[str, Any]:
         "approach": (sanitize_text(issue.acceptance_criteria)[:4000] or None),
         "outcome": outcome,
         "domain": None,
-        "tags": [project],
-        "project": project,
+        "tags": [jira_project],
+        # El proyecto de Mnemo que elige el usuario; sin él, la clave de Jira.
+        "project": project or jira_project,
         "external_url": f"{base_url.rstrip('/')}/browse/{key}",
     }
 
 
 def _draft_from_section(page: ConfluencePage, ref: ParsedRef, base_url: str,
-                        draft: Dict[str, Any]) -> Dict[str, Any]:
+                        draft: Dict[str, Any], project: str) -> Dict[str, Any]:
     """Una sección de una página → borrador de propuesta.
 
     `sanitize_text` se aplica POR SECCIÓN: su cota interna son 20.000 caracteres, así
@@ -134,7 +156,9 @@ def _draft_from_section(page: ConfluencePage, ref: ParsedRef, base_url: str,
         "outcome": None,
         "domain": None,
         "tags": [space] if space else [],
-        "project": None,
+        # Sin proyecto, el conocimiento no cuenta para el índice ni para el acta
+        # (filtran por proyecto): lo elige el usuario al importar.
+        "project": project,
         "external_url": f"{base_url.rstrip('/')}/wiki/pages/viewpage.action?pageId={ref.key}",
     }
 
@@ -167,8 +191,8 @@ class KnowledgeImportService:
             lambda creds: ConfluenceApiClient(creds["base_url"], creds["email"],
                                               creds["token"], timeout=10))
 
-    def import_refs(self, *, user_id: str, org_id: str,
-                    refs: List[str]) -> Dict[str, Any]:
+    def import_refs(self, *, user_id: str, org_id: str, refs: List[str],
+                    project: Optional[str] = None) -> Dict[str, Any]:
         if len(refs) > _MAX_REFS:
             raise ValueError(f"máximo {_MAX_REFS} referencias por tanda")
         creds = self.integrations.get_jira_credentials(user_id=user_id, org_id=org_id)
@@ -177,6 +201,8 @@ class KnowledgeImportService:
                 "Configura la integración de Jira en Integraciones antes de importar.")
         validate_base_url(creds["base_url"])  # re-validación en el momento del uso (TOCTOU)
         parsed, errors = parse_refs(refs, creds["base_url"])
+        project = _clean_project(project)
+        parsed = _split_confluence_without_project(parsed, project, errors)
         recent = self.repo.count_recent_imports(user_id=user_id, org_id=org_id)
         if recent + len(parsed) > _MAX_IMPORTS_PER_HOUR:
             raise ImportRateLimited(
@@ -206,10 +232,11 @@ class KnowledgeImportService:
                 if p.source == "confluence":
                     self._import_page(user_id=user_id, org_id=org_id, ref=p,
                                       page=content, base_url=creds["base_url"],
+                                      project=project,
                                       created=created, refreshed=refreshed,
                                       skipped=skipped, skipped_sections=skipped_sections)
                     continue
-                draft = _draft_from_issue(content, creds["base_url"])
+                draft = _draft_from_issue(content, creds["base_url"], project)
                 row = self.repo.upsert_import_proposal(
                     user_id=user_id, org_id=org_id, created_by=user_id,
                     source=p.source, external_ref=p.external_ref, **draft)
@@ -219,7 +246,7 @@ class KnowledgeImportService:
                 "errors": [{"ref": e.ref, "reason": e.reason} for e in errors]}
 
     def _import_page(self, *, user_id: str, org_id: str, ref: ParsedRef,
-                     page: ConfluencePage, base_url: str,
+                     page: ConfluencePage, base_url: str, project: str,
                      created: List[Dict[str, Any]], refreshed: List[Dict[str, Any]],
                      skipped: List[str], skipped_sections: List[Dict[str, Any]]) -> None:
         """Importa UNA página de Confluence como una propuesta por sección.
@@ -250,7 +277,7 @@ class KnowledgeImportService:
             skipped_sections.append({"ref": ref.key, "descartadas": descartadas})
 
         for d in drafts:
-            draft = _draft_from_section(page, ref, base_url, d)
+            draft = _draft_from_section(page, ref, base_url, d, project)
             row = self.repo.upsert_import_proposal(
                 user_id=user_id, org_id=org_id, created_by=user_id,
                 source=ref.source, external_ref=f"{ref.external_ref}#{d['slug']}",
