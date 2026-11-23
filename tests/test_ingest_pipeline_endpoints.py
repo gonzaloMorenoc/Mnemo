@@ -79,7 +79,19 @@ class TestIngestReportPipeline:
         pipe.assert_not_called()
         propose.assert_not_called()
 
-    def test_non_member_is_rejected_before_reading_the_file(self):
+    def test_non_member_is_rejected_before_reading_the_file(self, monkeypatch):
+        # La subida exige membresía Y rol (matriz de roles): sin rol en la org → 403.
+        import src.orgs.access as access_module
+
+        class _NoRole:
+            def role_of(self, *, org_id, user_id):
+                return None
+
+            def org_of(self, *, resource, resource_id):
+                return None
+
+        monkeypatch.setattr(access_module, "_access_factory",
+                            lambda: access_module.OrgAccess(_NoRole()))
         svc = _ingestion(member=False)
         with patch.object(api_v2, "_read_upload_capped_async") as read:
             r = _upload(_client(ingestion=svc))
