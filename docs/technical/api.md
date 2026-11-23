@@ -57,9 +57,15 @@ El LLM es opcional en casi toda la API. Si el proveedor no se puede construir o 
 |---|---|---|---|---|
 | `GET` | `/v2/orgs` | — | `OrganizationResponse[]` | JWT |
 | `POST` | `/v2/orgs` | `{name}` (2–120) | `OrganizationResponse`; el creador queda como `owner` | JWT |
-| `POST` | `/v2/orgs/join` | `{join_code}` (4–32) | `OrganizationResponse`; 404 si el código no existe | JWT |
+| `POST` | `/v2/orgs/join` | `{join_code}` (4–32) | `OrganizationResponse`; entra como `viewer`; 404 si el código no existe o ha caducado | JWT |
+| `POST` | `/v2/orgs/{org_id}/join-code/rotate` | — | `{join_code, join_code_expires_at}`; invalida el anterior (caduca a los 7 días) | JWT owner/admin |
+| `GET` | `/v2/orgs/{org_id}/members` | — | `[{user_id, role, email, display_name, created_at}]` | JWT owner/admin |
+| `PATCH` | `/v2/orgs/{org_id}/members/{user_id}` | `{role}` | `{user_id, role}`; 403 si un admin toca a un owner o alguien se sube a sí mismo; 409 si la org se quedaría sin owner | JWT owner/admin |
+| `DELETE` | `/v2/orgs/{org_id}/members/{user_id}` | — | `{removed: true}`; mismas reglas (cualquiera puede salir él mismo, salvo el último owner) | JWT owner/admin |
 
-`OrganizationResponse = {id, name, join_code, role, created_at}`.
+`OrganizationResponse = {id, name, join_code, join_code_expires_at, role, created_at}`; `join_code` y su caducidad solo llegan a owner/admin (para el resto, `null`).
+
+**Matriz de permisos** (`src/orgs/permissions.py`, aplicada con `enforce(...)` de `src/orgs/access.py`): `viewer` solo lee; `member` hace el trabajo diario de QA (subir informes, etiquetar, crear/editar conocimiento, resolver desempates, preguntar, generar planes y tests); `owner`/`admin` además configuran integraciones y tokens, publican el gate, aprueban acciones, emiten actas, abren PRs de automatización (`/automation/pr`) y gestionan miembros.
 
 ---
 

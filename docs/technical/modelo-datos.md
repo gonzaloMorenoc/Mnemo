@@ -65,7 +65,7 @@ Relevante solo para PostgREST (el pooler no los necesita):
 |---|---|
 | `is_org_member(org)` | `exists` en `memberships` con `user_id = (select auth.uid())`. Reescrita en `016` con subconsulta para que el planner evalúe `auth.uid()` una vez y no por fila. |
 | `is_org_admin(org)` | Igual, con `role in ('owner','admin')`. |
-| `join_organization_by_code(code)` | `security definer`: busca la org por `join_code` (sin distinguir mayúsculas) e inserta la pertenencia con rol `member`. |
+| `join_organization_by_code(code)` | `security definer`: busca la org por `join_code` (sin distinguir mayúsculas) y, si el código no ha caducado (`join_code_expires_at`, migración 032), inserta la pertenencia con rol `viewer`. |
 | `create_owner_membership()` | Trigger `after insert` en `organizations`: crea la pertenencia `owner` del creador. |
 | `set_default_org_owner_membership()` | Trigger `before insert` en `organizations`: **genera el `join_code`** (10 hex) si viene nulo. El nombre es engañoso. |
 | `search_chunks_scoped(vec, n)` | Resto del v1, sin uso. |
@@ -100,7 +100,7 @@ Notas:
 
 | Tabla | Propósito | Columnas clave |
 |---|---|---|
-| `organizations` | Org / cliente | `name`, `created_by` (FK `auth.users`, `on delete restrict`), `join_code` unique, `created_at` |
+| `organizations` | Org / cliente | `name`, `created_by` (FK `auth.users`, `on delete restrict`), `join_code` unique, `join_code_expires_at`, `created_at` |
 | `memberships` | **Fuente de verdad del aislamiento** | PK `(org_id, user_id)`, `role` enum `org_role` ∈ `owner`/`admin`/`member`/`viewer` |
 | `profiles` | Perfil por usuario (resto del v1) | PK `user_id`, `display_name`, `default_org_id` (FK, `set null`). El código actual no la usa. |
 
@@ -321,6 +321,7 @@ La reingesta de un repo borra e inserta todas sus filas (`replace_for_repo`).
 | 028 | Tabla `handover_acts` (actas de traspaso). |
 | 029 | Veredicto `sin_confirmar` en el CHECK de `certificates`. |
 | 030 | `triage_corrections.reason_embedding vector(384)`. |
+| 032 | `organizations.join_code_expires_at` (7 días por defecto) y `join_organization_by_code` da `viewer` y rechaza códigos caducados. |
 
 ---
 

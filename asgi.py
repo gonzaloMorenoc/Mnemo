@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from src.api_v2 import router as v2_router
+from src.orgs.api import router as orgs_members_router
 from src.db.pool import get_pool, close_pool
 from src.http.body_limit import BodySizeLimitMiddleware
 
@@ -34,4 +35,5 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Mnemo Autopilot", version="2.0.0", lifespan=lifespan)
 app.include_router(v2_router)
+app.include_router(orgs_members_router)
 app.add_middleware(BodySizeLimitMiddleware, limits=_PUBLIC_BODY_LIMITS)

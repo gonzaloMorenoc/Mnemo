@@ -134,6 +134,8 @@ from src.xray.client import XrayClient, XrayImportError, XrayNotConfigured
 from src.xray.config import XrayConfig
 from src.security import AuthenticatedUser, get_current_user
 from src.orgs.repository import OrganizationRepository
+from src.orgs.access import OrgAccess, Resource, enforce, get_org_access
+from src.orgs.permissions import Capability
 
 router = APIRouter(prefix="/v2", tags=["v2"])
 
@@ -484,11 +486,18 @@ def get_knowledge_import_service() -> KnowledgeImportService:
     return _knowledge_import_service
 
 
+def _iso_or_none(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    return value.isoformat() if hasattr(value, "isoformat") else str(value)
+
+
 def _org_to_response(org: Dict[str, Any]) -> OrganizationResponse:
     return OrganizationResponse(
         id=str(org["id"]),
         name=org["name"],
-        join_code=org["join_code"],
+        join_code=org.get("join_code"),
+        join_code_expires_at=_iso_or_none(org.get("join_code_expires_at")),
         role=org.get("role"),
         created_at=str(org["created_at"]) if org.get("created_at") is not None else None,
     )
@@ -610,8 +619,10 @@ def ingest_report_v2(
     source: str = Form("auto"),
     org_id: str = Form(...),
     user: AuthenticatedUser = Depends(get_current_user),
+    access: OrgAccess = Depends(get_org_access),
     service: IngestionService = Depends(get_ingestion_service),
 ) -> IngestReportResponse:
+    enforce(access, user.user_id, Capability.QA_WORK, org_id=org_id)
     try:
         data = _read_upload_capped(file)
         result = service.ingest_report(
@@ -745,9 +756,11 @@ async def ci_webhook(request: Request, background: BackgroundTasks) -> CiWebhook
 def create_ingest_token(
     req: IngestTokenCreateRequest,
     user: AuthenticatedUser = Depends(get_current_user),
+    access: OrgAccess = Depends(get_org_access),
     repo: IngestTokenRepository = Depends(get_ingest_token_repo),
 ) -> Dict[str, Any]:
     """Crea un token de ingesta (owner/admin). El token en claro SOLO viaja aquí."""
+    enforce(access, user.user_id, Capability.ADMIN, org_id=req.org_id)
     try:
         out = repo.create_token(user_id=user.user_id, org_id=req.org_id, name=req.name)
     except psycopg.Error as exc:
@@ -773,8 +786,10 @@ def list_ingest_tokens(
 def revoke_ingest_token(
     token_id: str,
     user: AuthenticatedUser = Depends(get_current_user),
+    access: OrgAccess = Depends(get_org_access),
     repo: IngestTokenRepository = Depends(get_ingest_token_repo),
 ) -> Dict[str, bool]:
+    enforce(access, user.user_id, Capability.ADMIN, resource=(Resource.INGEST_TOKEN, token_id))
     try:
         ok = repo.revoke_token(user_id=user.user_id, token_id=token_id)
     except psycopg.Error as exc:
@@ -888,8 +903,10 @@ def triage_run_v2(
 def resolve_triage_run_v2(
     run_id: str,
     user: AuthenticatedUser = Depends(get_current_user),
+    access: OrgAccess = Depends(get_org_access),
     service: TriageService = Depends(get_triage_service),
 ) -> Dict[str, int]:
+    enforce(access, user.user_id, Capability.QA_WORK, resource=(Resource.RUN, run_id))
     try:
         return service.resolve_tiebreaks(user_id=user.user_id, run_id=run_id)
     except psycopg.Error as exc:
@@ -900,8 +917,10 @@ def resolve_triage_run_v2(
 def set_jira_integration(
     body: JiraConfigRequest,
     user: AuthenticatedUser = Depends(get_current_user),
+    access: OrgAccess = Depends(get_org_access),
     integrations: IntegrationsRepository = Depends(get_integrations_repo),
 ) -> JiraConfigResponse:
+    enforce(access, user.user_id, Capability.ADMIN, org_id=body.org_id)
     try:
         base = validate_base_url(body.base_url)
         integrations.upsert_jira_config(
@@ -936,9 +955,11 @@ def get_jira_integration(
 def set_github_integration(
     body: GitHubConfigRequest,
     user: AuthenticatedUser = Depends(get_current_user),
+    access: OrgAccess = Depends(get_org_access),
     integrations: IntegrationsRepository = Depends(get_integrations_repo),
     gh_auth: GitHubAppAuth = Depends(get_github_app_auth),
 ) -> GitHubConfigResponse:
+    enforce(access, user.user_id, Capability.ADMIN, org_id=body.org_id)
     _verify_installation_ownership(
         gh_auth, installation_id=body.installation_id, repo_full_name=body.repo_full_name
     )
@@ -980,8 +1001,10 @@ def ingest_jira_file(
     project: str = Form(...),
     org_id: str = Form(...),
     user: AuthenticatedUser = Depends(get_current_user),
+    access: OrgAccess = Depends(get_org_access),
     service: JiraIngestionService = Depends(get_jira_ingestion_service),
 ) -> JiraIngestResponse:
+    enforce(access, user.user_id, Capability.QA_WORK, org_id=org_id)
     try:
         data = _read_upload_capped(file)
         result = service.ingest_from_export(
@@ -999,8 +1022,10 @@ def ingest_jira_file(
 def ingest_jira_pull(
     body: JiraPullRequest,
     user: AuthenticatedUser = Depends(get_current_user),
+    access: OrgAccess = Depends(get_org_access),
     service: JiraIngestionService = Depends(get_jira_ingestion_service),
 ) -> JiraIngestResponse:
+    enforce(access, user.user_id, Capability.QA_WORK, org_id=body.org_id)
     try:
         result = service.ingest_from_pull(
             user_id=user.user_id, org_id=body.org_id, project=body.project)
@@ -1061,9 +1086,11 @@ def set_family_label_v2(
     family_id: str,
     body: SetFamilyLabelRequest,
     user: AuthenticatedUser = Depends(get_current_user),
+    access: OrgAccess = Depends(get_org_access),
     repo: AssuranceRepository = Depends(get_assurance_repo),
     embedder=Depends(get_embedder),
 ) -> FamilyLabelResponse:
+    enforce(access, user.user_id, Capability.QA_WORK, resource=(Resource.FAMILY, family_id))
     try:
         ok = repo.set_family_label(user_id=user.user_id, family_id=family_id,
                                    label=body.label, reason=body.reason,
@@ -1097,6 +1124,7 @@ def root_cause_v2(
     defect_id: str,
     regenerate: bool = False,
     user: AuthenticatedUser = Depends(get_current_user),
+    access: OrgAccess = Depends(get_org_access),
     repo: AssuranceRepository = Depends(get_assurance_repo),
     analyzer=Depends(get_root_cause_analyzer),
     proposals: Optional[KnowledgeProposalService] = Depends(get_knowledge_proposal_service_optional),
@@ -1108,6 +1136,8 @@ def root_cause_v2(
         cached = data["family"].get("root_cause")
         if cached and not regenerate:
             return RootCauseResponse(defect_id=defect_id, root_cause=cached, cached=True)
+        # Leer la causa cacheada es lectura (viewer); calcularla y guardarla es trabajo de QA.
+        enforce(access, user.user_id, Capability.QA_WORK, resource=(Resource.FAMILY, defect_id))
         r = analyzer.analyze_structured(data["family"], data["failures"])
         if r.get("confidence", 0.0) == 0.0 and not r.get("citations"):
             raise HTTPException(status_code=503, detail="el análisis IA no produjo resultado")
@@ -1169,8 +1199,10 @@ def assurance_verdict_v2(
 def propose_actions_v2(
     run_id: str,
     user: AuthenticatedUser = Depends(get_current_user),
+    access: OrgAccess = Depends(get_org_access),
     service: ActionService = Depends(get_action_service),
 ) -> ProposeActionsResponse:
+    enforce(access, user.user_id, Capability.QA_WORK, resource=(Resource.RUN, run_id))
     try:
         return ProposeActionsResponse(**service.propose_actions(user_id=user.user_id, run_id=run_id))
     except psycopg.Error as exc:
@@ -1197,8 +1229,10 @@ def list_actions_v2(
 def approve_action_v2(
     action_id: str,
     user: AuthenticatedUser = Depends(get_current_user),
+    access: OrgAccess = Depends(get_org_access),
     service: ActionService = Depends(get_action_service),
 ) -> ActionApproveResponse:
+    enforce(access, user.user_id, Capability.ADMIN, resource=(Resource.ACTION, action_id))
     try:
         return ActionApproveResponse(
             **service.approve_action(user_id=user.user_id, action_id=action_id)
@@ -1218,8 +1252,10 @@ def reject_action_v2(
     action_id: str,
     body: ActionRejectRequest,
     user: AuthenticatedUser = Depends(get_current_user),
+    access: OrgAccess = Depends(get_org_access),
     service: ActionService = Depends(get_action_service),
 ) -> ActionRejectResponse:
+    enforce(access, user.user_id, Capability.ADMIN, resource=(Resource.ACTION, action_id))
     try:
         ok = service.reject_action(user_id=user.user_id, action_id=action_id, reason=body.reason)
     except psycopg.Error as exc:
@@ -1231,8 +1267,10 @@ def reject_action_v2(
 def generate_certificate_v2(
     run_id: str,
     user: AuthenticatedUser = Depends(get_current_user),
+    access: OrgAccess = Depends(get_org_access),
     service: CertificateService = Depends(get_certificate_service),
 ) -> CertificateResponse:
+    enforce(access, user.user_id, Capability.ADMIN, resource=(Resource.RUN, run_id))
     try:
         created_at = datetime.now(timezone.utc).isoformat()
         return CertificateResponse(**service.generate(user_id=user.user_id, run_id=run_id,
@@ -1358,10 +1396,12 @@ def get_continuity_v2(
 def emit_handover_v2(
     req: HandoverEmitRequest,
     user: AuthenticatedUser = Depends(get_current_user),
+    access: OrgAccess = Depends(get_org_access),
     service: ContinuityService = Depends(get_continuity_service),
 ) -> Dict[str, Any]:
     """Emite el acta de traspaso del proyecto (owner/admin). created_at lo pone
     el endpoint: la lógica firmada nunca llama a now()."""
+    enforce(access, user.user_id, Capability.ADMIN, org_id=req.org_id)
     created_at = datetime.now(timezone.utc).isoformat()
     try:
         return service.emit_handover(user_id=user.user_id, org_id=req.org_id,
@@ -1400,8 +1440,10 @@ def latest_handover_v2(
 def publish_gate_v2(
     run_id: str,
     user: AuthenticatedUser = Depends(get_current_user),
+    access: OrgAccess = Depends(get_org_access),
     service: GateService = Depends(get_gate_service),
 ) -> GateResponse:
+    enforce(access, user.user_id, Capability.ADMIN, resource=(Resource.RUN, run_id))
     try:
         return GateResponse(**service.publish(user_id=user.user_id, run_id=run_id))
     except ValueError as exc:
@@ -1418,9 +1460,11 @@ def publish_gate_v2(
 def defects_ask_v2(
     req: AskRequest,
     user: AuthenticatedUser = Depends(get_current_user),
+    access: OrgAccess = Depends(get_org_access),
     repo: AssuranceRepository = Depends(get_assurance_repo),
     embedder: "LocalEmbedder" = Depends(get_embedder),
 ) -> AskResponse:
+    enforce(access, user.user_id, Capability.QA_WORK, org_id=req.org_id)
     from src.ai.nl_query import answer_question
     try:
         emb = embedder.embed(req.question)
@@ -1508,8 +1552,10 @@ def get_graph_gaps(
 def create_knowledge(
     req: KnowledgeCreateRequest,
     user: AuthenticatedUser = Depends(get_current_user),
+    access: OrgAccess = Depends(get_org_access),
     repo: QaKnowledgeRepository = Depends(get_knowledge_repo),
 ) -> Dict[str, Any]:
+    enforce(access, user.user_id, Capability.QA_WORK, org_id=req.org_id)
     try:
         item = repo.create_item(
             user_id=user.user_id, org_id=req.org_id, kind=req.kind, title=req.title,
@@ -1565,8 +1611,10 @@ def list_knowledge_proposals(
 def generate_knowledge_proposals(
     req: KnowledgeProposalGenerateRequest,
     user: AuthenticatedUser = Depends(get_current_user),
+    access: OrgAccess = Depends(get_org_access),
     svc: KnowledgeProposalService = Depends(get_knowledge_proposal_service),
 ) -> Dict[str, int]:
+    enforce(access, user.user_id, Capability.QA_WORK, org_id=req.org_id)
     try:
         return svc.generate(user_id=user.user_id, org_id=req.org_id,
                             family_ids=req.family_ids, cap=req.cap)
@@ -1579,8 +1627,10 @@ def approve_knowledge_proposal(
     proposal_id: str,
     req: KnowledgeProposalApproveRequest,
     user: AuthenticatedUser = Depends(get_current_user),
+    access: OrgAccess = Depends(get_org_access),
     svc: KnowledgeProposalService = Depends(get_knowledge_proposal_service),
 ) -> Dict[str, Any]:
+    enforce(access, user.user_id, Capability.ADMIN, resource=(Resource.PROPOSAL, proposal_id))
     try:
         item = svc.approve(
             user_id=user.user_id, proposal_id=proposal_id, kind=req.kind, title=req.title,
@@ -1601,8 +1651,10 @@ def reject_knowledge_proposal(
     proposal_id: str,
     req: KnowledgeProposalRejectRequest,
     user: AuthenticatedUser = Depends(get_current_user),
+    access: OrgAccess = Depends(get_org_access),
     svc: KnowledgeProposalService = Depends(get_knowledge_proposal_service),
 ) -> Dict[str, bool]:
+    enforce(access, user.user_id, Capability.ADMIN, resource=(Resource.PROPOSAL, proposal_id))
     try:
         ok = svc.reject(user_id=user.user_id, proposal_id=proposal_id, reason=req.reason)
     except psycopg.Error as exc:
@@ -1617,10 +1669,12 @@ def reject_knowledge_proposal(
 def refine_knowledge_proposal(
     proposal_id: str,
     user: AuthenticatedUser = Depends(get_current_user),
+    access: OrgAccess = Depends(get_org_access),
     svc: KnowledgeProposalService = Depends(get_knowledge_proposal_service),
 ) -> Dict[str, Any]:
     """UNA llamada LLM que condensa la propuesta (y propone kind/domain). Si el LLM
     cae, la propuesta queda EXACTAMENTE como estaba (nunca se pierde el determinista)."""
+    enforce(access, user.user_id, Capability.QA_WORK, resource=(Resource.PROPOSAL, proposal_id))
     try:
         prop = svc.repo.get_proposal(user_id=user.user_id, proposal_id=proposal_id)
         if prop is None or prop.get("status") != "pending":
@@ -1643,10 +1697,12 @@ def refine_knowledge_proposal(
 def import_knowledge(
     req: KnowledgeImportRequest,
     user: AuthenticatedUser = Depends(get_current_user),
+    access: OrgAccess = Depends(get_org_access),
     svc: KnowledgeImportService = Depends(get_knowledge_import_service),
 ) -> KnowledgeImportResponse:
     """Import determinista desde Jira (claves) a la bandeja de propuestas. Sin LLM
     aquí: el refinado es por-propuesta. Errores por-ref en la respuesta."""
+    enforce(access, user.user_id, Capability.QA_WORK, org_id=req.org_id)
     try:
         out = svc.import_refs(user_id=user.user_id, org_id=req.org_id, refs=req.refs)
     except ImportNotConfigured as exc:
@@ -1683,10 +1739,12 @@ def update_knowledge(
     item_id: str,
     req: KnowledgeUpdateRequest,
     user: AuthenticatedUser = Depends(get_current_user),
+    access: OrgAccess = Depends(get_org_access),
     repo: QaKnowledgeRepository = Depends(get_knowledge_repo),
 ) -> Dict[str, Any]:
     """Edita un item (incluye marcar 'obsoleto'/reactivar). Autoridad: el autor
     sobre lo suyo, owner/admin sobre cualquier item de la org."""
+    enforce(access, user.user_id, Capability.QA_WORK, org_id=req.org_id)
     try:
         item = repo.update_item(user_id=user.user_id, org_id=req.org_id, item_id=item_id,
                                 fields=req.model_dump(exclude={"org_id"}, exclude_none=True))
@@ -1705,9 +1763,11 @@ def delete_knowledge(
     item_id: str,
     org_id: str,
     user: AuthenticatedUser = Depends(get_current_user),
+    access: OrgAccess = Depends(get_org_access),
     repo: QaKnowledgeRepository = Depends(get_knowledge_repo),
 ) -> Dict[str, bool]:
     """Borrado duro (para errores). Misma autoridad que la edición."""
+    enforce(access, user.user_id, Capability.QA_WORK, org_id=org_id)
     try:
         ok = repo.delete_item(user_id=user.user_id, org_id=org_id, item_id=item_id)
     except psycopg.Error as exc:
@@ -1737,10 +1797,12 @@ def search_knowledge(
 def ask_knowledge(
     req: KnowledgeAskRequest,
     user: AuthenticatedUser = Depends(get_current_user),
+    access: OrgAccess = Depends(get_org_access),
     krepo: QaKnowledgeRepository = Depends(get_knowledge_repo),
     arepo: AssuranceRepository = Depends(get_assurance_repo),
     embedder=Depends(get_embedder),
 ) -> Dict[str, Any]:
+    enforce(access, user.user_id, Capability.QA_WORK, org_id=req.org_id)
     svc = KnowledgeService(krepo, arepo, embedder=embedder)
     try:
         return svc.ask(user_id=user.user_id, org_id=req.org_id, question=req.question)
@@ -1788,6 +1850,7 @@ async def generate_test_plan_v2(
     jira_url: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
     user: AuthenticatedUser = Depends(get_current_user),
+    access: OrgAccess = Depends(get_org_access),
     krepo: QaKnowledgeRepository = Depends(get_knowledge_repo),
     arepo: AssuranceRepository = Depends(get_assurance_repo),
     integrations: IntegrationsRepository = Depends(get_integrations_repo),
@@ -1797,6 +1860,7 @@ async def generate_test_plan_v2(
 
     HU source priority: direct text > Jira URL > uploaded file.
     """
+    enforce(access, user.user_id, Capability.QA_WORK, org_id=org_id)
     try:
         if hu_text is not None:
             resolved_hu = hu_text
@@ -1835,6 +1899,7 @@ async def generate_test_plan_v2(
 def export_xray_v2(
     body: TestPlanXrayExportRequest,
     user: AuthenticatedUser = Depends(get_current_user),
+    access: OrgAccess = Depends(get_org_access),
 ) -> Dict[str, Any]:
     """Export a test plan to Jira/Xray.
 
@@ -1842,6 +1907,7 @@ def export_xray_v2(
     is instantiated.  Passing the returned creds as _creds= bypasses the
     internal get_raw() call that skips membership checks.
     """
+    enforce(access, user.user_id, Capability.QA_WORK, org_id=body.org_id)
     try:
         config = XrayConfig()
         creds = config.get(user_id=user.user_id, org_id=body.org_id)
@@ -1874,6 +1940,7 @@ def export_xray_v2(
 def automation_generate(
     req: AutomationGenerateRequest,
     user: AuthenticatedUser = Depends(get_current_user),
+    access: OrgAccess = Depends(get_org_access),
 ) -> Dict[str, Any]:
     """Genera un test Playwright (.spec.ts) a partir de un caso.
 
@@ -1881,6 +1948,7 @@ def automation_generate(
     (test_assets, few-shot) → convenciones estándar. El retrieval del few-shot
     es membership-gated (search_semantic); un no-miembro no obtiene ejemplos.
     """
+    enforce(access, user.user_id, Capability.QA_WORK, org_id=req.org_id)
     if not req.case:
         raise HTTPException(status_code=400, detail="case requerido")
     examples = req.style_sample
@@ -1901,15 +1969,19 @@ def automation_generate(
 def automation_pr(
     req: AutomationPrRequest,
     user: AuthenticatedUser = Depends(get_current_user),
+    access: OrgAccess = Depends(get_org_access),
 ) -> Dict[str, Any]:
     """Open a draft PR that adds req.filename under tests/ in the org's repo.
 
+    Sube código a una rama del repo del cliente y dispara su CI: solo owner/admin.
+
     Error mapping:
-    - PermissionError (non-member)  → 403
+    - rol distinto de owner/admin    → 403
     - ValueError (GitHub not configured) → 503
     - GitHubError (API failure) → 502
     - falsy pr_url → 502
     """
+    enforce(access, user.user_id, Capability.ADMIN, org_id=req.org_id)
     try:
         host = _github_codehost_factory(req.org_id, user.user_id)
     except PermissionError as exc:
@@ -1938,6 +2010,7 @@ def automation_pr(
 def repo_index(
     req: RepoIndexRequest,
     user: AuthenticatedUser = Depends(get_current_user),
+    access: OrgAccess = Depends(get_org_access),
 ) -> Dict[str, Any]:
     """Index test assets from the org's GitHub repo.
 
@@ -1947,6 +2020,7 @@ def repo_index(
     - GitHubError (API failure)            → 502
     - GitHub not configured / no repo      → 503
     """
+    enforce(access, user.user_id, Capability.QA_WORK, org_id=req.org_id)
     try:
         cfg = get_integrations_repo().get_github_config(user_id=user.user_id, org_id=req.org_id)
     except PermissionError as exc:
