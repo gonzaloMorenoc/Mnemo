@@ -17,6 +17,7 @@ from src.logging_config import configure_logging
 configure_logging()     # antes de importar la app: que sus logger.info no se pierdan
 
 from src.api_v2 import router as v2_router  # noqa: E402
+from src.orgs.api import router as orgs_members_router  # noqa: E402
 from src.db.pool import get_pool, close_pool  # noqa: E402
 from src.http.body_limit import BodySizeLimitMiddleware  # noqa: E402
 
@@ -38,4 +39,5 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Mnemo Autopilot", version="2.0.0", lifespan=lifespan)
 app.include_router(v2_router)
+app.include_router(orgs_members_router)
 app.add_middleware(BodySizeLimitMiddleware, limits=_PUBLIC_BODY_LIMITS)

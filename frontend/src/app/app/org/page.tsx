@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
+import { OrgMembersPanel, ROLE_LABEL } from "@/components/org/OrgMembersPanel";
 import { useAuth } from "@/components/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -121,7 +122,7 @@ export default function OrganizationPage() {
               <Users size={18} />
               Unirse a una organización
             </CardTitle>
-            <CardDescription>Usa el código de invitación de tu equipo.</CardDescription>
+            <CardDescription>Usa el código de invitación de tu equipo. Entrarás con rol de solo lectura.</CardDescription>
           </CardHeader>
           <CardContent>
             <form className="space-y-4" onSubmit={joinForm.handleSubmit((values) => joinMutation.mutate(values))}>
@@ -144,7 +145,9 @@ export default function OrganizationPage() {
       <Card>
         <CardHeader>
           <CardTitle>Tus organizaciones</CardTitle>
-          <CardDescription>Nombre, tu rol y el código para invitar a tu equipo.</CardDescription>
+          <CardDescription>
+            Nombre y tu rol. Si eres owner o admin, también el código de invitación y los miembros.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {organizationsQuery.isLoading && (
@@ -170,11 +173,15 @@ export default function OrganizationPage() {
             {organizationsQuery.data?.map((org) => (
               <div
                 key={org.id}
-                className="grid gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm md:grid-cols-[1fr_auto_auto] md:items-center"
+                className="space-y-3 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm"
               >
-                <p className="font-medium text-zinc-800">{org.name}</p>
-                <p className="text-xs text-zinc-500">Rol: {org.role === "owner" ? "Propietario/a" : org.role === "admin" ? "Admin" : "Miembro"}</p>
-                <span className="text-xs text-zinc-500">Código de invitación: <code className="rounded bg-white px-2 py-1 text-xs text-zinc-700">{org.join_code}</code></span>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-medium text-zinc-800">{org.name}</p>
+                  <p className="text-xs text-zinc-500">
+                    Rol: {ROLE_LABEL[org.role as keyof typeof ROLE_LABEL] ?? org.role ?? "—"}
+                  </p>
+                </div>
+                <OrgMembersPanel org={org} />
               </div>
             ))}
           </div>
