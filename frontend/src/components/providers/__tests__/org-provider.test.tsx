@@ -143,6 +143,42 @@ describe("OrgProvider", () => {
   });
 });
 
+describe("OrgProvider sin organizaciones", () => {
+  function StatusDisplay() {
+    const { activeOrgId, hasNoOrgs, isError } = useActiveOrg();
+    return (
+      <>
+        <span data-testid="active-org">{activeOrgId}</span>
+        <span data-testid="no-orgs">{String(hasNoOrgs)}</span>
+        <span data-testid="is-error">{String(isError)}</span>
+      </>
+    );
+  }
+
+  it("con 0 orgs no se queda con un id guardado de otra cuenta y avisa de hasNoOrgs", async () => {
+    localStorage.setItem("mnemo.activeOrgId", "org-de-otra-cuenta");
+    (getOrganizations as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    renderWithClient(
+      <OrgProvider>
+        <StatusDisplay />
+      </OrgProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("no-orgs").textContent).toBe("true"));
+    expect(screen.getByTestId("active-org").textContent).toBe("");
+  });
+
+  it("un fallo al listar no es «sin organizaciones»", async () => {
+    (getOrganizations as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("504"));
+    renderWithClient(
+      <OrgProvider>
+        <StatusDisplay />
+      </OrgProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("is-error").textContent).toBe("true"));
+    expect(screen.getByTestId("no-orgs").textContent).toBe("false");
+  });
+});
+
 describe("OrgSwitcher", () => {
   it("renders a select trigger with the active org and switching updates the active org", async () => {
     const user = userEvent.setup();

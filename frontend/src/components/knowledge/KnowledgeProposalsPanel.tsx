@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { KIND_OPTIONS as KINDS } from "@/lib/kinds";
 
@@ -70,7 +71,19 @@ export function KnowledgeProposalsPanel({ orgId }: { orgId: string }) {
           Mnemo redacta lecciones a partir de los defectos que aún no están documentados.
           Revísalas (y edítalas si hace falta) antes de que entren en la memoria.
         </p>
-        {proposals.length === 0 ? (
+        {/* Tres estados: cargando y error NO se disfrazan de «no hay propuestas». */}
+        {query.isPending ? (
+          <Skeleton data-testid="proposals-loading" className="h-24 w-full rounded-xl" />
+        ) : query.isError ? (
+          <div className="space-y-2">
+            <p role="alert" className="text-sm text-red-700">
+              No se pudieron cargar las propuestas. {query.error.message}
+            </p>
+            <Button size="sm" variant="outline" onClick={() => query.refetch()}>
+              Reintentar
+            </Button>
+          </div>
+        ) : proposals.length === 0 ? (
           <p className="text-sm text-zinc-500">No hay propuestas pendientes.</p>
         ) : (
           proposals.map((p) => (

@@ -8,6 +8,7 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { useActiveOrg } from "@/components/providers/org-provider";
 import { generateTestPlan, exportTestPlanXray, generatePlaywrightTest, openAutomationPr } from "@/lib/api/endpoints";
 import { ApiClientError } from "@/lib/api/client";
+import { isXrayExportEnabled } from "@/lib/env";
 import type { GeneratedTest, TestCase, TestPlan } from "@/lib/api/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -235,6 +236,11 @@ export default function TestPlanPage() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  // Sin integración de Xray el botón siempre acababa en 503: se deshabilita y se
+  // explica. Si el despliegue la activa pero la org no la tiene, el primer 503 lo apaga.
+  const [xrayUnavailable, setXrayUnavailable] = useState(false);
+  const xrayEnabled = isXrayExportEnabled() && !xrayUnavailable;
+
   const xrayMutation = useMutation({
     mutationFn: () => {
       if (!accessToken) throw new Error("Sin sesión");
@@ -268,8 +274,9 @@ export default function TestPlanPage() {
       // La exportación a Xray requiere su propia configuración, que todavía no se
       // puede crear desde la interfaz; "configura Jira" NO la desbloquea (Xray usa
       // una conexión distinta). Mensaje honesto hasta que exista la config de Xray.
-      const msg = err instanceof ApiClientError && err.status === 503 ? "La exportación a Xray aún no está disponible en esta organización." : err.message;
-      toast.error(msg);
+      const notConfigured = err instanceof ApiClientError && err.status === 503;
+      if (notConfigured) setXrayUnavailable(true);
+      toast.error(notConfigured ? "La exportación a Xray aún no está disponible en esta organización." : err.message);
     },
   });
 
@@ -434,16 +441,24 @@ export default function TestPlanPage() {
             >
               {generateMutation.isPending ? "Re-generando…" : "Re-generar"}
             </Button>
-            <Button variant="outline" onClick={handleExportMarkdown}>
+            <Button variant={xrayEnabled ? "outline" : "default"} onClick={handleExportMarkdown}>
               Exportar Markdown
             </Button>
             <Button
+              variant={xrayEnabled ? "default" : "outline"}
               onClick={() => xrayMutation.mutate()}
-              disabled={xrayMutation.isPending}
+              disabled={!xrayEnabled || xrayMutation.isPending}
+              aria-describedby={xrayEnabled ? undefined : "xray-unavailable"}
             >
               {xrayMutation.isPending ? "Importando…" : "Importar a Jira (Xray)"}
             </Button>
           </div>
+          {!xrayEnabled && (
+            <p id="xray-unavailable" className="-mt-4 text-xs text-zinc-500">
+              Importar a Xray: próximamente. La conexión con Xray todavía no se puede configurar
+              desde Mnemo; mientras tanto, exporta el plan en Markdown.
+            </p>
+          )}
 
           {/* Style sample for Playwright generation */}
           <Card>

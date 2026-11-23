@@ -116,6 +116,16 @@ describe("Continuidad", () => {
     expect(screen.queryByText(/todavía no hay proyectos/i)).not.toBeInTheDocument();
   });
 
+  it("sin proyectos, el vacío trae salidas: subir un informe y añadir conocimiento", async () => {
+    setup("owner", INDICE_50, []);
+    expect(await screen.findByText(/todavía no hay proyectos/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Subir un informe/ })).toHaveAttribute("href", "/app/autopilot");
+    expect(screen.getByRole("link", { name: /Añadir conocimiento/ })).toHaveAttribute(
+      "href",
+      "/app/knowledge?tab=capturar",
+    );
+  });
+
   it("el botón de emitir se deshabilita sin rol owner/admin", async () => {
     setup("member");
     const btn = await screen.findByRole("button", { name: /emitir acta de traspaso/i });

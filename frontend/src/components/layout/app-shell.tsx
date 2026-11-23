@@ -5,6 +5,8 @@ import { useState } from "react";
 
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { Topbar } from "@/components/layout/topbar";
+import { OrgGate } from "@/components/org/OrgGate";
+import { ServerWakingBanner } from "@/components/warmup/ServerWakingBanner";
 import { OrgProvider } from "@/components/providers/org-provider";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -21,7 +23,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <main className="relative min-w-0">
           <OrgProvider>
             <Topbar onOpenMobileMenu={() => setMobileOpen(true)} />
-            <div className="mx-auto w-full max-w-6xl px-4 py-6 md:px-8">{children}</div>
+            <div className="mx-auto w-full max-w-6xl px-4 py-6 md:px-8">
+              <ServerWakingBanner />
+              <OrgGate>{children}</OrgGate>
+            </div>
           </OrgProvider>
         </main>
       </div>

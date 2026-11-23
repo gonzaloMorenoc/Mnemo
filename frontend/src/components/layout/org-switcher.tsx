@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { Building2 } from "lucide-react";
+import { Building2, Plus } from "lucide-react";
 
 import { useActiveOrg } from "@/components/providers/org-provider";
 import {
@@ -12,7 +12,19 @@ import {
 } from "@/components/ui/select";
 
 export function OrgSwitcher() {
-  const { orgs, activeOrgId, setActiveOrgId } = useActiveOrg();
+  const { orgs, activeOrgId, setActiveOrgId, hasNoOrgs } = useActiveOrg();
+  if (hasNoOrgs) {
+    // Sin organización el selector no puede desaparecer sin más: lleva a crear una.
+    return (
+      <Link
+        href="/app/org"
+        className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100 hover:text-zinc-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+      >
+        <Plus size={14} className="shrink-0 text-zinc-500" aria-hidden />
+        Crear organización
+      </Link>
+    );
+  }
   if (orgs.length === 0) return null;
   if (orgs.length === 1) {
     // Una sola org: el nombre sigue siendo útil — lleva a gestionarla.

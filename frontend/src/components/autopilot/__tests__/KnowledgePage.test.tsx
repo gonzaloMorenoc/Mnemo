@@ -114,6 +114,25 @@ describe("KnowledgePage", () => {
     expect(screen.getByText("Lección: doble cobro 2023")).toBeInTheDocument();
   });
 
+  it("una búsqueda de fuentes fallida no deja a la vista las de la pregunta anterior", async () => {
+    (askKnowledge as ReturnType<typeof vi.fn>).mockResolvedValue({ answer: "R", citations: [], sources: [] });
+    (searchKnowledge as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce([{ id: "s1", type: "knowledge", title: "Fuente vieja", content: "x" }])
+      .mockRejectedValueOnce(new Error("504"));
+
+    renderWithClient(<KnowledgePage />);
+    const input = screen.getByPlaceholderText(/qué quieres saber/i);
+
+    fireEvent.change(input, { target: { value: "primera" } });
+    fireEvent.click(screen.getByRole("button", { name: /preguntar/i }));
+    expect(await screen.findByText("Fuente vieja")).toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: "segunda" } });
+    fireEvent.click(screen.getByRole("button", { name: /preguntar/i }));
+    expect(await screen.findByText(/No se pudieron cargar los resultados relacionados/)).toBeInTheDocument();
+    expect(screen.queryByText("Fuente vieja")).not.toBeInTheDocument();
+  });
+
   it("llama a toast.error si askKnowledge falla, sin romper la página", async () => {
     (askKnowledge as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("Error de red"));
 
