@@ -39,10 +39,24 @@ MIN_DIMENSIONES_MEDIBLES = 2
 # triado todavía. No cuenta como etiqueta humana.
 UNLABELED = "unknown"
 
+# «Recurrente» = la familia falló en al menos MIN_RUNS_RECURRENTE runs DISTINTOS
+# del proyecto (auditoría 23-nov, #19). occurrence_count suma un fallo por test y
+# es de toda la org: un único run con 30 tests caídos por el mismo error de
+# entorno contaba como recurrente en la dimensión de más peso. El criterio viaja
+# en la dimensión (y por tanto en el acta firmada): las actas emitidas antes no lo
+# llevan, y así se distinguen las que contaban fallos de las que cuentan runs.
+MIN_RUNS_RECURRENTE = 2
+RECURRENCE_CRITERION = "runs_distintos_del_proyecto>=2"
+
 # Familias del proyecto: las que tienen ≥1 fallo en runs de ese proyecto. Una
-# familia puede pertenecer a varios proyectos y cuenta en todos.
+# familia puede pertenecer a varios proyectos y cuenta en todos; run_count son
+# los runs distintos DE ESTE proyecto en los que aparece.
 _Q_FAMILIAS = """
     select df.id, df.label, df.occurrence_count,
+           (select count(distinct fl.run_id) from public.failures fl
+            join public.test_runs tr on tr.id = fl.run_id
+            where fl.defect_family_id = df.id
+              and tr.org_id = %(org)s and tr.project = %(proj)s) as run_count,
            exists (select 1 from public.qa_knowledge k
                    where k.defect_family_id = df.id and k.org_id = df.org_id
                      and k.status = 'activo') as con_conocimiento,
@@ -105,6 +119,18 @@ def _dim(key: str, num: int, den: int) -> Dict[str, Any]:
             "ratio": ratio, "weight": WEIGHTS[key]}
 
 
+def recurrentes(fams: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Familias que fallaron en ≥ MIN_RUNS_RECURRENTE runs distintos del proyecto."""
+    return [f for f in fams if (f.get("run_count") or 0) >= MIN_RUNS_RECURRENTE]
+
+
+def _dim_memoria(fams: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Memoria de defectos: de las recurrentes, cuántas tienen conocimiento."""
+    rec = recurrentes(fams)
+    return {**_dim("memoria_defectos", sum(1 for f in rec if f["con_conocimiento"]), len(rec)),
+            "criterio": RECURRENCE_CRITERION}
+
+
 def _aggregate(dimensions: List[Dict[str, Any]]) -> Optional[int]:
     """Media ponderada sobre las dimensiones CON denominador; sin ninguna → None
     («sin datos suficientes»), nunca un 0 ni un 100 inventados."""
@@ -155,15 +181,13 @@ def compute_index(*, user_id: str, org_id: str, project: str) -> Optional[Dict[s
         cur.execute(_Q_DOMINIOS, params)
         dominios = cur.fetchone()["n"]
 
-    recurrentes = [f for f in fams if f["occurrence_count"] >= 2]
     # "Etiquetada" = alguien la miró y decidió. label es NOT NULL con default
     # 'unknown', así que el default NO es una etiqueta humana: contarlo como tal
     # metería en el denominador familias que nadie ha triado y hundiría el índice
     # por algo que no es un fallo de documentación.
     etiquetadas = [f for f in fams if f["label"] != UNLABELED]
     dimensions = [
-        _dim("memoria_defectos",
-             sum(1 for f in recurrentes if f["con_conocimiento"]), len(recurrentes)),
+        _dim_memoria(fams),
         _dim("razon_etiquetas",
              sum(1 for f in etiquetadas if f["con_razon"]), len(etiquetadas)),
         _dim("oficio",
