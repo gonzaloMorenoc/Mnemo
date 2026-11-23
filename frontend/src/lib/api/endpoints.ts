@@ -14,6 +14,7 @@ import type {
   CoverageGap,
   DefectFamilyResponse,
   DefectLineageResponse,
+  FamilyMemory,
   DomainSummary,
   FamilyLabel,
   GateResult,
@@ -78,6 +79,14 @@ export function getDefects(token: string, orgId: string) {
 export function getDefectLineage(token: string, defectId: string) {
   return apiRequest<DefectLineageResponse>(
     `/api/v2/defects/${encodeURIComponent(defectId)}`,
+    "GET",
+    { token },
+  );
+}
+
+export function getFamilyMemory(token: string, familyId: string) {
+  return apiRequest<FamilyMemory>(
+    `/api/v2/defects/${encodeURIComponent(familyId)}/memory`,
     "GET",
     { token },
   );

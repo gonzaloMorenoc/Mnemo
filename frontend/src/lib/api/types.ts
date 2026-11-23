@@ -126,6 +126,34 @@ export interface TriageVerdict {
   message?: string | null;
 }
 
+/** Lo que el equipo recuerda de una familia (GET /v2/defects/{id}/memory). */
+export interface FamilyMemoryLesson {
+  id: string;
+  kind: string;
+  title: string;
+  summary: string;
+}
+
+export interface FamilyMemory {
+  family_id: string;
+  title: string;
+  label?: string | null;
+  label_text?: string | null;
+  reason?: string | null;
+  reason_by?: string | null;
+  /** Solo dentro de la app (miembros): se usa si no hay nombre visible. */
+  reason_by_email?: string | null;
+  reason_by_active: boolean;
+  reason_at?: string | null;
+  lessons: FamilyMemoryLesson[];
+  projects: string[];
+  runs: number;
+  first_seen?: string | null;
+  last_seen?: string | null;
+  has_memory: boolean;
+  related: { id: string; title?: string | null; score?: number | null }[];
+}
+
 export interface ActionItem {
   id: string;
   triage_verdict_id: string;

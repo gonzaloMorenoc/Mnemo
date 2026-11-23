@@ -1,5 +1,6 @@
 import logging
 import time
+import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 from urllib.parse import urlencode
@@ -71,6 +72,8 @@ from src.continuity.repository import ContinuityRepository
 from src.continuity.service import ContinuityService
 from src.knowledge.repository import QaKnowledgeRepository
 from src.knowledge.service import KnowledgeService
+from src.memory.family_memory import memory_payload, memory_summary_payload
+from src.memory.repository import FamilyMemoryRepository
 from src.knowledge.proposal_repository import KnowledgeProposalRepository
 from src.knowledge.proposal_service import KnowledgeProposalService
 from src.knowledge.import_service import (
@@ -153,6 +156,7 @@ _ACTION_STATUSES = {"proposed", "approved", "rejected", "materialized", "materia
 # Singletons perezosos (sin anotacion PEP 604 para compatibilidad <3.10)
 _repo = None
 _assurance_repo = None
+_family_memory_repo = None
 _ingestion_service = None
 _narrator = None
 _root_cause_analyzer = None
@@ -181,6 +185,32 @@ def get_repo() -> OrganizationRepository:
     if _repo is None:
         _repo = OrganizationRepository()
     return _repo
+
+
+def get_family_memory_repo() -> FamilyMemoryRepository:
+    global _family_memory_repo
+    if _family_memory_repo is None:
+        _family_memory_repo = FamilyMemoryRepository()
+    return _family_memory_repo
+
+
+def _run_memory(user_id: str, run_id: Optional[str], *,
+                detail: bool = False) -> Optional[Dict[str, Any]]:
+    """Bloque `memory` de la respuesta de ingesta. Best-effort y solo presentación.
+
+    `detail=True` (subida web: una persona miembro) trae razones y lecciones. Por token
+    de ingesta o webhook, solo el resumen: un token no es un miembro y el log del CI
+    puede ser público."""
+    if not run_id or not multi_tenant_enabled():
+        return None
+    try:
+        memories = get_family_memory_repo().for_run(user_id=user_id, run_id=run_id)
+        if detail:
+            return memory_payload(memories)
+        return memory_summary_payload(memories, app_url=MNEMO_PUBLIC_APP_URL)
+    except Exception:  # noqa: BLE001 — la ingesta ya está hecha; la memoria es un extra
+        logger.exception("memoria del run %s no disponible", run_id)
+        return None
 
 
 def get_assurance_repo() -> AssuranceRepository:
@@ -411,6 +441,7 @@ def get_action_service() -> ActionService:
             },
             codehost_factory=_github_codehost_factory,
             ai_repair=AIRepairActuator(_ai_repair_provider),
+            memory_fn=get_family_memory_repo().load,
         )
     return _action_service
 
@@ -462,7 +493,9 @@ def get_gate_service() -> GateService:
     global _gate_service
     if _gate_service is None:
         _gate_service = GateService(repo=get_assurance_repo(), cert_repo=get_certificate_repo(),
-                                    codehost_factory=_github_codehost_factory)
+                                    codehost_factory=_github_codehost_factory,
+                                    memory_fn=get_family_memory_repo().load,
+                                    app_url=MNEMO_PUBLIC_APP_URL)
     return _gate_service
 
 
@@ -738,7 +771,8 @@ def _pipeline_pending(user_id: str, result: Dict[str, Any]) -> bool:
 def _ingest_and_run_pipeline(service: IngestionService, *, user_id: str, org_id: str,
                              project: str, source: str, data: bytes,
                              commit_sha: Optional[str] = None,
-                             branch: Optional[str] = None) -> Dict[str, Any]:
+                             branch: Optional[str] = None,
+                             memory_detail: bool = False) -> Dict[str, Any]:
     """Ingesta del report + pipeline post-ingesta. Bloqueante (embeddings, BD, LLM):
     llamar SIEMPRE desde el threadpool. Compartido por la subida web y /ci/ingest."""
     result = service.ingest_report(user_id=user_id, org_id=org_id, project=project,
@@ -747,7 +781,8 @@ def _ingest_and_run_pipeline(service: IngestionService, *, user_id: str, org_id:
     triage, verdict, gate = None, None, None
     if _pipeline_pending(user_id, result):
         triage, verdict, gate = _post_ingest_pipeline(user_id, result["run_id"])
-    return {**result, "triage": triage, "verdict": verdict, "gate": gate}
+    return {**result, "triage": triage, "verdict": verdict, "gate": gate,
+            "memory": _run_memory(user_id, result.get("run_id"), detail=memory_detail)}
 
 
 async def _ingest_report_off_loop(service: IngestionService, **kwargs) -> Dict[str, Any]:
@@ -793,7 +828,8 @@ async def ingest_report_v2(
     await run_in_threadpool(enforce, access, user.user_id, Capability.QA_WORK, org_id=org_id)
     data = await _read_upload_capped_async(upload)
     result = await _ingest_report_off_loop(service, user_id=user.user_id, org_id=org_id,
-                                           project=project, source=source, data=data)
+                                           project=project, source=source, data=data,
+                                           memory_detail=True)
     if not result.get("deduplicated"):
         background.add_task(_propose_knowledge_after_ingest, user.user_id, org_id)
     return IngestReportResponse(**result)
@@ -884,7 +920,8 @@ def _process_ci_artifact(artifact: CiRunArtifact) -> CiWebhookResponse:
     if _pipeline_pending(CI_SERVICE_USER_ID, result):
         triage_summary, verdict, gate = _post_ingest_pipeline(
             CI_SERVICE_USER_ID, result["run_id"])
-    return CiWebhookResponse(**result, triage=triage_summary, verdict=verdict, gate=gate)
+    return CiWebhookResponse(**result, triage=triage_summary, verdict=verdict, gate=gate,
+                             memory=_run_memory(CI_SERVICE_USER_ID, result.get("run_id")))
 
 
 async def _read_body_capped(request: Request, cap: int) -> bytes:
@@ -1281,6 +1318,58 @@ def defect_lineage_v2(
         raise HTTPException(status_code=502, detail="Database error") from exc
     family = DefectFamilySummary(**data["family"]) if data["family"] else None
     return DefectLineageResponse(family=family, failures=[FailureRef(**f) for f in data["failures"]])
+
+
+_RELATED_K = 3
+
+
+@router.get("/defects/{defect_id}/memory", response_model=Dict[str, Any])
+def defect_memory_v2(
+    defect_id: str,
+    related: bool = True,
+    user: AuthenticatedUser = Depends(get_current_user),
+    access: OrgAccess = Depends(get_org_access),
+    memory_repo: FamilyMemoryRepository = Depends(get_family_memory_repo),
+    krepo: QaKnowledgeRepository = Depends(get_knowledge_repo),
+    arepo: AssuranceRepository = Depends(get_assurance_repo),
+    embedder=Depends(get_embedder),
+) -> Dict[str, Any]:
+    """Lo que el equipo recuerda de una familia (panel de triaje): etiqueta y razón,
+    lecciones, dónde más apareció y, bajo demanda, conocimiento relacionado."""
+    try:
+        uuid.UUID(defect_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="familia no encontrada") from None
+    enforce(access, user.user_id, Capability.READ, resource=(Resource.FAMILY, defect_id))
+    try:
+        org_id = memory_repo.org_of_family(defect_id)
+        found = memory_repo.load(user_id=user.user_id, org_id=org_id, family_ids=[defect_id]) \
+            if org_id else []
+    except psycopg.Error as exc:
+        raise HTTPException(status_code=502, detail="Database error") from exc
+    if not found:
+        raise HTTPException(status_code=404, detail="familia no encontrada")
+    memory = found[0]
+    out = memory.to_dict(include_private=True)   # quien pide es miembro: email incluido
+    out["related"] = _related_knowledge(user.user_id, org_id, memory, krepo, arepo,
+                                        embedder) if related else []
+    return out
+
+
+def _related_knowledge(user_id, org_id, memory, krepo, arepo, embedder) -> List[Dict[str, Any]]:
+    """Conocimiento parecido a la familia que NO está ya enlazado como lección.
+    Best-effort: sin modelo o sin BD, el panel se muestra igual sin esta parte."""
+    query = " ".join(x for x in (memory.title, memory.reason) if x)
+    lesson_ids = {lesson.id for lesson in memory.lessons}
+    try:
+        hits = KnowledgeService(krepo, arepo, embedder=embedder).search_unified(
+            user_id=user_id, org_id=org_id, query=query, k=_RELATED_K + len(lesson_ids))
+    except Exception:  # noqa: BLE001
+        logger.exception("conocimiento relacionado no disponible")
+        return []
+    return [{"id": h["id"], "title": h.get("title"), "score": h.get("score")}
+            for h in hits if h.get("type") == "knowledge" and h["id"] not in lesson_ids
+            ][:_RELATED_K]
 
 
 def _embed_reason(embedder, reason: Optional[str]) -> Optional[List[float]]:
@@ -1686,7 +1775,7 @@ def defects_ask_v2(
     repo: AssuranceRepository = Depends(get_assurance_repo),
     embedder: "LocalEmbedder" = Depends(get_embedder),
 ) -> AskResponse:
-    enforce(access, user.user_id, Capability.QA_WORK, org_id=req.org_id)
+    enforce(access, user.user_id, Capability.READ, org_id=req.org_id)
     from src.ai.nl_query import answer_question
     bind_llm_org(req.org_id)
     try:
@@ -2030,7 +2119,7 @@ def ask_knowledge(
     arepo: AssuranceRepository = Depends(get_assurance_repo),
     embedder=Depends(get_embedder),
 ) -> Dict[str, Any]:
-    enforce(access, user.user_id, Capability.QA_WORK, org_id=req.org_id)
+    enforce(access, user.user_id, Capability.READ, org_id=req.org_id)
     svc = KnowledgeService(krepo, arepo, embedder=embedder)
     bind_llm_org(req.org_id)
     try:

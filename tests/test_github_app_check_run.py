@@ -49,3 +49,25 @@ def test_publish_check_run_raises_on_http_error():
     with pytest.raises(GitHubError):
         _codehost(session).publish_check_run(
             head_sha="abc", conclusion="success", title="T", summary="S")
+
+
+class _GetSession:
+    def __init__(self, resp):
+        self._resp = resp
+        self.urls = []
+
+    def get(self, url, headers=None, timeout=None):
+        self.urls.append(url)
+        return self._resp
+
+
+@pytest.mark.parametrize("status,payload,expected", [
+    (200, {"private": True}, True),
+    (200, {"private": False}, False),
+    (200, {}, False),
+    (404, {"message": "Not Found"}, False),
+])
+def test_repo_is_private(status, payload, expected):
+    session = _GetSession(_Resp(status, payload))
+    assert _codehost(session).repo_is_private() is expected
+    assert session.urls[0].endswith("/repos/o/r")

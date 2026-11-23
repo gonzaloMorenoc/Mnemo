@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { useAuth } from "@/components/providers/auth-provider";
@@ -60,6 +60,13 @@ export default function DefectsPage() {
   const { accessToken } = useAuth();
   const { activeOrgId } = useActiveOrg();
   const [selected, setSelected] = useState<string | null>(null);
+  // Deep-link ?family=<id> (enlace «Ver en Mnemo» del check del PR y del triaje).
+  // window.location en vez de useSearchParams para no forzar Suspense (patrón de /app/knowledge).
+  useLayoutEffect(() => {
+    const family = new URLSearchParams(window.location.search).get("family");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (family) setSelected(family);
+  }, []);
 
   const defectsQuery = useQuery({
     queryKey: ["defects", activeOrgId],

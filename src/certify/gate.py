@@ -1,6 +1,11 @@
-from typing import Any, Callable, Dict, List, Tuple
+import logging
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from src.certify.certificate import compute_confidence, compute_verdict
+from src.memory.family_memory import MAX_LOAD, render_markdown
+from src.memory.visibility import repo_is_private
+
+logger = logging.getLogger(__name__)
 
 _CONCLUSION = {"no-apto": "failure", "apto-con-reservas": "neutral", "apto": "success",
                "sin_confirmar": "neutral"}
@@ -27,10 +32,13 @@ def _render_output(verdict: str, verdicts: List[Dict[str, Any]]) -> Tuple[str, s
 class GateService:
     """Publica el check run mnemo/assurance del run según su veredicto (saliente)."""
 
-    def __init__(self, *, repo, cert_repo, codehost_factory: Callable):
+    def __init__(self, *, repo, cert_repo, codehost_factory: Callable,
+                 memory_fn: Optional[Callable[..., list]] = None, app_url: str = ""):
         self.repo = repo                       # AssuranceRepository (get_triage_for_run)
         self.cert_repo = cert_repo             # CertificateRepository (get_run_meta)
         self.codehost_factory = codehost_factory
+        self.memory_fn = memory_fn             # FamilyMemoryRepository.load (presentación)
+        self.app_url = app_url
 
     def publish(self, *, user_id: str, run_id: str) -> Dict[str, Any]:
         meta = self.cert_repo.get_run_meta(user_id=user_id, run_id=run_id)
@@ -51,6 +59,34 @@ class GateService:
         conclusion = _CONCLUSION[verdict]
         title, summary = _render_output(verdict, verdicts)
         codehost = self.codehost_factory(meta["org_id"], user_id)
+        summary += self._memory_section(user_id, meta["org_id"], verdicts, codehost)
         url = codehost.publish_check_run(head_sha=head_sha, conclusion=conclusion,
                                          title=title, summary=summary)
         return {"verdict": verdict, "conclusion": conclusion, "check_run_url": url}
+
+    def _memory_section(self, user_id: str, org_id: str, verdicts: List[Dict[str, Any]],
+                        codehost) -> str:
+        """«Lo que Mnemo recuerda» de las familias del run. Solo presentación: el
+        veredicto ya está decidido. En un repo PÚBLICO el check lo ve cualquiera, así
+        que solo se enlaza a la app. Best-effort: un fallo aquí nunca tumba el gate."""
+        family_ids = list(dict.fromkeys(
+            (v.get("evidence_bundle") or {}).get("family_id") for v in verdicts))
+        family_ids = [f for f in family_ids if f][:MAX_LOAD]
+        if not family_ids or self.memory_fn is None:
+            return ""
+        try:
+            memories = self.memory_fn(user_id=user_id, org_id=org_id, family_ids=family_ids)
+            section = render_markdown(memories, app_url=self.app_url)
+            if not section:
+                return ""
+            if repo_is_private(codehost):
+                return "\n\n" + section
+            remembered = sum(1 for m in memories if m.has_memory)
+            link = f" [Ver en Mnemo]({self.app_url}/app/defects)" if self.app_url else ""
+            return (f"\n\n**Mnemo tiene memoria del equipo sobre {remembered} "
+                    f"familia{'s' if remembered != 1 else ''} de este run.** Por ser un "
+                    f"repositorio público, el detalle solo se muestra en la app.{link}")
+        except Exception:  # noqa: BLE001 — presentación best-effort
+            logger.exception("memoria del check run no disponible (org %s)", org_id)
+            return ""
+

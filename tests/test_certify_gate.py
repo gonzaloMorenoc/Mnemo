@@ -86,3 +86,72 @@ def test_gate_dicts_aceptan_sin_confirmar_sin_keyerror():
     title, summary = _render_output("sin_confirmar", [])
     assert "sin_confirmar" in title
     assert "No se pudo confirmar" in summary
+
+
+# ── memoria del equipo en el check run (presentación; el veredicto no cambia) ──
+from src.memory import visibility  # noqa: E402
+from src.memory.family_memory import FamilyMemory  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _no_visibility_cache():
+    visibility.clear_cache()
+    yield
+    visibility.clear_cache()
+
+_MEM = FamilyMemory(family_id="fam1", title="TimeoutError", label="infra",
+                    reason="El sandbox del PSP se cae los lunes", reason_by="María")
+
+
+def _with_family(v, fid="fam1"):
+    return {**v, "evidence_bundle": {"family_id": fid}}
+
+
+def _gate_with_memory(*, private, memories=(_MEM,), memory_error=None):
+    codehost = MagicMock()
+    codehost.repo_is_private.return_value = private
+    svc, codehost, _ = _service(meta=_META, verdicts=[_with_family(_v("real", rule="R5_real_novel")),
+                                                      _with_family(_v("real", rule="R5_real_novel"))],
+                                codehost=codehost)
+    memory_fn = MagicMock(return_value=list(memories), side_effect=memory_error)
+    svc.memory_fn = memory_fn
+    svc.app_url = "https://mnemo.example"
+    return svc, codehost, memory_fn
+
+
+def test_repo_privado_lleva_la_memoria_en_el_check():
+    svc, codehost, memory_fn = _gate_with_memory(private=True)
+    out = svc.publish(user_id="u", run_id="r")
+    summary = codehost.publish_check_run.call_args.kwargs["summary"]
+    assert "### Lo que Mnemo recuerda" in summary
+    assert "El sandbox del PSP se cae los lunes" in summary
+    assert memory_fn.call_args.kwargs == {"user_id": "u", "org_id": "o1", "family_ids": ["fam1"]}
+    assert out["conclusion"] == "failure"          # el veredicto no depende de la memoria
+
+
+def test_repo_publico_solo_enlaza_sin_detalle():
+    svc, codehost, _ = _gate_with_memory(private=False)
+    svc.publish(user_id="u", run_id="r")
+    summary = codehost.publish_check_run.call_args.kwargs["summary"]
+    assert "El sandbox" not in summary
+    assert "memoria del equipo sobre 1 familia" in summary
+    assert "https://mnemo.example/app/defects" in summary
+
+
+def test_sin_memoria_el_check_no_cambia():
+    svc, codehost, _ = _gate_with_memory(private=True, memories=(FamilyMemory("fam1", "x"),))
+    svc.publish(user_id="u", run_id="r")
+    assert "Mnemo recuerda" not in codehost.publish_check_run.call_args.kwargs["summary"]
+
+
+def test_un_fallo_de_la_memoria_no_tumba_el_gate():
+    svc, codehost, _ = _gate_with_memory(private=True, memory_error=RuntimeError("bd"))
+    out = svc.publish(user_id="u", run_id="r")
+    assert out["conclusion"] == "failure"
+    assert "Mnemo recuerda" not in codehost.publish_check_run.call_args.kwargs["summary"]
+
+
+def test_sin_memory_fn_se_comporta_como_antes():
+    svc, codehost, _ = _service(meta=_META, verdicts=[_with_family(_v("real", rule="R5_real_novel"))])
+    svc.publish(user_id="u", run_id="r")
+    assert "Mnemo recuerda" not in codehost.publish_check_run.call_args.kwargs["summary"]

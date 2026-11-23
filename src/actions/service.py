@@ -1,6 +1,8 @@
 import logging
 from typing import Any, Callable, Dict, Optional
 
+from src.memory.visibility import repo_is_private
+
 from src.actions.base import Actuator, CodeHost, NullCodeHost
 
 logger = logging.getLogger(__name__)
@@ -47,12 +49,14 @@ class ActionService:
     def __init__(self, *, repo, actuators: Dict[str, Actuator],
                  actions_repo=None,
                  codehost_factory: Optional[Callable[[str, str], CodeHost]] = None,
-                 ai_repair: Optional[Actuator] = None):
+                 ai_repair: Optional[Actuator] = None,
+                 memory_fn: Optional[Callable[..., list]] = None):
         self.repo = repo                                  # lecturas de contexto (assurance)
         self.actions_repo = actions_repo or repo          # CRUD de acciones
         self.actuators = actuators
         self._codehost_factory = codehost_factory or (lambda org_id, user_id: NullCodeHost())
         self._ai_repair = ai_repair
+        self._memory_fn = memory_fn                       # FamilyMemoryRepository.load
 
     def propose_actions(self, *, user_id: str, run_id: str) -> Dict[str, int]:
         verdicts = self.repo.get_run_actionable_verdicts(user_id=user_id, run_id=run_id)
@@ -60,6 +64,7 @@ class ActionService:
         counts["skipped"] = 0
         proposals = []
         org_id = None
+        memo: Dict[str, Any] = {}     # memoria por familia + visibilidad del repo, por llamada
         for v in verdicts:
             org_id = v.get("org_id") or org_id
             category = v["category"]
@@ -67,7 +72,7 @@ class ActionService:
             if actuator is None:
                 counts["skipped"] += 1
                 continue
-            ctx = self._context_for(user_id, v)
+            ctx = self._context_for(user_id, v, memo)
             proposal = actuator.propose(v, ctx)
             if (proposal is None and category == "maintenance" and self._ai_repair is not None
                     and ctx.get("file")):
@@ -88,7 +93,8 @@ class ActionService:
                                            run_id=run_id, actions=proposals)
         return counts
 
-    def _context_for(self, user_id: str, verdict: Dict[str, Any]) -> Dict[str, Any]:
+    def _context_for(self, user_id: str, verdict: Dict[str, Any],
+                     memo: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         ctx: Dict[str, Any] = {"test_name": verdict.get("test_name")}
         category = verdict["category"]
         if category == "real" and verdict.get("defect_family_id"):
@@ -98,11 +104,37 @@ class ActionService:
             if fam:
                 ctx["family"] = fam.get("family") or {}
                 ctx["failures"] = fam.get("failures") or []
+            memory = self._family_memory(user_id, verdict, {} if memo is None else memo)
+            if memory is not None:
+                ctx["memory"] = memory
         elif category == "maintenance" and verdict.get("failure_id"):
             sh = self.repo.get_selfheal_context(user_id=user_id, failure_id=verdict["failure_id"])
             if sh:
                 ctx.update(sh)
         return ctx
+
+    def _family_memory(self, user_id: str, verdict: Dict[str, Any], memo: Dict[str, Any]):
+        """Lo que el equipo sabe de la familia, para el ticket. Solo si el repo donde se
+        abrirá el issue es PRIVADO (en uno público lo leería cualquiera). Una carga por
+        familia y una consulta de visibilidad por llamada. Best-effort."""
+        org_id, family_id = verdict.get("org_id"), verdict["defect_family_id"]
+        if self._memory_fn is None or not org_id:
+            return None
+        if "private" not in memo:
+            try:
+                memo["private"] = repo_is_private(self._codehost_factory(org_id, user_id))
+            except Exception:  # noqa: BLE001 — sin GitHub configurado: no hay dónde publicar
+                memo["private"] = False
+        if not memo["private"]:
+            return None
+        if family_id not in memo:
+            try:
+                found = self._memory_fn(user_id=user_id, org_id=org_id, family_ids=[family_id])
+            except Exception:  # noqa: BLE001 — el ticket se propone igual sin memoria
+                logger.exception("memoria no disponible para el ticket")
+                found = []
+            memo[family_id] = found[0] if found else None
+        return memo[family_id]
 
     def approve_action(self, *, user_id: str, action_id: str) -> Dict[str, Any]:
         action = self.actions_repo.get_action(user_id=user_id, action_id=action_id)

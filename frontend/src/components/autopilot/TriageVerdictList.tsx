@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { CATEGORY_LABEL, CATEGORY_STYLE, CategoryBadge } from "@/components/ui/category-badge";
+import { TriageMemory } from "@/components/autopilot/TriageMemory";
 
 // Qué decidió cada regla del motor (src/triage/engine.py), en lenguaje de quien
 // mira la pantalla. El código de la regla queda en el title para auditarlo.
@@ -22,6 +23,11 @@ const RULE_LABEL: Record<string, string> = {
   R5_real_novel: "Aserción que falla por primera vez",
   R6_ambiguous: "Sin regla clara: lo decide una persona o la IA",
 };
+
+function familyOf(v: { evidence_bundle?: Record<string, unknown> | null }): string | null {
+  const id = v.evidence_bundle?.family_id;
+  return typeof id === "string" && id ? id : null;
+}
 
 export function TriageVerdictList({ runId }: { runId: string }) {
   const { accessToken } = useAuth();
@@ -80,6 +86,7 @@ export function TriageVerdictList({ runId }: { runId: string }) {
                 )}
                 {v.requires_approval && <Badge className="bg-amber-100 text-amber-700">requiere aprobación</Badge>}
               </span>
+              {familyOf(v) && <TriageMemory familyId={familyOf(v)!} />}
             </li>
           ))}
         </ul>

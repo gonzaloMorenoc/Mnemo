@@ -301,3 +301,51 @@ def test_ai_repair_proposal_materializes_via_open_draft_pr():
     assert kw["new_str"] == "NEW"
     assert "no auto-validado" in kw["body"].lower()
     assert ref == "https://github.com/o/r/pull/42"
+
+
+def _real_verdict():
+    return [{"verdict_id": "v2", "category": "real", "org_id": "o", "evidence_bundle": {},
+             "test_name": "b", "defect_family_id": "fam"}]
+
+
+@pytest.fixture
+def _private_repo(monkeypatch):
+    import src.actions.service as service_mod
+    state = {"private": True}
+    monkeypatch.setattr(service_mod, "repo_is_private", lambda host: state["private"])
+    return state
+
+
+def test_el_ticket_recibe_la_memoria_de_la_familia(_private_repo):
+    svc, _, _, ticket = _svc(_real_verdict())
+    svc._memory_fn = MagicMock(return_value=["MEM"])
+    svc.propose_actions(user_id="u", run_id="r")
+    _, ctx = ticket.propose.call_args.args
+    assert ctx["memory"] == "MEM"
+    assert svc._memory_fn.call_args.kwargs == {"user_id": "u", "org_id": "o", "family_ids": ["fam"]}
+
+
+def test_un_fallo_de_la_memoria_no_impide_el_ticket(_private_repo):
+    svc, _, _, ticket = _svc(_real_verdict())
+    svc._memory_fn = MagicMock(side_effect=RuntimeError("bd"))
+    counts = svc.propose_actions(user_id="u", run_id="r")
+    assert counts["ticket"] == 1
+    _, ctx = ticket.propose.call_args.args
+    assert "memory" not in ctx
+
+
+def test_repo_publico_el_ticket_no_lleva_la_memoria(_private_repo):
+    _private_repo["private"] = False
+    svc, _, _, ticket = _svc(_real_verdict())
+    svc._memory_fn = MagicMock(return_value=["MEM"])
+    svc.propose_actions(user_id="u", run_id="r")
+    _, ctx = ticket.propose.call_args.args
+    assert "memory" not in ctx
+    svc._memory_fn.assert_not_called()
+
+
+def test_una_carga_por_familia_aunque_haya_muchos_fallos(_private_repo):
+    svc, _, _, ticket = _svc(_real_verdict() * 5)
+    svc._memory_fn = MagicMock(return_value=["MEM"])
+    svc.propose_actions(user_id="u", run_id="r")
+    assert svc._memory_fn.call_count == 1 and ticket.propose.call_count == 5
