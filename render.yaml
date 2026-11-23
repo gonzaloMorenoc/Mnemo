@@ -51,7 +51,7 @@ services:
       - key: CI_SERVICE_USER_ID
         sync: false                    # UUID del usuario de servicio (miembro del org)
       - key: CI_SERVICE_ORG_ID
-        sync: false                    # opcional: único org aceptado por el webhook
+        sync: false                    # obligatoria para el webhook global: único org aceptado (sin ella, 503)
       # --- Cifrado de credenciales Jira/Xray por-org (obligatoria si se usa Jira) ---
       - key: MNEMO_SECRET_KEY
         sync: false                    # clave Fernet (ver .env.example para generarla)

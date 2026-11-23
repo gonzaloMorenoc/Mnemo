@@ -83,7 +83,7 @@ Las rutas de subida aplican `INGEST_MAX_BYTES` (413). La ingesta de reports es i
 
 Cuerpo `CiRunArtifact`: `{project, org_id, commit_sha, source (por defecto "playwright"), run_uid?, tests: [{test_name, status: pass|fail|flaky|skipped, retried, error_type?, message?, trace?, file?, line?, dom?}]}` (máx. 10 000 tests).
 
-Orden de comprobaciones: cota `CI_MAX_BODY_BYTES` (413) → firma HMAC (401) → `CI_SERVICE_USER_ID` configurado (503) → validación del artefacto (422) → si `CI_SERVICE_ORG_ID` está definido, rechaza artefactos de otra org (403). La ingesta es idempotente por `(org_id, run_uid)`.
+Orden de comprobaciones: `CI_SERVICE_ORG_ID` configurado (503 sin leer el cuerpo; la vía multi-organización es `/v2/ci/ingest` con token) → cota `CI_MAX_BODY_BYTES` (413, también para cuerpos troceados: la corta el ASGI) → firma HMAC (401) → `CI_SERVICE_USER_ID` configurado (503) → validación del artefacto (422) → artefactos de otra org que no sea `CI_SERVICE_ORG_ID` (403). La ingesta es idempotente por `(org_id, run_uid)`.
 
 Respuesta `CiWebhookResponse = {run_id, ingested, known, novel, results_recorded, snapshots_saved, deduplicated, triage, verdict, gate}`.
 

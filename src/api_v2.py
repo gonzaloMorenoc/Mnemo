@@ -717,6 +717,14 @@ def _process_ci_artifact(artifact: CiRunArtifact) -> CiWebhookResponse:
 
 @router.post("/ci/webhook", response_model=CiWebhookResponse)
 async def ci_webhook(request: Request, background: BackgroundTasks) -> CiWebhookResponse:
+    if not CI_SERVICE_ORG_ID:
+        # Sin org fija, el org_id saldría del CUERPO: quien tenga el secreto compartido
+        # podría inyectar runs (y autoemitir actas) en otra org donde la cuenta de
+        # servicio sea miembro. Se rechaza sin leer el cuerpo (auditoría 23-nov, H6).
+        raise HTTPException(
+            status_code=503,
+            detail="Webhook global desactivado: fija CI_SERVICE_ORG_ID, o usa la "
+                   "ingesta por organización /v2/ci/ingest con un token de ingesta")
     declared = request.headers.get("content-length")
     if declared is not None and declared.isdigit() and int(declared) > CI_MAX_BODY_BYTES:
         raise HTTPException(status_code=413, detail="payload too large")
@@ -732,7 +740,7 @@ async def ci_webhook(request: Request, background: BackgroundTasks) -> CiWebhook
         artifact = CiRunArtifact.model_validate_json(body)
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail="invalid artifact") from exc
-    if CI_SERVICE_ORG_ID and artifact.org_id != CI_SERVICE_ORG_ID:
+    if artifact.org_id != CI_SERVICE_ORG_ID:
         raise HTTPException(status_code=403, detail="org_id not allowed for this CI account")
     resp = await run_in_threadpool(_process_ci_artifact, artifact)
     if not resp.deduplicated:

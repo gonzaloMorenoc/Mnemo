@@ -170,7 +170,7 @@ artefacto), el backend necesita estas variables (sin ellas responde 401/503):
 |----------|--------|
 | `CI_WEBHOOK_SECRET` | Secreto compartido para la firma HMAC-SHA256 (`X-Hub-Signature-256`) |
 | `CI_SERVICE_USER_ID` | UUID del usuario de servicio al que se atribuye la ingesta (debe ser miembro de la organización) |
-| `CI_SERVICE_ORG_ID` | Opcional: si se define, el webhook rechaza (403) artefactos de cualquier otra organización |
+| `CI_SERVICE_ORG_ID` | **Obligatoria para el webhook global** `/v2/ci/webhook`: la única organización aceptada (403 al resto). Sin ella el webhook responde 503 en vez de confiar en el `org_id` del cuerpo. Para varias organizaciones, usa `/v2/ci/ingest` con un token de ingesta por organización |
 
 La alternativa sin secreto compartido es `POST /v2/ci/ingest` con un token de ingesta por
 organización, que se crea desde la app (Integraciones).
