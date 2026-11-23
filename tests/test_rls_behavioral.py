@@ -48,13 +48,18 @@ def _count_families_as(user_id, org_id):
     """Cuenta familias de una org BAJO EL ROL authenticated + el claim del usuario (RLS activa)."""
     with psycopg.connect(DBURL) as conn:
         with conn.cursor() as cur:
-            cur.execute("set role authenticated")
+            # La migración 999 cierra la Data API: authenticated ya no tiene grants. Para
+            # seguir probando las POLÍTICAS (defensa en profundidad) se conceden dentro de
+            # la transacción y se deshacen con el rollback: nada queda concedido.
+            cur.execute("grant select on public.defect_families to authenticated")
+            cur.execute("grant execute on function public.is_org_member(uuid) to authenticated")
+            cur.execute("set local role authenticated")
             cur.execute("select set_config('request.jwt.claim.sub', %s, true)", (user_id,))
             cur.execute("select set_config('request.jwt.claim.role', 'authenticated', true)")
             cur.execute("select count(*) from public.defect_families where org_id = %s", (org_id,))
             n = cur.fetchone()[0]
-            cur.execute("reset role")
-            return n
+        conn.rollback()
+        return n
 
 
 def test_member_of_b_cannot_read_org_a_rows(two_orgs):

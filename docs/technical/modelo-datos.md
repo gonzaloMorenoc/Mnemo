@@ -49,15 +49,18 @@ Todas las tablas de `public` tienen `enable` + `force` (las 7 de `001` recibiero
 | `ingest_tokens` | select `is_org_member`; insert/update/delete `is_org_admin` (+ `created_by = auth.uid()` en insert) | Tabla de credenciales. |
 | resto | `is_org_member(org_id)` para todo | |
 
-### Grants al rol `authenticated`
+### Grants al rol `authenticated`: ninguno (Data API cerrada)
 
-Relevante solo para PostgREST (el pooler no los necesita):
+Mnemo no usa la Data API de Supabase (PostgREST): el frontend solo usa Supabase Auth y todo el
+acceso a datos pasa por el backend. La migración **`999_cerrar_data_api.sql`** retira a `anon` y
+`authenticated` todos los permisos sobre las tablas y secuencias de `public`, el `EXECUTE` de las
+funciones de la app (también a `PUBLIC`, para cerrar `/rest/v1/rpc/*`) y los privilegios por
+defecto, para que un objeto nuevo no nazca expuesto. Es siempre la última en aplicarse: varias
+migraciones antiguas vuelven a conceder `select, insert, update, delete` a `authenticated` al
+re-aplicarse, y la 999 lo neutraliza cada vez (`tests/test_migrations_data_api.py` lo vigila).
 
-- `certificates` y `triage_corrections`: solo `select, insert` (append-only a nivel de grant).
-- `knowledge_proposals`: `insert, update, delete` revocados en `026`; queda `select`.
-- `ingest_tokens`: sin grants (evita exponer `token_hash`).
-- `qa_knowledge`, `test_assets`, `handover_acts`, `org_integrations`: las migraciones no conceden grants.
-- Resto: `select, insert, update, delete`.
+Si algún día se quiere usar PostgREST, hay que rehacer antes las policies por rol: hoy son
+«cualquier miembro puede todo» y dejarían a un miembro saltarse las validaciones del backend.
 
 ### Funciones
 
@@ -321,6 +324,7 @@ La reingesta de un repo borra e inserta todas sus filas (`replace_for_repo`).
 | 028 | Tabla `handover_acts` (actas de traspaso). |
 | 029 | Veredicto `sin_confirmar` en el CHECK de `certificates`. |
 | 030 | `triage_corrections.reason_embedding vector(384)`. |
+| 999 | Cierra la Data API: revoca todo a `anon`/`authenticated` en `public`. Siempre la última. |
 
 ---
 
