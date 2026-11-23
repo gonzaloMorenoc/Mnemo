@@ -96,7 +96,10 @@ export function GithubCallbackView({ params }: { params: GithubCallbackParams })
   // Si GitHub y el navegador nos dieron todo, completamos el alta sin clics.
   // Solo depende de que el token esté listo: el resto viene de la URL o del arranque.
   useEffect(() => {
-    if (phase.kind === "form" && ready && Boolean(pending)) void submit();
+    if (phase.kind !== "form" || !ready || !pending) return;
+    // Fuera del cuerpo del efecto: `submit` cambia el estado y hacerlo de forma
+    // síncrona aquí encadena renders (react-hooks/set-state-in-effect).
+    queueMicrotask(() => void submit());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken]);
 
