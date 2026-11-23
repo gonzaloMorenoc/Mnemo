@@ -72,32 +72,47 @@ function renderWithClient(ui: React.ReactNode) {
 }
 
 describe("DashboardPage", () => {
-  it("steps 1 y 2 done cuando github configurado y tests indexados", async () => {
+  it("los pasos de arranque cuentan la historia de continuidad, no GitHub → Playwright", async () => {
     (useActiveOrg as ReturnType<typeof vi.fn>).mockReturnValue({
       activeOrgId: "o1",
       isLoading: false,
     });
-    (getGithubConfig as ReturnType<typeof vi.fn>).mockResolvedValue({
-      configured: true,
-    });
-    (listRepoTests as ReturnType<typeof vi.fn>).mockResolvedValue([
-      { path: "a" },
-    ]);
     (listKnowledge as ReturnType<typeof vi.fn>).mockResolvedValue([]);
     (getGaps as ReturnType<typeof vi.fn>).mockResolvedValue([]);
     mockOperationalData();
-    (getCertificate as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("404"));
+    (listRuns as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
     renderWithClient(<DashboardPage />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("step-done-1")).toBeDefined();
-      expect(screen.getByTestId("step-done-2")).toBeDefined();
-      expect(screen.getByTestId("step-todo-5")).toBeDefined();
+      expect(screen.getByTestId("step-todo-1")).toBeDefined();
     });
-
+    // calibración con 5 etiquetas → el paso «etiquetar con su porqué» está hecho
+    expect(screen.getByTestId("step-done-2")).toBeDefined();
     expect(screen.getByTestId("step-todo-3")).toBeDefined();
     expect(screen.getByTestId("step-todo-4")).toBeDefined();
+    expect(screen.getByTestId("step-todo-5")).toBeDefined();
+    expect(screen.getByText(/primer run/i)).toBeInTheDocument();
+    expect(screen.getByText(/con su porqué/i)).toBeInTheDocument();
+    expect(screen.getByText(/oficio del proyecto/i)).toBeInTheDocument();
+    expect(screen.getByText(/índice de continuidad/i)).toBeInTheDocument();
+    expect(screen.getByText(/acta de traspaso/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Conecta GitHub/i)).toBeNull();
+    expect(screen.queryByText(/Genera el test que falta/i)).toBeNull();
+    expect(getGithubConfig).not.toHaveBeenCalled();
+    expect(listRepoTests).not.toHaveBeenCalled();
+  });
+
+  it("mientras carga, Memoria y Gaps no pintan un 0 falso", async () => {
+    (useActiveOrg as ReturnType<typeof vi.fn>).mockReturnValue({ activeOrgId: "o1", isLoading: false });
+    (listKnowledge as ReturnType<typeof vi.fn>).mockReturnValue(new Promise(() => {}));
+    (getGaps as ReturnType<typeof vi.fn>).mockReturnValue(new Promise(() => {}));
+    mockOperationalData();
+
+    renderWithClient(<DashboardPage />);
+
+    await waitFor(() => expect(screen.getAllByText("checkout-suite").length).toBeGreaterThan(0));
+    expect(screen.queryByText("0")).toBeNull();
   });
 
   it("muestra los KPIs operativos: último veredicto, precisión, memoria y gaps", async () => {

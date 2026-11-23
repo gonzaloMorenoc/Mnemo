@@ -4,8 +4,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useActiveOrg } from "@/components/providers/org-provider";
 import {
-  getGithubConfig,
-  listRepoTests,
   listKnowledge,
   getGaps,
   listRuns,
@@ -61,8 +59,6 @@ export default function DashboardPage() {
   // (502/504) y no repiten un 4xx.
   const opts = { enabled } as const;
 
-  const github = useQuery({ queryKey: ["github-config", orgId], queryFn: () => getGithubConfig(accessToken!, { org_id: orgId }), ...opts });
-  const repo = useQuery({ queryKey: ["repo-tests", orgId], queryFn: () => listRepoTests(accessToken!, { org_id: orgId }), ...opts });
   const knowledge = useQuery({ queryKey: ["knowledge", orgId], queryFn: () => listKnowledge(accessToken!, orgId), ...opts });
   const gaps = useQuery({ queryKey: ["gaps", orgId, "count"], queryFn: () => getGaps(accessToken!, { org_id: orgId, recommendations: false }), ...opts });
   const runs = useQuery({ queryKey: ["runs", orgId, "dashboard"], queryFn: () => listRuns(accessToken!, orgId, { limit: 20 }), ...opts });
@@ -90,18 +86,21 @@ export default function DashboardPage() {
     );
   }
 
+  const hasRuns = (runs.data?.length ?? 0) > 0;
+  const hasKnowledge = (knowledge.data?.length ?? 0) > 0;
+  // La historia de continuidad: datos → el porqué → el oficio → el índice → el acta.
   const steps: SetupStep[] = [
-    { n: 1, title: "Conecta GitHub", description: "Enlaza el repositorio de tu equipo.", href: "/app/integrations", cta: "Configurar", done: Boolean(github.data?.configured) },
-    { n: 2, title: "Indexa los tests de tu repo", description: "Mnemo aprende el estilo de tus pruebas reales.", href: "/app/integrations", cta: "Indexar", done: (repo.data?.length ?? 0) > 0 },
-    { n: 3, title: "Captura conocimiento de QA", description: "Reglas, lecciones y riesgos de tu producto.", href: "/app/knowledge", cta: "Capturar", done: (knowledge.data?.length ?? 0) > 0 },
-    { n: 4, title: "Revisa tus gaps de cobertura", description: "Reglas sin un test que las cubra.", href: "/app/graph", cta: "Ver gaps", done: (gaps.data?.length ?? 0) > 0 },
-    { n: 5, title: "Genera el test que falta", description: "Desde un gap, al estilo de tu repo, hacia un PR.", href: "/app/graph", cta: "Generar", done: false, highlight: true },
+    { n: 1, title: "Mete el primer run de un proyecto", description: "Sube un informe de tests (JUnit, Playwright, Allure…) o conecta tu CI con un token.", href: "/app/autopilot", cta: "Subir informe", done: hasRuns },
+    { n: 2, title: "Etiqueta un fallo con su porqué", description: "La razón que das al etiquetar es lo que heredará quien llegue.", href: "/app/defects", cta: "Etiquetar", done: (calibration.data?.total ?? 0) > 0 },
+    { n: 3, title: "Documenta el oficio del proyecto", description: "Entornos, datos de prueba, contactos y decisiones; o impórtalos de Confluence/Jira.", href: "/app/knowledge?tab=capturar", cta: "Documentar", done: hasKnowledge },
+    { n: 4, title: "Mira el índice de continuidad", description: "Cuánto sabe Mnemo de cada proyecto y qué le falta.", href: "/app/continuity", cta: "Ver índice", done: hasRuns && hasKnowledge },
+    { n: 5, title: "Emite el acta de traspaso", description: "Firmada y verificable sin cuenta, para cuando alguien rota.", href: "/app/continuity", cta: "Emitir acta", done: false, highlight: true },
   ];
   const setupComplete = steps.slice(0, 4).every((s) => s.done);
   // isPending y no isLoading: con la consulta aún deshabilitada (la org se está
   // resolviendo) isLoading es false y se pintaba un falso «vacío» («Aún sin runs»).
   // El caso «sin organización» ya sale antes, así que pending = todavía cargando.
-  const checklistLoading = orgLoading || github.isPending || repo.isPending || knowledge.isPending || gaps.isPending;
+  const checklistLoading = orgLoading || runs.isPending || knowledge.isPending || calibration.isPending;
 
   const m = calibration.data;
   const nGapsAlta = (gaps.data ?? []).filter((g) => g.severity === "alta").length;
@@ -157,8 +156,8 @@ export default function DashboardPage() {
         ) : (
           <Card className="p-5">
             <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Última release</p>
-            <p className="mt-2 text-sm text-zinc-500">Aún sin runs — sube un reporte en Autopilot.</p>
-            <Link href="/app/autopilot" className="mt-3 inline-block text-xs font-medium text-primary hover:underline">Ir a Autopilot →</Link>
+            <p className="mt-2 text-sm text-zinc-500">Aún sin runs: sube el informe de tests de una ejecución o conecta tu CI.</p>
+            <Link href="/app/autopilot" className="mt-3 inline-block text-xs font-medium text-primary hover:underline">Subir un informe →</Link>
           </Card>
         )}
         <VizCard title="Precisión del motor">
@@ -208,6 +207,8 @@ export default function DashboardPage() {
         <VizCard title="Memoria de QA">
           {knowledge.isError ? (
             <KpiError />
+          ) : knowledge.isPending ? (
+            <Skeleton className="h-12 w-24" />
           ) : (
             <>
               <p className="text-3xl font-semibold tracking-tight text-zinc-900">{knowledge.data?.length ?? 0}</p>
@@ -222,6 +223,8 @@ export default function DashboardPage() {
         <VizCard title="Gaps de cobertura">
           {gaps.isError ? (
             <KpiError />
+          ) : gaps.isPending ? (
+            <Skeleton className="h-12 w-24" />
           ) : (
             <>
               <p className="text-3xl font-semibold tracking-tight text-zinc-900">{gaps.data?.length ?? 0}</p>
@@ -268,7 +271,7 @@ export default function DashboardPage() {
       {/* ── Setup: solo para una organización que aún no está en uso. En una con
           runs y memoria, «Pon Mnemo en marcha» transmitía «a medio configurar». ── */}
       {checklistLoading || (recentRuns.length > 0 && (knowledge.data?.length ?? 0) > 0) ? null : setupComplete ? (
-        <p className="text-xs text-zinc-500">✓ Configuración completa — GitHub conectado, tests indexados, memoria y gaps activos.</p>
+        <p className="text-xs text-zinc-500">✓ En marcha: hay runs, fallos etiquetados con su porqué y oficio documentado.</p>
       ) : (
         <div className="space-y-3">
           <h3 className="text-sm font-medium text-zinc-700">Pon Mnemo en marcha</h3>

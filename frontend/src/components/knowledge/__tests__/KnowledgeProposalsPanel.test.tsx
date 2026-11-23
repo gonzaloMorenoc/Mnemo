@@ -47,6 +47,23 @@ afterEach(() => {
 });
 
 describe("KnowledgeProposalsPanel", () => {
+  it("mientras carga no dice «No hay propuestas pendientes»", () => {
+    vi.mocked(endpoints.listKnowledgeProposals).mockReturnValue(new Promise(() => {}));
+    renderPanel();
+    expect(screen.queryByText(/No hay propuestas pendientes/)).not.toBeInTheDocument();
+    expect(screen.getByTestId("proposals-loading")).toBeInTheDocument();
+  });
+
+  it("un error al cargar se dice como error, con Reintentar (no como vacío)", async () => {
+    vi.mocked(endpoints.listKnowledgeProposals).mockRejectedValueOnce(new Error("boom"));
+    renderPanel();
+    expect(await screen.findByRole("alert")).toHaveTextContent(/No se pudieron cargar las propuestas/);
+    expect(screen.queryByText(/No hay propuestas pendientes/)).not.toBeInTheDocument();
+    vi.mocked(endpoints.listKnowledgeProposals).mockResolvedValue([PROPOSAL]);
+    fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+    expect(await screen.findByDisplayValue("Timeout en checkout")).toBeInTheDocument();
+  });
+
   it("lista las propuestas pendientes (título editable)", async () => {
     vi.mocked(endpoints.listKnowledgeProposals).mockResolvedValue([PROPOSAL]);
     renderPanel();
