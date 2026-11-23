@@ -28,6 +28,7 @@ from src.certify.repository import CertificateRepository
 from src.certify.render import render_html, render_pdf
 from src.certify.service import CertificateService, parse_public_keys
 from src.certify.signing import SigningKeyMissing, canonical_json, verify
+from src.db.pool import get_pool
 from src.config import (CI_MAX_BODY_BYTES, CI_SERVICE_ORG_ID, CI_SERVICE_USER_ID,
                         CI_WEBHOOK_SECRET, INGEST_MAX_BYTES, LLM_MODEL,
                         MNEMO_PUBLIC_APP_URL, MNEMO_SIGNING_PRIVATE_KEY,
@@ -186,15 +187,17 @@ def get_ingestion_service() -> IngestionService:
         raise HTTPException(status_code=503, detail="Multi-tenant KB not configured")
     global _ingestion_service
     if _ingestion_service is None:
-        from src.defects.embedder import LocalEmbedder
-        _ingestion_service = IngestionService(repo=get_assurance_repo(), embedder=LocalEmbedder())
+        _ingestion_service = IngestionService(repo=get_assurance_repo(), embedder=get_embedder())
     return _ingestion_service
 
 
 def get_narrator() -> Narrator:
     global _narrator
     if _narrator is None:
-        _narrator = LLMNarrator(_llm_provider_or_none())
+        # Cacheada por versión de datos del veredicto: el GET del run no llama al LLM
+        # en cada carga (auditoría 2026-11-23, 03-tecnica E8).
+        from src.assurance.narrator_cache import CachingNarrator
+        _narrator = CachingNarrator(LLMNarrator(_llm_provider_or_none()))
     return _narrator
 
 
@@ -228,9 +231,8 @@ def get_integrations_repo() -> IntegrationsRepository:
 def get_jira_ingestion_service() -> JiraIngestionService:
     global _jira_service
     if _jira_service is None:
-        from src.defects.embedder import LocalEmbedder
         _jira_service = JiraIngestionService(
-            repo=get_assurance_repo(), embedder=LocalEmbedder(),
+            repo=get_assurance_repo(), embedder=get_embedder(),
             integrations=get_integrations_repo(),
         )
     return _jira_service
@@ -241,9 +243,8 @@ def get_ci_ingestion_service() -> CiIngestionService:
         raise HTTPException(status_code=503, detail="Multi-tenant KB not configured")
     global _ci_ingestion_service
     if _ci_ingestion_service is None:
-        from src.defects.embedder import LocalEmbedder
         _ci_ingestion_service = CiIngestionService(
-            repo=get_assurance_repo(), embedder=LocalEmbedder()
+            repo=get_assurance_repo(), embedder=get_embedder()
         )
     return _ci_ingestion_service
 
@@ -413,10 +414,12 @@ def get_gate_service() -> GateService:
 
 
 def get_embedder():
-    from src.defects.embedder import LocalEmbedder
+    # Un único embedder (y un único modelo en RAM) por proceso, compartido por todos
+    # los servicios y repositorios (auditoría 2026-11-23 #13).
+    from src.defects.embedder import get_shared_embedder
     global _embedder
     if _embedder is None:
-        _embedder = LocalEmbedder()
+        _embedder = get_shared_embedder()
     return _embedder
 
 
@@ -425,7 +428,7 @@ def get_knowledge_repo() -> QaKnowledgeRepository:
         raise HTTPException(status_code=503, detail="Multi-tenant KB not configured")
     global _knowledge_repo
     if _knowledge_repo is None:
-        _knowledge_repo = QaKnowledgeRepository()
+        _knowledge_repo = QaKnowledgeRepository(embedder=get_embedder())
     return _knowledge_repo
 
 
@@ -578,12 +581,54 @@ def _llm_status_for_health(probe: bool) -> Dict[str, Any]:
     return status
 
 
+# /health comprueba la BD (auditoría 2026-11-23 #20): antes respondía "active" sin
+# tocarla y el keep-warm salía verde con la BD caída. Timeout corto: es un ping.
+HEALTH_DB_TIMEOUT_SECONDS = 3
+_HEALTH_DB_STATEMENT_TIMEOUT_MS = HEALTH_DB_TIMEOUT_SECONDS * 1000
+
+
+def _database_configured() -> bool:
+    from src import config
+    return bool(config.DATABASE_URL)
+
+
+def _ping_database() -> None:
+    """`select 1` por el pool con timeout corto; lanza si la BD no responde."""
+    with get_pool().connection(timeout=HEALTH_DB_TIMEOUT_SECONDS) as conn:
+        conn.execute(f"set local statement_timeout = {_HEALTH_DB_STATEMENT_TIMEOUT_MS}")
+        conn.execute("select 1")
+
+
+def _db_status_for_health() -> str:
+    if not _database_configured():
+        return "not_configured"
+    try:
+        _ping_database()
+    except Exception as exc:  # noqa: BLE001 — cualquier fallo de BD = no listo
+        # Al log solo el tipo: el mensaje del driver puede llevar el DSN.
+        logger.error("health: la BD no responde (%s)", type(exc).__name__)
+        return "error"
+    return "ok"
+
+
+@router.get("/health/live")
+def health_live_v2() -> Dict[str, str]:
+    """Liveness ligera (HEALTHCHECK del contenedor/Render): el proceso responde. No
+    toca BD ni LLM, para que una BD caída no haga reiniciar el contenedor en bucle."""
+    return {"status": "alive"}
+
+
 @router.get("/health")
-def health_v2(probe: bool = False) -> Dict[str, Any]:
+def health_v2(response: Response, probe: bool = False) -> Dict[str, Any]:
     # `?probe=1` hace una llamada mínima real al LLM (como mucho una por ventana) y
     # reporta el error crudo (401/429/timeout). Sin probe solo valida la config.
-    return {"status": "active", "model": resolved_model_name(),
+    db = _db_status_for_health()
+    if db == "error":
+        response.status_code = 503
+    return {"status": "degraded" if db == "error" else "active",
+            "model": resolved_model_name(),
             "llm": _llm_status_for_health(probe),
+            "db": db,
             "multi_tenant_enabled": multi_tenant_enabled()}
 
 
@@ -1152,9 +1197,10 @@ def assurance_verdict_v2(
     verdict = build_verdict(run_summary=data["summary"], run_families=data["families"])
     try:
         narrative = narrator.summarize(verdict)
-    except Exception:
+    except Exception as exc:  # noqa: BLE001
         # La narrativa LLM es opcional: si el narrator falla (o no hay LLM), devolvemos
         # el veredicto determinista sin narrativa en lugar de romper la respuesta.
+        logger.warning("narrativa del run %s no disponible: %s", run_id, type(exc).__name__)
         narrative = None
     return AssuranceVerdictResponse(
         run_id=run_id,
@@ -1797,32 +1843,40 @@ async def generate_test_plan_v2(
 
     HU source priority: direct text > Jira URL > uploaded file.
     """
+    # Solo la lectura de la subida es IO asíncrona; Jira, el embedding, la BD y el LLM
+    # (hasta 50 s) son síncronos y van al threadpool para no congelar el event loop a
+    # todos los clientes (auditoría 2026-11-23 #2).
     try:
-        if hu_text is not None:
-            resolved_hu = hu_text
-        elif jira_url is not None:
-            resolved_hu = hu_text_from_jira(
-                url=jira_url, org_id=org_id, user_id=user.user_id, repo=integrations
-            )
-        elif file is not None:
-            data = await _read_upload_capped_async(file)
-            resolved_hu = resolve_hu_from_upload(file.filename, data)
-        else:
-            raise ValueError(
-                "No se proporcionó HU: adjunta un fichero, una URL de Jira o texto directo"
+        data = await _read_upload_capped_async(file) if (
+            hu_text is None and jira_url is None and file is not None) else None
+
+        def _work() -> Dict[str, Any]:
+            if hu_text is not None:
+                resolved_hu = hu_text
+            elif jira_url is not None:
+                resolved_hu = hu_text_from_jira(
+                    url=jira_url, org_id=org_id, user_id=user.user_id, repo=integrations
+                )
+            elif file is not None:
+                resolved_hu = resolve_hu_from_upload(file.filename, data)
+            else:
+                raise ValueError(
+                    "No se proporcionó HU: adjunta un fichero, una URL de Jira o texto directo"
+                )
+
+            if not resolved_hu or not resolved_hu.strip():
+                raise ValueError("La HU está vacía")
+
+            ks = KnowledgeService(krepo, arepo, embedder=embedder)
+            return generate_test_plan(
+                knowledge_service=ks,
+                user_id=user.user_id,
+                org_id=org_id,
+                hu_text=resolved_hu,
+                case_format=case_format,
             )
 
-        if not resolved_hu or not resolved_hu.strip():
-            raise ValueError("La HU está vacía")
-
-        ks = KnowledgeService(krepo, arepo, embedder=embedder)
-        result = generate_test_plan(
-            knowledge_service=ks,
-            user_id=user.user_id,
-            org_id=org_id,
-            hu_text=resolved_hu,
-            case_format=case_format,
-        )
+        result = await run_in_threadpool(_work)
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except ValueError as exc:

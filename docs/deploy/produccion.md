@@ -187,7 +187,10 @@ declaradas en `render.yaml`.
 Los hosts gratuitos (HF Spaces) suspenden el backend por inactividad: la primera petición
 tarda alrededor de un minuto y puede dar un 504. El workflow
 **`.github/workflows/keep-warm.yml`** consulta `GET /v2/health` cada 15 minutos y falla
-(con aviso por correo) si no responde 200.
+(con aviso por correo) si no responde 200. `/v2/health` hace un `select 1` a la BD (timeout
+de 3 s) cuando `DATABASE_URL` está configurada y responde **503** si la BD no contesta, así
+que el aviso también salta con la BD caída (la petición sigue despertando el backend). El
+HEALTHCHECK del contenedor y Render usan `GET /v2/health/live`, que no toca BD ni LLM.
 
 Para activarlo: GitHub → Settings → Secrets and variables → Actions → **Variables** →
 `BACKEND_HEALTH_URL` = `https://<backend>/v2/health`. Sin la variable, el job no hace nada.

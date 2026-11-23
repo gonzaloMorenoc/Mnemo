@@ -6,7 +6,7 @@ from psycopg.rows import dict_row
 
 from src.config import DATABASE_URL, MAX_SEMANTIC_DISTANCE
 from src.db.pool import get_pool
-from src.defects.embedder import LocalEmbedder
+from src.defects.embedder import get_shared_embedder
 
 # Los 7 primeros son conocimiento sobre el PRODUCTO y sus fallos. Los 4 últimos son el
 # OFICIO del proyecto — lo que se va con el senior y antes no tenía dónde vivir
@@ -73,7 +73,7 @@ def _assert_same_org(cur, *, org_id: str, defect_family_id: Optional[str],
 class QaKnowledgeRepository:
     def __init__(self, db_url: str = DATABASE_URL, embedder=None):
         self.db_url = db_url
-        self.embedder = embedder or LocalEmbedder()
+        self.embedder = embedder or get_shared_embedder()
 
     def _connect(self) -> psycopg.Connection:
         return get_pool().connection()

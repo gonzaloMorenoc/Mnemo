@@ -3,7 +3,9 @@ name: Keep-warm del backend
 # El backend en hosting gratuito (HF Spaces) se duerme por inactividad y la primera
 # petición real tarda ~60 s → 504 al primer clic (adoption-killer P1 de la auditoría
 # 2026-07-10). Este ping periódico lo mantiene despierto y, de paso, avisa por email
-# (workflow fallido) si el backend deja de responder 200.
+# (workflow fallido) si el backend deja de responder 200. /v2/health comprueba también la
+# BD (select 1): con la BD caída responde 503 y el workflow avisa, pero el ping despierta
+# el Space igualmente. La liveness pura es /v2/health/live (HEALTHCHECK del contenedor).
 #
 # Requiere la variable de repositorio BACKEND_HEALTH_URL (Settings → Secrets and
 # variables → Actions → Variables), p.ej.:
