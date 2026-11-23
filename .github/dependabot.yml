@@ -1,6 +1,6 @@
-# Solo actualizaciones de SEGURIDAD (Dependabot las abre en cuanto hay un aviso).
-# Las de versión están desactivadas (open-pull-requests-limit: 0): cada PR dispara CI
-# y despliegues, y la cuota de Vercel es limitada. pip-audit en el CI vigila además las
+# Dependabot NO abre PRs de versión (open-pull-requests-limit: 0): cada PR dispara CI y
+# despliegues, y la cuota de Vercel es limitada. Las PRs de seguridad dependen del ajuste
+# del repo «Dependabot security updates» (hoy desactivado). pip-audit en el CI vigila las
 # dependencias Python en cada PR.
 version: 2
 updates:
