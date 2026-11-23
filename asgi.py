@@ -19,6 +19,7 @@ configure_logging()     # antes de importar la app: que sus logger.info no se pi
 from src.api_v2 import router as v2_router  # noqa: E402
 from src.config import CI_MAX_BODY_BYTES, INGEST_MAX_BYTES, api_docs_exposed  # noqa: E402
 from src.orgs.api import router as orgs_members_router  # noqa: E402
+from src.projects.api import router as projects_router  # noqa: E402
 from src.db.pool import get_pool, close_pool  # noqa: E402
 from src.http.body_limit import BodySizeLimitMiddleware  # noqa: E402
 from src.defects.embedder import get_shared_embedder  # noqa: E402
@@ -66,6 +67,7 @@ def create_app(*, expose_api_docs: bool) -> FastAPI:
     application = FastAPI(title="Mnemo Autopilot", version="2.0.0", lifespan=lifespan, **docs)
     application.include_router(v2_router)
     application.include_router(orgs_members_router)
+    application.include_router(projects_router)
     application.add_middleware(BodySizeLimitMiddleware, limits=BODY_LIMITS,
                                default_limit=DEFAULT_MAX_BODY_BYTES)
     return application

@@ -212,7 +212,8 @@ class QaKnowledgeRepository:
             return dict(row) if row else None
 
     def search_semantic(self, *, user_id: str, org_id: str,
-                        query_embedding: Sequence[float], k: int = 8) -> List[Dict[str, Any]]:
+                        query_embedding: Sequence[float], k: int = 8,
+                        project: Optional[str] = None) -> List[Dict[str, Any]]:
         with self._connect() as conn, conn.cursor() as cur:
             if not self._is_member(cur, org_id, user_id):
                 return []
@@ -222,5 +223,6 @@ class QaKnowledgeRepository:
             # Con la migración 033, la distancia de un item es la de su fragmento
             # más cercano: el final de un texto largo también es buscable (#9).
             cur.execute(search_sql(with_chunks=chunks_table_exists(cur)),
-                        {"org": org_id, "q": q, "max_dist": MAX_SEMANTIC_DISTANCE, "k": k})
+                        {"org": org_id, "q": q, "max_dist": MAX_SEMANTIC_DISTANCE, "k": k,
+                         "proj": project})
             return [dict(r) for r in cur.fetchall()]

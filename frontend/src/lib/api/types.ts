@@ -465,3 +465,17 @@ export interface RepoIndexResult {
   by_domain: Record<string, number>;
   skipped: number;
 }
+
+/** Proyecto (migración 036): `key` es inmutable (la usan ingestas y actas); `name` se edita. */
+export interface Project {
+  id: string;
+  key: string;
+  name: string;
+  description?: string | null;
+  is_example: boolean;
+  archived: boolean;
+  created_at: string;
+  last_run_at?: string | null;
+  runs: number;
+  knowledge: number;
+}

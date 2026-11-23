@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { OrgMembersPanel, ROLE_LABEL } from "@/components/org/OrgMembersPanel";
+import { ProjectsPanel } from "@/components/org/ProjectsPanel";
 import { useAuth } from "@/components/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -182,6 +183,7 @@ export default function OrganizationPage() {
                   </p>
                 </div>
                 <OrgMembersPanel org={org} />
+                <ProjectsPanel org={org} />
               </div>
             ))}
           </div>

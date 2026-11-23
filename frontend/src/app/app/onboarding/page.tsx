@@ -10,6 +10,7 @@ import Link from "next/link";
 
 import { useAuth } from "@/components/providers/auth-provider";
 import { useActiveOrg } from "@/components/providers/org-provider";
+import { projectParam, useActiveProject } from "@/components/providers/project-provider";
 import {
   domainSummary,
   learningPath,
@@ -26,6 +27,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function OnboardingPage() {
   const { accessToken } = useAuth();
   const { activeOrgId, isLoading } = useActiveOrg();
+  const { activeProject } = useActiveProject();
 
   const [topic, setTopic] = useState("");
 
@@ -42,7 +44,9 @@ export default function OnboardingPage() {
   const summaryMutation = useMutation({
     mutationFn: () => {
       if (!accessToken) throw new Error("Sin sesión");
-      return domainSummary(accessToken, { org_id: activeOrgId ?? "", topic: topic.trim() });
+      return domainSummary(accessToken, {
+        org_id: activeOrgId ?? "", topic: topic.trim(), ...projectParam(activeProject),
+      });
     },
     onSuccess: setSummary,
     onError: (err: Error) => toast.error(err.message),
@@ -51,7 +55,9 @@ export default function OnboardingPage() {
   const pathMutation = useMutation({
     mutationFn: () => {
       if (!accessToken) throw new Error("Sin sesión");
-      return learningPath(accessToken, { org_id: activeOrgId ?? "", topic: topic.trim() });
+      return learningPath(accessToken, {
+        org_id: activeOrgId ?? "", topic: topic.trim(), ...projectParam(activeProject),
+      });
     },
     onSuccess: setPath,
     onError: (err: Error) => toast.error(err.message),
@@ -60,7 +66,9 @@ export default function OnboardingPage() {
   const askMutation = useMutation({
     mutationFn: () => {
       if (!accessToken) throw new Error("Sin sesión");
-      return askKnowledge(accessToken, { org_id: activeOrgId ?? "", question });
+      return askKnowledge(accessToken, {
+        org_id: activeOrgId ?? "", question, ...projectParam(activeProject),
+      });
     },
     onSuccess: setChatAnswer,
     onError: (err: Error) => toast.error(err.message),

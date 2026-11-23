@@ -175,3 +175,15 @@ def test_gather_passes_topic_as_query():
     assert len(calls) == 1
     assert calls[0]["query"] == "pagos con tarjeta"
     assert calls[0]["k"] == 8
+
+
+def test_el_onboarding_filtra_por_proyecto_si_se_pide():
+    from unittest.mock import MagicMock
+
+    from src.onboarding.agent import learning_path, summarize_domain
+    svc = MagicMock()
+    svc.search_unified.return_value = []
+    summarize_domain(knowledge_service=svc, user_id="u", org_id="o", topic="pagos", project="web")
+    assert svc.search_unified.call_args.kwargs["project"] == "web"
+    learning_path(knowledge_service=svc, user_id="u", org_id="o", topic="pagos")
+    assert "project" not in svc.search_unified.call_args.kwargs

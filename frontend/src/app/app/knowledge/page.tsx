@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { useAuth } from "@/components/providers/auth-provider";
 import { useActiveOrg } from "@/components/providers/org-provider";
+import { projectParam, useActiveProject } from "@/components/providers/project-provider";
 import {
   createKnowledge,
   askKnowledge,
@@ -55,6 +56,7 @@ const TAB_VALUES = new Set(["preguntar", "explorar", "propuestas", "capturar"]);
 export default function KnowledgePage() {
   const { accessToken } = useAuth();
   const { activeOrgId, isLoading } = useActiveOrg();
+  const { activeProject } = useActiveProject();
 
   // Deep-link a un tab (?tab=explorar) — enlaces cruzados desde otras vistas.
   // useLayoutEffect: corre ANTES del pintado → sin flash del tab por defecto.
@@ -113,7 +115,7 @@ export default function KnowledgePage() {
   const askMutation = useMutation({
     mutationFn: () => {
       if (!accessToken) throw new Error("Sin sesión");
-      return askKnowledge(accessToken, { org_id: activeOrgId, question });
+      return askKnowledge(accessToken, { org_id: activeOrgId, question, ...projectParam(activeProject) });
     },
     // Cada pregunta empieza limpia: las fuentes de la anterior no pueden quedarse
     // a la vista como si respondieran a esta.
@@ -126,7 +128,9 @@ export default function KnowledgePage() {
       setAnswer(data);
       // Also fire a search to get sources
       if (accessToken && activeOrgId) {
-        searchKnowledge(accessToken, { org_id: activeOrgId, query: question })
+        searchKnowledge(accessToken, {
+          org_id: activeOrgId, query: question, ...projectParam(activeProject),
+        })
           .then(setSources)
           .catch(() => {
             // Las fuentes son opcionales, pero su fallo se dice: no es «no hay nada».

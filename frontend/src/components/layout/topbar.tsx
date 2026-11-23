@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 
 import { useAuth } from "@/components/providers/auth-provider";
 import { OrgSwitcher } from "@/components/layout/org-switcher";
+import { ProjectSwitcher } from "@/components/layout/project-switcher";
 import { crumbForPath } from "@/components/layout/nav";
 import { Button } from "@/components/ui/button";
 import { truncate } from "@/lib/utils";
@@ -34,6 +35,7 @@ export function Topbar({ onOpenMobileMenu }: TopbarProps) {
           <Menu size={16} />
         </Button>
         <OrgSwitcher />
+        <ProjectSwitcher />
         {crumb && (
           <nav
             aria-label="Ruta de navegación"

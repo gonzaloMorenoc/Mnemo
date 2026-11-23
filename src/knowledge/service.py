@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from src.ai import nl_query
 from src.defects.embedder import get_shared_embedder
@@ -15,11 +15,15 @@ class KnowledgeService:
         self.assurance = assurance_repo
         self.embedder = embedder or get_shared_embedder()
 
-    def search_unified(self, *, user_id: str, org_id: str, query: str, k: int = 8) -> List[Dict[str, Any]]:
-        """Conocimiento + familias, mezclados por relevancia (ranking.merge_by_relevance)."""
+    def search_unified(self, *, user_id: str, org_id: str, query: str, k: int = 8,
+                       project: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Conocimiento + familias, mezclados por relevancia (ranking.merge_by_relevance).
+        Con `project`: lo del proyecto + lo de toda la org, y familias con fallos en él."""
         emb = self.embedder.embed(query)
-        items = self.knowledge.search_semantic(user_id=user_id, org_id=org_id, query_embedding=emb, k=k)
-        fams = self.assurance.search_families_semantic(user_id=user_id, org_id=org_id, query_embedding=emb, k=k)
+        items = self.knowledge.search_semantic(user_id=user_id, org_id=org_id, query_embedding=emb,
+                                               k=k, project=project)
+        fams = self.assurance.search_families_semantic(user_id=user_id, org_id=org_id,
+                                                       query_embedding=emb, k=k, project=project)
         knowledge = [{"id": str(i["id"]), "type": "knowledge", "title": i.get("title"),
                       "content": " ".join(str(i.get(x) or "") for x in ("title", "challenge", "approach", "outcome")).strip(),
                       "confidence": i.get("confidence"), "dist": i.get("dist")} for i in items]
@@ -36,8 +40,10 @@ class KnowledgeService:
                     for f in fams]
         return [_public(s) for s in merge_by_relevance(knowledge, families)]
 
-    def ask(self, *, user_id: str, org_id: str, question: str) -> Dict[str, Any]:
-        sources = self.search_unified(user_id=user_id, org_id=org_id, query=question)
+    def ask(self, *, user_id: str, org_id: str, question: str,
+            project: Optional[str] = None) -> Dict[str, Any]:
+        sources = self.search_unified(user_id=user_id, org_id=org_id, query=question,
+                                      project=project)
         out = nl_query.answer_over_sources(question=question, sources=sources)
         return {**out, "sources": _cited_sources(out.get("citations") or [], sources)}
 

@@ -65,6 +65,16 @@ El LLM es opcional en casi toda la API. Si el proveedor no se puede construir o 
 
 `OrganizationResponse = {id, name, join_code, join_code_expires_at, role, created_at}`; `join_code` y su caducidad solo llegan a owner/admin (para el resto, `null`).
 
+### Proyectos
+
+| Método | Ruta | Cuerpo | Respuesta | Auth |
+|---|---|---|---|---|
+| `GET` | `/v2/projects?org_id=&include_archived=true` | — | `[{id, key, name, description, is_example, archived, created_at, last_run_at, runs, knowledge}]` | JWT + miembro |
+| `POST` | `/v2/projects` | `{org_id, key, name?, description?}`: `key` y `name` de una línea (1–200, sin caracteres de control) | 201 con el proyecto; 409 si la clave ya existe | JWT owner/admin |
+| `PATCH` | `/v2/projects/{id}` | `{name?, description?, archived?}` | El proyecto; 404 si no existe | JWT owner/admin |
+
+La **clave** (`key`) es la que manda el CI en `project` y va dentro de las actas firmadas: no se cambia nunca. Las ingestas crean el proyecto solas si no existe; un admin edita el nombre visible y archiva. Un proyecto archivado deja de ofrecerse en el selector, pero sus datos y actas siguen intactos.
+
 **Matriz de permisos** (`src/orgs/permissions.py`, aplicada con `enforce(...)` de `src/orgs/access.py`): `viewer` solo lee; `member` hace el trabajo diario de QA (subir informes, etiquetar, crear/editar conocimiento, resolver desempates, generar planes y tests); preguntar a la memoria (`/defects/ask`, `/knowledge/ask`) es leer, así que también puede el `viewer`; `owner`/`admin` además configuran integraciones y tokens, publican el gate, aprueban acciones, emiten actas, abren PRs de automatización (`/automation/pr`) y gestionan miembros.
 
 ---
@@ -154,7 +164,7 @@ Después de enviar la respuesta, una `BackgroundTask` genera **propuestas de con
 | `PATCH` | `/v2/defects/{family_id}/label` | `{label, reason?}` → `{family_id, label}`. Ver nota | JWT + miembro |
 | `POST` | `/v2/defects/{defect_id}/root-cause` | Causa raíz por LLM → `{defect_id, root_cause, cached}`. Devuelve la cacheada salvo `?regenerate=true`. 404 si no existe; 503 si la IA no está disponible o no produce resultado | JWT + miembro |
 | `GET` | `/v2/defects/{defect_id}/memory` | Lo que el equipo recuerda de la familia → `{family_id, title, label, label_text, reason, reason_by, reason_by_active, reason_at, lessons[], projects[], runs, has_memory, related[]}`. `related` = hasta 3 elementos de conocimiento parecidos que no son ya lección (`?related=false` lo omite y no carga el modelo). 404 si no existe | JWT + miembro (viewer incluido) |
-| `POST` | `/v2/defects/ask` | `{org_id, question}` (≤2000) → `{answer, citations[], families[]}`: búsqueda semántica sobre las familias (k=8) + respuesta del LLM; degrada sin LLM | JWT + miembro (viewer incluido) |
+| `POST` | `/v2/defects/ask` | `{org_id, question, project?}` (≤2000) → `{answer, citations[], families[]}`: búsqueda semántica sobre las familias (k=8) + respuesta del LLM; degrada sin LLM | JWT + miembro (viewer incluido) |
 | `GET` | `/v2/calibration/metrics?org_id=` | Métricas del lazo de aprendizaje → `{total, aciertos, accuracy, familias_calibradas, por_categoria}`; 404 si la org no existe o no es miembro | JWT + miembro |
 
 **Etiquetado.** `label` ∈ `flaky` / `real` / `maintenance` / `infra` / `unknown` (otro valor → 422; familia inexistente o ajena → 404). El cambio se registra como corrección humana frente a la predicción del motor, que alimenta la calibración. Si llega `reason`, el endpoint **embebe la razón** (best-effort: si el modelo falla, la etiqueta se guarda igual con el vector a `NULL` y `scripts/reembed.py` lo completa después). La búsqueda semántica de familias tiene en cuenta ese vector, y la razón vuelve como `label_reason` en el linaje.
@@ -236,8 +246,10 @@ Se verifica por la misma puerta pública que el acta de release. Las actas v1 si
 | `GET` | `/v2/knowledge/{item_id}?org_id=` | Un ítem; `org_id` es obligatorio (422 si falta); 404 si no existe | JWT + miembro |
 | `PATCH` | `/v2/knowledge/{item_id}` | `{org_id, …campos}`: edita `kind`, `title`, `challenge`, `approach`, `outcome`, `domain`, `tags`, `project` o `status` (`activo` / `obsoleto`). 404 si no existe o sin permiso | JWT + autor, u owner/admin |
 | `DELETE` | `/v2/knowledge/{item_id}?org_id=` | Borrado duro → `{deleted: true}`; misma autoridad que la edición | JWT + autor, u owner/admin |
-| `POST` | `/v2/knowledge/search` | `{org_id, query, k}` (k 1–100, por defecto 8): búsqueda semántica unificada sobre ítems y familias de defecto → `[{id, type: knowledge|defect, title, content, confidence}]` | JWT + miembro |
-| `POST` | `/v2/knowledge/ask` | `{org_id, question}`: respuesta en lenguaje natural citando las fuentes; degrada sin LLM | JWT + miembro (viewer incluido) |
+| `POST` | `/v2/knowledge/search` | `{org_id, query, k, project?}` (k 1–100, por defecto 8): búsqueda semántica unificada sobre ítems y familias de defecto → `[{id, type: knowledge|defect, title, content, confidence}]` | JWT + miembro |
+| `POST` | `/v2/knowledge/ask` | `{org_id, question, project?}`: respuesta en lenguaje natural citando las fuentes; degrada sin LLM | JWT + miembro (viewer incluido) |
+
+**Filtro `project`** (también en `/defects/ask` y en onboarding): el conocimiento de ese proyecto **más el de toda la organización** (`project` null), y las familias de defecto con fallos en runs de ese proyecto (una familia es de la org y puede aparecer en varios). Sin `project`, todo, como antes.
 
 `kind` ∈ `regla_negocio`, `flujo`, `riesgo`, `glosario`, `leccion`, `reto`, `patron`, `runbook`, `dato_prueba`, `contacto`, `decision`. El contenido de las familias en la búsqueda incluye la razón de la etiqueta humana.
 
@@ -262,8 +274,8 @@ Además de `generate`, las propuestas nacen automáticamente al calcular una cau
 
 | Método | Ruta | Descripción | Auth |
 |---|---|---|---|
-| `POST` | `/v2/onboarding/domain-summary` | `{org_id, topic}` → `{rules, systems, existing_tests, historical_bugs, risks, citations}` sobre la memoria del proyecto. Sin LLM: listas vacías y las fuentes encontradas como citas | JWT + miembro |
-| `POST` | `/v2/onboarding/learning-path` | `{org_id, topic}` → `{days: [{day, items}], citations}`. Sin LLM: un día con aviso y las fuentes como citas | JWT + miembro |
+| `POST` | `/v2/onboarding/domain-summary` | `{org_id, topic, project?}` → `{rules, systems, existing_tests, historical_bugs, risks, citations}` sobre la memoria del proyecto. Sin LLM: listas vacías y las fuentes encontradas como citas | JWT + miembro |
+| `POST` | `/v2/onboarding/learning-path` | `{org_id, topic, project?}` → `{days: [{day, items}], citations}`. Sin LLM: un día con aviso y las fuentes como citas | JWT + miembro |
 
 ---
 

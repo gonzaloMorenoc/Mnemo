@@ -290,6 +290,8 @@ class CalibrationMetricsResponse(BaseModel):
 class AskRequest(BaseModel):
     org_id: str
     question: str = Field(max_length=2000)
+    # Filtro opcional por proyecto (clave): lo del proyecto + lo de toda la org.
+    project: Optional[str] = Field(default=None, max_length=200)
 
 
 class AskResponse(BaseModel):
@@ -324,11 +326,15 @@ class KnowledgeSearchRequest(BaseModel):
     org_id: str
     query: str = Field(max_length=2000)
     k: int = Field(default=8, ge=1, le=100)
+    # Filtro opcional por proyecto (clave): lo del proyecto + lo de toda la org.
+    project: Optional[str] = Field(default=None, max_length=200)
 
 
 class KnowledgeAskRequest(BaseModel):
     org_id: str
     question: str = Field(max_length=2000)
+    # Filtro opcional por proyecto (clave): lo del proyecto + lo de toda la org.
+    project: Optional[str] = Field(default=None, max_length=200)
 
 
 class KnowledgeProposalGenerateRequest(BaseModel):
@@ -392,6 +398,8 @@ class KnowledgeUpdateRequest(BaseModel):
 class OnboardingRequest(BaseModel):
     org_id: str
     topic: str = Field(max_length=2000)
+    # Filtro opcional por proyecto (clave): lo del proyecto + lo de toda la org.
+    project: Optional[str] = Field(default=None, max_length=200)
 
 
 class TestPlanGenerateRequest(BaseModel):
