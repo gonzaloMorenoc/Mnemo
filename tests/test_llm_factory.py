@@ -34,14 +34,14 @@ def test_openai(monkeypatch):
     monkeypatch.setattr(config, "LLM_PROVIDER", "openai")
     monkeypatch.setattr(config, "OPENAI_API_KEY", "k")
     monkeypatch.setattr(config, "ALLOW_EXTERNAL_LLM", True)
-    assert isinstance(get_llm_provider(), OpenAIProvider)
+    assert isinstance(get_llm_provider().inner, OpenAIProvider)
 
 
 def test_anthropic(monkeypatch):
     monkeypatch.setattr(config, "LLM_PROVIDER", "anthropic")
     monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "k")
     monkeypatch.setattr(config, "ALLOW_EXTERNAL_LLM", True)
-    assert isinstance(get_llm_provider(), AnthropicProvider)
+    assert isinstance(get_llm_provider().inner, AnthropicProvider)
 
 
 def test_openai_without_key_raises(monkeypatch):
@@ -62,7 +62,7 @@ def test_openai_uses_default_model_when_unset(monkeypatch):
     monkeypatch.setattr(config, "OPENAI_API_KEY", "k")
     monkeypatch.setattr(config, "LLM_MODEL", "")
     monkeypatch.setattr(config, "ALLOW_EXTERNAL_LLM", True)
-    p = get_llm_provider()
+    p = get_llm_provider().inner
     assert p._model and p._model != "qwen3:8b"
 
 
@@ -83,7 +83,7 @@ def test_commercial_provider_with_optin_ok(monkeypatch):
     monkeypatch.setattr(config, "LLM_PROVIDER", "anthropic")
     monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "k")
     monkeypatch.setattr(config, "ALLOW_EXTERNAL_LLM", True)
-    assert isinstance(get_llm_provider(), AnthropicProvider)
+    assert isinstance(get_llm_provider().inner, AnthropicProvider)
 
 
 def test_anthropic_default_is_current_model():

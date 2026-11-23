@@ -1,6 +1,7 @@
 from typing import Any, Dict
 
 from src import config
+from src.llm.guard import ExternalLLMGuard
 from src.llm.provider import LLMProvider
 from src.llm.providers.anthropic import AnthropicProvider
 from src.llm.providers.ollama import OllamaProvider
@@ -21,7 +22,11 @@ def resolved_model_name() -> str:
 
 
 def get_llm_provider() -> LLMProvider:
-    """Construye el proveedor LLM segun la config de entorno (lazy clients)."""
+    """Construye el proveedor LLM segun la config de entorno (lazy clients).
+
+    Los proveedores EXTERNOS salen envueltos en ExternalLLMGuard: saneado del prompt
+    y política de LLM externo por organización, en un único punto (auditoría 23-nov).
+    Ollama es local y se devuelve tal cual."""
     provider = (config.LLM_PROVIDER or "none").strip().lower()
     model = config.LLM_MODEL or _DEFAULT_MODELS.get(provider, "")
     if provider == "none":
@@ -37,14 +42,14 @@ def get_llm_provider() -> LLMProvider:
     if provider == "openai":
         if not config.OPENAI_API_KEY:
             raise RuntimeError("OPENAI_API_KEY requerida para LLM_PROVIDER=openai")
-        return OpenAIProvider(model=model, api_key=config.OPENAI_API_KEY,
-                              base_url=config.OPENAI_BASE_URL or None,
-                              timeout=config.LLM_TIMEOUT_SECONDS)
+        return ExternalLLMGuard(OpenAIProvider(model=model, api_key=config.OPENAI_API_KEY,
+                                               base_url=config.OPENAI_BASE_URL or None,
+                                               timeout=config.LLM_TIMEOUT_SECONDS))
     if provider == "anthropic":
         if not config.ANTHROPIC_API_KEY:
             raise RuntimeError("ANTHROPIC_API_KEY requerida para LLM_PROVIDER=anthropic")
-        return AnthropicProvider(model=model, api_key=config.ANTHROPIC_API_KEY,
-                                 max_tokens=config.LLM_MAX_TOKENS)
+        return ExternalLLMGuard(AnthropicProvider(model=model, api_key=config.ANTHROPIC_API_KEY,
+                                                  max_tokens=config.LLM_MAX_TOKENS))
     raise ValueError(f"LLM_PROVIDER desconocido: {config.LLM_PROVIDER}")
 
 

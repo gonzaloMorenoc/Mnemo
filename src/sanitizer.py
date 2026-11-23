@@ -46,6 +46,11 @@ _INTERNAL_RE = re.compile(
     re.IGNORECASE,
 )
 
+_GENERIC_SECRET_RE = re.compile(
+    r"\b(?:api[_-]?key|token|secret|password|passwd|bearer)\s*[:=]\s*['\"]?[A-Za-z0-9_\-./+=]{8,}['\"]?",
+    re.IGNORECASE,
+)
+
 SENSITIVE_PATTERNS: List[tuple] = [
     # Secretos con forma reconocible primero: los patrones genéricos de abajo
     # (URL, ruta) partirían un token base64 que contenga «/».
@@ -58,14 +63,7 @@ SENSITIVE_PATTERNS: List[tuple] = [
         "[REDACTED_URL]",
         lambda t: "://" in t or "git@" in t,
     ),
-    (
-        re.compile(
-            r"\b(?:api[_-]?key|token|secret|password|passwd|bearer)\s*[:=]\s*['\"]?[A-Za-z0-9_\-./+=]{8,}['\"]?",
-            re.IGNORECASE,
-        ),
-        "[REDACTED_SECRET]",
-        None,
-    ),
+    (_GENERIC_SECRET_RE, "[REDACTED_SECRET]", None),
     (re.compile(r"\b(?:[A-Za-z]:\\|/)[^\s'\"<>]{3,}"), "[REDACTED_PATH]", None),
     (
         re.compile(
@@ -76,6 +74,14 @@ SENSITIVE_PATTERNS: List[tuple] = [
         None,
     ),
     (_INTERNAL_RE, "[REDACTED_HOSTNAME]", lambda t: "internal" in t.lower()),
+]
+
+# Salida al LLM: secretos y datos personales, sin desidentificar infraestructura.
+LLM_EXIT_PATTERNS: List[tuple] = [
+    *SECRET_RULES,
+    *PII_RULES,
+    (_EMAIL_RE, "[REDACTED_EMAIL]", lambda t: "@" in t),
+    (_GENERIC_SECRET_RE, "[REDACTED_SECRET]", None),
 ]
 
 
@@ -119,9 +125,9 @@ def _chunks(text: str, size: int = _MAX_SANITIZE_LEN) -> Iterator[str]:
         start = end
 
 
-def _sanitize_chunk(chunk: str) -> str:
+def _sanitize_chunk(chunk: str, patterns: List[tuple]) -> str:
     sanitized = chunk
-    for pattern, replacement, guard in SENSITIVE_PATTERNS:
+    for pattern, replacement, guard in patterns:
         if guard is not None and not guard(sanitized):
             continue
         sanitized = pattern.sub(replacement, sanitized)
@@ -135,8 +141,25 @@ def sanitize_text(text: str) -> str:
     entre trozos); el resto de patrones corre trozo a trozo, con coste lineal."""
     if not text:
         return text
+    return _sanitize_with(text, SENSITIVE_PATTERNS)
+
+
+def sanitize_for_llm(text: str) -> str:
+    """Saneado del punto de salida a un LLM externo: secretos y datos personales.
+
+    No aplica los patrones de desidentificación de infraestructura (URL, ruta, IP,
+    hostname, usuario) de `sanitize_text`: el prompt lleva código y casos de prueba
+    (`import … from '@playwright/test'`, `page.goto('https://…')`) y redactarlos
+    rompería la generación y la reparación de tests. Lo que no debe salir nunca
+    —credenciales, claves, tokens, DNI/NIE, IBAN, teléfonos, emails— sí se redacta."""
+    if not text:
+        return text
+    return _sanitize_with(text, LLM_EXIT_PATTERNS)
+
+
+def _sanitize_with(text: str, patterns: List[tuple]) -> str:
     without_pem = redact_pem_blocks(text)
-    return "".join(_sanitize_chunk(chunk) for chunk in _chunks(without_pem))
+    return "".join(_sanitize_chunk(chunk, patterns) for chunk in _chunks(without_pem))
 
 
 def extract_tech_tags(text: str) -> List[str]:

@@ -49,6 +49,7 @@ from src.defects.ingestion_service import IngestionService
 from src.defects.repository import AssuranceRepository
 from src.assurance.narrator import LLMNarrator, Narrator
 from src.llm.factory import get_llm_provider, llm_status, resolved_model_name
+from src.llm.org_policy import bind_llm_org, bind_llm_org_of, external_llm_allowed
 from src.assurance.verdict import build_verdict
 from src.jira.client import JiraApiError
 from src.jira.integrations_repository import InstallationAlreadyBound, IntegrationsRepository
@@ -630,6 +631,7 @@ def _post_ingest_pipeline(user_id: str, run_id: str):
     """Triaje + certificado + gate tras una ingesta, todo best-effort (cada paso
     degrada sin romper lo ya commiteado). Compartido por el webhook de CI y por
     la ingesta genérica por token (/ci/ingest). Devuelve (triage, verdict, gate)."""
+    bind_llm_org_of("test_runs", run_id)
     triage_summary = None
     try:
         triage_summary = get_triage_service().triage_run(user_id=user_id, run_id=run_id)
@@ -667,9 +669,13 @@ def _propose_knowledge_after_ingest(user_id: str, org_id: str) -> None:
     las que se queden sin propuesta siguen siendo candidatas en la próxima ingesta.
     """
     try:
+        bind_llm_org(org_id)
         service = get_knowledge_proposal_service_optional()
         if service is None:
             return  # multi-tenant no configurado: nada que hacer
+        if not external_llm_allowed(org_id):
+            logger.info("propuestas post-ingesta omitidas: LLM externo desactivado por la org")
+            return
         if not llm_status().get("configured"):
             # Sin LLM no hay causa raíz: generate gastaría el lote en fallbacks que
             # luego descarta, en CADA run. llm_status() sin probe NO llama a la API.
@@ -890,6 +896,7 @@ def resolve_triage_run_v2(
     user: AuthenticatedUser = Depends(get_current_user),
     service: TriageService = Depends(get_triage_service),
 ) -> Dict[str, int]:
+    bind_llm_org_of("test_runs", run_id)
     try:
         return service.resolve_tiebreaks(user_id=user.user_id, run_id=run_id)
     except psycopg.Error as exc:
@@ -1101,6 +1108,7 @@ def root_cause_v2(
     analyzer=Depends(get_root_cause_analyzer),
     proposals: Optional[KnowledgeProposalService] = Depends(get_knowledge_proposal_service_optional),
 ) -> RootCauseResponse:
+    bind_llm_org_of("defect_families", defect_id)
     try:
         data = repo.get_family_with_failures(user_id=user.user_id, defect_id=defect_id)
         if data is None:
@@ -1143,6 +1151,7 @@ def assurance_verdict_v2(
     repo: AssuranceRepository = Depends(get_assurance_repo),
     narrator: Narrator = Depends(get_narrator),
 ) -> AssuranceVerdictResponse:
+    bind_llm_org_of("test_runs", run_id)
     try:
         data = repo.get_run_assurance_data(user_id=user.user_id, run_id=run_id)
     except psycopg.Error as exc:
@@ -1171,6 +1180,7 @@ def propose_actions_v2(
     user: AuthenticatedUser = Depends(get_current_user),
     service: ActionService = Depends(get_action_service),
 ) -> ProposeActionsResponse:
+    bind_llm_org_of("test_runs", run_id)
     try:
         return ProposeActionsResponse(**service.propose_actions(user_id=user.user_id, run_id=run_id))
     except psycopg.Error as exc:
@@ -1199,6 +1209,7 @@ def approve_action_v2(
     user: AuthenticatedUser = Depends(get_current_user),
     service: ActionService = Depends(get_action_service),
 ) -> ActionApproveResponse:
+    bind_llm_org_of("actions", action_id)
     try:
         return ActionApproveResponse(
             **service.approve_action(user_id=user.user_id, action_id=action_id)
@@ -1233,6 +1244,7 @@ def generate_certificate_v2(
     user: AuthenticatedUser = Depends(get_current_user),
     service: CertificateService = Depends(get_certificate_service),
 ) -> CertificateResponse:
+    bind_llm_org_of("test_runs", run_id)
     try:
         created_at = datetime.now(timezone.utc).isoformat()
         return CertificateResponse(**service.generate(user_id=user.user_id, run_id=run_id,
@@ -1422,6 +1434,7 @@ def defects_ask_v2(
     embedder: "LocalEmbedder" = Depends(get_embedder),
 ) -> AskResponse:
     from src.ai.nl_query import answer_question
+    bind_llm_org(req.org_id)
     try:
         emb = embedder.embed(req.question)
         families = repo.search_families_semantic(user_id=user.user_id, org_id=req.org_id,
@@ -1445,6 +1458,7 @@ def run_briefing_v2(
     actions_repo: ActionRepository = Depends(get_action_repo),
 ) -> BriefingResponse:
     from src.ai.briefing import build_run_data, generate_briefing
+    bind_llm_org_of("test_runs", run_id)
     try:
         data = repo.get_run_assurance_data(user_id=user.user_id, run_id=run_id)
         if data["run"] is None:
@@ -1497,6 +1511,7 @@ def get_graph_gaps(
 ) -> List[Dict[str, Any]]:
     # recommendations=false → sin LLM (solo conteo/lista): el Dashboard lo usa para
     # no bloquear ~20 s en generar recomendaciones que no muestra.
+    bind_llm_org(org_id)
     return detect_gaps(user_id=user.user_id, org_id=org_id, with_recommendations=recommendations)
 
 
@@ -1567,6 +1582,7 @@ def generate_knowledge_proposals(
     user: AuthenticatedUser = Depends(get_current_user),
     svc: KnowledgeProposalService = Depends(get_knowledge_proposal_service),
 ) -> Dict[str, int]:
+    bind_llm_org(req.org_id)
     try:
         return svc.generate(user_id=user.user_id, org_id=req.org_id,
                             family_ids=req.family_ids, cap=req.cap)
@@ -1621,6 +1637,7 @@ def refine_knowledge_proposal(
 ) -> Dict[str, Any]:
     """UNA llamada LLM que condensa la propuesta (y propone kind/domain). Si el LLM
     cae, la propuesta queda EXACTAMENTE como estaba (nunca se pierde el determinista)."""
+    bind_llm_org_of("knowledge_proposals", proposal_id)
     try:
         prop = svc.repo.get_proposal(user_id=user.user_id, proposal_id=proposal_id)
         if prop is None or prop.get("status") != "pending":
@@ -1742,6 +1759,7 @@ def ask_knowledge(
     embedder=Depends(get_embedder),
 ) -> Dict[str, Any]:
     svc = KnowledgeService(krepo, arepo, embedder=embedder)
+    bind_llm_org(req.org_id)
     try:
         return svc.ask(user_id=user.user_id, org_id=req.org_id, question=req.question)
     except psycopg.Error as exc:
@@ -1761,6 +1779,7 @@ def onboarding_domain_summary(
     embedder=Depends(get_embedder),
 ) -> Dict[str, Any]:
     svc = KnowledgeService(krepo, arepo, embedder=embedder)
+    bind_llm_org(req.org_id)
     return summarize_domain(knowledge_service=svc, user_id=user.user_id, org_id=req.org_id, topic=req.topic)
 
 
@@ -1773,6 +1792,7 @@ def onboarding_learning_path(
     embedder=Depends(get_embedder),
 ) -> Dict[str, Any]:
     svc = KnowledgeService(krepo, arepo, embedder=embedder)
+    bind_llm_org(req.org_id)
     return learning_path(knowledge_service=svc, user_id=user.user_id, org_id=req.org_id, topic=req.topic)
 
 
@@ -1797,6 +1817,7 @@ async def generate_test_plan_v2(
 
     HU source priority: direct text > Jira URL > uploaded file.
     """
+    bind_llm_org(org_id)
     try:
         if hu_text is not None:
             resolved_hu = hu_text
@@ -1883,6 +1904,7 @@ def automation_generate(
     """
     if not req.case:
         raise HTTPException(status_code=400, detail="case requerido")
+    bind_llm_org(req.org_id)
     examples = req.style_sample
     if not examples:
         try:
@@ -1978,3 +2000,9 @@ def repo_tests(
 ) -> List[Dict[str, Any]]:
     """List indexed test assets for the given org."""
     return TestAssetRepository().list_assets(user_id=user.user_id, org_id=org_id)
+
+
+# Interruptor de LLM externo por organización (módulo propio: src/orgs/llm_settings_api.py).
+from src.orgs.llm_settings_api import router as _llm_settings_router  # noqa: E402
+
+router.include_router(_llm_settings_router)
