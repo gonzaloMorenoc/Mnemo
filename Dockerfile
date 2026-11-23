@@ -16,7 +16,7 @@ COPY scripts/ scripts/
 
 EXPOSE 8080
 HEALTHCHECK --interval=15s --timeout=5s --retries=10 \
-    CMD curl -fsS "http://localhost:${PORT:-8080}/v2/health" || exit 1
+    CMD curl -fsS "http://localhost:${PORT:-8080}/v2/health/live" || exit 1
 # Shell form para expandir $PORT: los PaaS (Render/Railway) inyectan un puerto dinámico;
 # en local/Fly cae a 8080 por defecto.
 # WEB_CONCURRENCY (default 1) permite escalar procesos sin tocar la imagen; ojo:

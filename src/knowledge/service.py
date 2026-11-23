@@ -1,14 +1,14 @@
 from typing import Any, Dict, List
 
 from src.ai import nl_query
-from src.defects.embedder import LocalEmbedder
+from src.defects.embedder import get_shared_embedder
 
 
 class KnowledgeService:
     def __init__(self, knowledge_repo, assurance_repo, embedder=None):
         self.knowledge = knowledge_repo
         self.assurance = assurance_repo
-        self.embedder = embedder or LocalEmbedder()
+        self.embedder = embedder or get_shared_embedder()
 
     def search_unified(self, *, user_id: str, org_id: str, query: str, k: int = 8) -> List[Dict[str, Any]]:
         emb = self.embedder.embed(query)

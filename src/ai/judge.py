@@ -13,6 +13,15 @@ _JUDGE_PROMPT = (
 )
 _JUDGE_SCHEMA = {"faithfulness": 0.0, "groundedness": 0.0}
 
+# Topes del juez (auditoría 2026-11-23, 03-tecnica E8): una llamada LLM secuencial por
+# veredicto sin límite convertía un run con 150 ambiguos en 150 llamadas al emitir el
+# acta (timeout del frontend y cuota del proveedor compartida por todos los clientes).
+# Se juzga una muestra determinista (los primeros N) y la evidencia va acotada.
+JUDGE_MAX_CALLS = 10
+JUDGE_MAX_EVIDENCE_ITEMS = 10
+JUDGE_MAX_EVIDENCE_CHARS = 2000
+_TRUNCATION_MARK = "…[truncado]"
+
 
 def _clamp(x: Any) -> Optional[float]:
     try:
@@ -33,6 +42,21 @@ def judge_output(*, claim: str, evidence: List[Dict[str, Any]], provider=None) -
     return {"faithfulness": f, "groundedness": g}
 
 
+def _truncate(text: str) -> str:
+    if len(text) <= JUDGE_MAX_EVIDENCE_CHARS:
+        return text
+    return text[:JUDGE_MAX_EVIDENCE_CHARS] + _TRUNCATION_MARK
+
+
+def _evidence_for(verdict: Dict[str, Any]) -> List[Dict[str, Any]]:
+    eb = verdict.get("evidence_bundle") or {}
+    if not isinstance(eb, dict):
+        return []
+    items = list(eb.items())[:JUDGE_MAX_EVIDENCE_ITEMS]
+    return [{"id": k, "content": _truncate(json.dumps(val, ensure_ascii=False, default=str))}
+            for k, val in items]
+
+
 def compute_ai_eval(*, verdicts: List[Dict[str, Any]], created_at: str, provider=None,
                     judge_model: str = "") -> Optional[Dict[str, Any]]:
     """Auto-evaluación de IA del run: juzga los veredictos llm_assisted. None si no hay
@@ -41,11 +65,9 @@ def compute_ai_eval(*, verdicts: List[Dict[str, Any]], created_at: str, provider
     if not targets:
         return None
     scores = []
-    for v in targets:
-        eb = v.get("evidence_bundle") or {}
-        evidence = [{"id": k, "content": json.dumps(val, ensure_ascii=False, default=str)} for k, val in eb.items()] if isinstance(eb, dict) else []
+    for v in targets[:JUDGE_MAX_CALLS]:
         claim = f"categoría={v.get('category')} (regla {v.get('rule_applied')})"
-        s = judge_output(claim=claim, evidence=evidence, provider=provider)
+        s = judge_output(claim=claim, evidence=_evidence_for(v), provider=provider)
         if s is not None:
             scores.append(s)
     if not scores:
@@ -57,5 +79,6 @@ def compute_ai_eval(*, verdicts: List[Dict[str, Any]], created_at: str, provider
         "faithfulness": round(sum(s["faithfulness"] for s in scores) / n, 4),
         "groundedness": round(sum(s["groundedness"] for s in scores) / n, 4),
         "n": n,
+        "sampled_from": len(targets),
         "evaluated_at": created_at,
     }

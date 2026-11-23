@@ -12,9 +12,13 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from src.api_v2 import router as v2_router
-from src.db.pool import get_pool, close_pool
-from src.http.body_limit import BodySizeLimitMiddleware
+from src.logging_config import configure_logging
+
+configure_logging()     # antes de importar la app: que sus logger.info no se pierdan
+
+from src.api_v2 import router as v2_router  # noqa: E402
+from src.db.pool import get_pool, close_pool  # noqa: E402
+from src.http.body_limit import BodySizeLimitMiddleware  # noqa: E402
 
 # Endpoints PÚBLICOS (sin auth) con cuerpo: tope antes de leerlo. Un acta real ocupa
 # ~2 KB; 512 KB deja margen para runs con cientos de fallos en la evidencia.
