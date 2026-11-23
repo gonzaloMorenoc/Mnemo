@@ -78,3 +78,24 @@ def test_ticket_passes_lineage_to_analyzer():
     assert analyzer.analyze.call_args.kwargs.get("lineage") == ["beta", "gamma"]
     # y el body lleva el análisis rico (con la cita)
     assert "failure:fl1" in proposal.payload["body"]
+
+
+# ── «Lo que sabe el equipo» (FamilyMemory) antes de la hipótesis del LLM ──
+from src.memory.family_memory import FamilyMemory, Lesson  # noqa: E402
+
+
+def test_ticket_cita_lo_que_sabe_el_equipo_antes_de_la_hipotesis():
+    mem = FamilyMemory(family_id="fam-1", title="TimeoutError", label="infra",
+                       reason="El sandbox cae los lunes", reason_by="María",
+                       lessons=(Lesson("k", "leccion", "Espaciar la suite", "30 req/min"),))
+    body = TicketActuator(MagicMock()).propose(
+        _verdict(), {**_ctx(root_cause="Hipótesis"), "memory": mem}).payload["body"]
+    assert "## Lo que sabe el equipo" in body
+    assert "El sandbox cae los lunes" in body and "Espaciar la suite" in body
+    assert body.index("Lo que sabe el equipo") < body.index("Causa raíz (hipótesis)")
+
+
+def test_ticket_sin_memoria_no_anade_seccion():
+    body = TicketActuator(MagicMock()).propose(
+        _verdict(), {**_ctx(root_cause="H"), "memory": FamilyMemory("fam-1", "x")}).payload["body"]
+    assert "Lo que sabe el equipo" not in body

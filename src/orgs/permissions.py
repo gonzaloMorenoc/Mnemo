@@ -1,8 +1,8 @@
 """Matriz de permisos por rol: la ÚNICA fuente de verdad de qué puede hacer cada rol.
 
-- viewer: solo lectura en todo.
+- viewer: solo lectura en todo, incluido preguntar a la memoria (preguntar es leer).
 - member: trabajo diario de QA (subir informes, etiquetar familias, crear/editar
-  conocimiento, resolver desempates, preguntar, generar planes/tests).
+  conocimiento, resolver desempates, generar planes/tests).
 - owner/admin: configurar integraciones y tokens de ingesta, publicar el gate,
   aprobar/aplicar acciones que escriben en repos del cliente, emitir actas y
   gestionar miembros.

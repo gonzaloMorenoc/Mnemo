@@ -65,7 +65,7 @@ El LLM es opcional en casi toda la API. Si el proveedor no se puede construir o 
 
 `OrganizationResponse = {id, name, join_code, join_code_expires_at, role, created_at}`; `join_code` y su caducidad solo llegan a owner/admin (para el resto, `null`).
 
-**Matriz de permisos** (`src/orgs/permissions.py`, aplicada con `enforce(...)` de `src/orgs/access.py`): `viewer` solo lee; `member` hace el trabajo diario de QA (subir informes, etiquetar, crear/editar conocimiento, resolver desempates, preguntar, generar planes y tests); `owner`/`admin` además configuran integraciones y tokens, publican el gate, aprueban acciones, emiten actas, abren PRs de automatización (`/automation/pr`) y gestionan miembros.
+**Matriz de permisos** (`src/orgs/permissions.py`, aplicada con `enforce(...)` de `src/orgs/access.py`): `viewer` solo lee; `member` hace el trabajo diario de QA (subir informes, etiquetar, crear/editar conocimiento, resolver desempates, generar planes y tests); preguntar a la memoria (`/defects/ask`, `/knowledge/ask`) es leer, así que también puede el `viewer`; `owner`/`admin` además configuran integraciones y tokens, publican el gate, aprueban acciones, emiten actas, abren PRs de automatización (`/automation/pr`) y gestionan miembros.
 
 ---
 
@@ -73,7 +73,7 @@ El LLM es opcional en casi toda la API. Si el proveedor no se puede construir o 
 
 | Método | Ruta | Descripción | Auth |
 |---|---|---|---|
-| `POST` | `/v2/ingest/report` | Multipart: `file`, `project`, `org_id`, `source` (por defecto `auto`). → `IngestReportResponse {run_id, ingested, known, novel, deduplicated, triage, verdict, gate}`. Encadena el mismo pipeline que `/ci/ingest` (ver abajo). Orden: JWT → cota `Content-Length` (413) → campos (422) → membresía (403) → lectura del archivo y embeddings | JWT + miembro |
+| `POST` | `/v2/ingest/report` | Multipart: `file`, `project`, `org_id`, `source` (por defecto `auto`). → `IngestReportResponse {run_id, ingested, known, novel, deduplicated, triage, verdict, gate, memory}`. Encadena el mismo pipeline que `/ci/ingest` (ver abajo). Orden: JWT → cota `Content-Length` (413) → campos (422) → membresía (403) → lectura del archivo y embeddings | JWT + miembro |
 | `POST` | `/v2/ingest/jira/file` | Multipart: `file` (export de Jira), `project`, `org_id` → `JiraIngestResponse {run_id, ingested, known, novel, skipped}` | JWT + miembro |
 | `POST` | `/v2/ingest/jira/pull` | `{org_id, project}`: pull vía la integración Jira configurada → `JiraIngestResponse`; 502 si falla la API de Jira | JWT + miembro |
 | `GET` | `/v2/runs?org_id=&project=&limit=&offset=` | Histórico de runs (más reciente primero) con el veredicto del acta más reciente, `risk_score` y nº de fallos. `limit` por defecto 50, acotado a 1–100; lista vacía si no es miembro | JWT + miembro |
@@ -106,8 +106,12 @@ curl -sS -H "Authorization: Bearer $MNEMO_INGEST_TOKEN" \
      -F commit_sha=$GITHUB_SHA -F branch=$GITHUB_REF_NAME \
      https://<backend>/v2/ci/ingest
 # → {"run_id": "…", "ingested": …, "known": …, "novel": …, "deduplicated": false,
-#    "triage": {...}, "verdict": "apto|apto-con-reservas|no-apto|sin_confirmar", "gate": "…"}
+#    "triage": {...}, "verdict": "apto|apto-con-reservas|no-apto|sin_confirmar", "gate": "…",
+#    "memory": {"remembered": 1, "families": [{family_id, title, label_text, url}],
+#               "text": "Mnemo tiene memoria del equipo sobre 1 familia…", "detail": false} | null}
 ```
+
+Para imprimirlo en el log del job: `… | jq -r '.memory.text // empty'`. Por token (y por el webhook) el bloque es un **resumen sin contenido** —recuento, títulos y enlace a la app—: un token no es una persona miembro y el log del CI puede ser público. Las razones y lecciones se ven en la app, en el check de un repo privado y en la subida web (`/ingest/report`, que devuelve el detalle).
 
 Con `commit_sha`, el run queda ligado al commit: el gate puede publicar el check en el PR, el manifiesto del acta lo lleva (y `branch`, si viene) y el triaje detecta intermitencias en el mismo SHA. Para JUnit, Playwright, Cypress y Allure se guarda además el resultado de cada test, pasados incluidos (`test_results`), que alimenta las señales `retry_passed_in_run` e `intermittent_same_sha`; Robot, TestNG y Cucumber aún no lo aportan.
 
@@ -116,6 +120,8 @@ El token es una **credencial de la organización**, no de la persona que lo cre�
 ### Pipeline post-ingesta (webhook, `/ci/ingest` y `/ingest/report`)
 
 Si el run es nuevo —o llega deduplicado pero se quedó sin triaje (tiene fallos y ningún veredicto) o sin acta—, los tres endpoints encadenan **ingesta → triaje → acta firmada → gate**, cada etapa best-effort: si una falla queda en el log, su campo de la respuesta vuelve `null` y lo ya commiteado se conserva.
+
+**Memoria en el flujo** (`src/memory/`): con lo que el equipo dejó escrito sobre cada familia del run —etiqueta y su razón (autor por nombre visible y fecha), hasta 3 lecciones activas enlazadas, en cuántos runs y proyectos apareció—, Mnemo devuelve el bloque `memory` en la respuesta (`null` si no hay nada escrito; máx. 5 familias, las que más fallos aportan) y el gate añade la sección «Lo que Mnemo recuerda» al check run. **Solo en repositorios privados** (consulta cacheada 10 min por repo): en uno público el check lo ve cualquiera, así que lleva un enlace a la app sin el detalle; la misma regla aplica a la sección «Lo que sabe el equipo» del ticket propuesto. Solo cuentan como lecciones los tipos de conocimiento que lo son (nunca `dato_prueba` ni `contacto`), y la razón citada es la de la etiqueta vigente. Es solo presentación (no cambia el veredicto ni lo firmado) y best-effort. El texto sale saneado (credenciales, tokens, datos personales) y con menciones y HTML neutralizados.
 
 Después de enviar la respuesta, una `BackgroundTask` genera **propuestas de conocimiento** para hasta 3 familias sin lección (el CI no espera al LLM). Se omite si el stack multitenant o el LLM no están configurados; los fallos solo se registran en el log.
 
@@ -147,7 +153,8 @@ Después de enviar la respuesta, una `BackgroundTask` genera **propuestas de con
 | `GET` | `/v2/defects/{defect_id}` | Linaje: `{family: {id, title, status, occurrence_count, root_cause, label_reason}, failures: [{id, test_name, error_type, project, source, created_at}]}` | JWT + miembro |
 | `PATCH` | `/v2/defects/{family_id}/label` | `{label, reason?}` → `{family_id, label}`. Ver nota | JWT + miembro |
 | `POST` | `/v2/defects/{defect_id}/root-cause` | Causa raíz por LLM → `{defect_id, root_cause, cached}`. Devuelve la cacheada salvo `?regenerate=true`. 404 si no existe; 503 si la IA no está disponible o no produce resultado | JWT + miembro |
-| `POST` | `/v2/defects/ask` | `{org_id, question}` (≤2000) → `{answer, citations[], families[]}`: búsqueda semántica sobre las familias (k=8) + respuesta del LLM; degrada sin LLM | JWT + miembro |
+| `GET` | `/v2/defects/{defect_id}/memory` | Lo que el equipo recuerda de la familia → `{family_id, title, label, label_text, reason, reason_by, reason_by_active, reason_at, lessons[], projects[], runs, has_memory, related[]}`. `related` = hasta 3 elementos de conocimiento parecidos que no son ya lección (`?related=false` lo omite y no carga el modelo). 404 si no existe | JWT + miembro (viewer incluido) |
+| `POST` | `/v2/defects/ask` | `{org_id, question}` (≤2000) → `{answer, citations[], families[]}`: búsqueda semántica sobre las familias (k=8) + respuesta del LLM; degrada sin LLM | JWT + miembro (viewer incluido) |
 | `GET` | `/v2/calibration/metrics?org_id=` | Métricas del lazo de aprendizaje → `{total, aciertos, accuracy, familias_calibradas, por_categoria}`; 404 si la org no existe o no es miembro | JWT + miembro |
 
 **Etiquetado.** `label` ∈ `flaky` / `real` / `maintenance` / `infra` / `unknown` (otro valor → 422; familia inexistente o ajena → 404). El cambio se registra como corrección humana frente a la predicción del motor, que alimenta la calibración. Si llega `reason`, el endpoint **embebe la razón** (best-effort: si el modelo falla, la etiqueta se guarda igual con el vector a `NULL` y `scripts/reembed.py` lo completa después). La búsqueda semántica de familias tiene en cuenta ese vector, y la razón vuelve como `label_reason` en el linaje.
@@ -230,7 +237,7 @@ Se verifica por la misma puerta pública que el acta de release. Las actas v1 si
 | `PATCH` | `/v2/knowledge/{item_id}` | `{org_id, …campos}`: edita `kind`, `title`, `challenge`, `approach`, `outcome`, `domain`, `tags`, `project` o `status` (`activo` / `obsoleto`). 404 si no existe o sin permiso | JWT + autor, u owner/admin |
 | `DELETE` | `/v2/knowledge/{item_id}?org_id=` | Borrado duro → `{deleted: true}`; misma autoridad que la edición | JWT + autor, u owner/admin |
 | `POST` | `/v2/knowledge/search` | `{org_id, query, k}` (k 1–100, por defecto 8): búsqueda semántica unificada sobre ítems y familias de defecto → `[{id, type: knowledge|defect, title, content, confidence}]` | JWT + miembro |
-| `POST` | `/v2/knowledge/ask` | `{org_id, question}`: respuesta en lenguaje natural citando las fuentes; degrada sin LLM | JWT + miembro |
+| `POST` | `/v2/knowledge/ask` | `{org_id, question}`: respuesta en lenguaje natural citando las fuentes; degrada sin LLM | JWT + miembro (viewer incluido) |
 
 `kind` ∈ `regla_negocio`, `flujo`, `riesgo`, `glosario`, `leccion`, `reto`, `patron`, `runbook`, `dato_prueba`, `contacto`, `decision`. El contenido de las familias en la búsqueda incluye la razón de la etiqueta humana.
 

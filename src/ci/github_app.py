@@ -204,6 +204,19 @@ class GitHubCodeHost:
             raise GitHubError(f"create PR falló: HTTP {resp.status_code}")
         return resp.json()["html_url"]
 
+    @property
+    def repo_full_name(self) -> str:
+        return self._repo
+
+    def repo_is_private(self) -> bool:
+        """¿Es privado el repo? Decide si el check run puede llevar la memoria del
+        equipo (en uno público lo leería cualquiera). Ante error, False."""
+        resp = self._session.get(f"{_API}/repos/{self._repo}", headers=self._headers(),
+                                 timeout=10)
+        if resp.status_code >= 300:
+            return False
+        return resp.json().get("private") is True
+
     def publish_check_run(self, *, head_sha: str, conclusion: str,
                           title: str, summary: str) -> str:
         """Publica un check run mnemo/assurance sobre head_sha (Checks API).

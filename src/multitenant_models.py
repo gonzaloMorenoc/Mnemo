@@ -54,6 +54,8 @@ class IngestReportResponse(BaseModel):
     triage: Optional[Dict[str, Any]] = None
     verdict: Optional[str] = None
     gate: Optional[str] = None
+    # Lo que el equipo recuerda de las familias del run (src/memory). null si nada.
+    memory: Optional[Dict[str, Any]] = None
 
 
 class DefectFamilyResponse(BaseModel):
@@ -179,6 +181,7 @@ class CiWebhookResponse(BaseModel):
     triage: Optional[Dict[str, int]] = None
     verdict: Optional[str] = None
     gate: Optional[str] = None
+    memory: Optional[Dict[str, Any]] = None
 
 
 class TriageVerdictResponse(BaseModel):

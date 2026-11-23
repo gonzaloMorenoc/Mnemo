@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/components/providers/auth-provider", () => ({
   useAuth: () => ({ accessToken: "tok" }),
 }));
-vi.mock("@/lib/api/endpoints", () => ({ getTriageVerdicts: vi.fn() }));
+vi.mock("@/lib/api/endpoints", () => ({ getTriageVerdicts: vi.fn(), getFamilyMemory: vi.fn() }));
 
 import { getTriageVerdicts } from "@/lib/api/endpoints";
 import { TriageVerdictList } from "@/components/autopilot/TriageVerdictList";

@@ -1,6 +1,7 @@
 from typing import Any, Dict
 
 from src.actions.base import ActionProposal
+from src.memory.family_memory import render_family_markdown
 
 
 class TicketActuator:
@@ -35,10 +36,14 @@ class TicketActuator:
             f"Esta familia ya apareció en: {', '.join(lineage)}." if lineage
             else "Primera aparición de esta familia."
         )
+        memory = context.get("memory")
+        team = (f"## Lo que sabe el equipo\n{render_family_markdown(memory)}\n\n"
+                if memory is not None and memory.has_memory else "")
         body = (
             f"**Defecto real** en `{test_name}` "
             f"(confianza {verdict.get('confidence')}, regla {rule_applied}).\n\n"
             f"{lineage_line}\n\n"
+            f"{team}"
             "## Causa raíz (hipótesis)\n"
             f"{root_cause or '_root-cause no disponible (LLM no accesible)._'}\n"
         )

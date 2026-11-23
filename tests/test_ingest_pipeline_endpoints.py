@@ -231,3 +231,57 @@ def test_webhook_chunked_body_over_cap_413_without_reading_it_all(monkeypatch):
 
     r = _client().post("/v2/ci/webhook", content=chunks())
     assert r.status_code == 413
+
+
+# ---------------------------------------------------------------------------
+# Plan brain 23-nov: la respuesta del CI trae lo que el equipo recuerda
+# ---------------------------------------------------------------------------
+
+class TestMemoryInCiResponse:
+    _MEMORY = {"families": [{"family_id": "f1"}], "remembered": 1, "text": "Lo que Mnemo…"}
+
+    def test_report_response_includes_memory(self):
+        svc = _ingestion()
+        with patch.object(api_v2, "_post_ingest_pipeline", return_value=(None, None, None)), \
+                patch.object(api_v2, "_run_memory", return_value=self._MEMORY) as mem, \
+                patch.object(api_v2, "_propose_knowledge_after_ingest"):
+            r = _upload(_client(ingestion=svc))
+        assert r.status_code == 200 and r.json()["memory"] == self._MEMORY
+        mem.assert_called_once_with("user-1", "r1", detail=True)   # persona miembro: detalle
+
+    def test_run_memory_renders_the_payload(self):
+        from src.memory.family_memory import FamilyMemory
+        repo = MagicMock()
+        repo.for_run.return_value = [FamilyMemory("f1", "Timeout", label="infra",
+                                                  reason="sandbox caído")]
+        with patch.object(api_v2, "multi_tenant_enabled", return_value=True), \
+                patch.object(api_v2, "get_family_memory_repo", return_value=repo):
+            out = api_v2._run_memory("u", "r1", detail=True)
+            summary = api_v2._run_memory("u", "r1")
+        assert out["remembered"] == 1 and "sandbox caído" in out["text"]
+        assert summary["detail"] is False and "sandbox" not in str(summary)
+        assert repo.for_run.call_args.kwargs == {"user_id": "u", "run_id": "r1"}
+
+    def test_run_memory_degrades_to_none(self):
+        repo = MagicMock()
+        repo.for_run.side_effect = RuntimeError("bd caída")
+        with patch.object(api_v2, "multi_tenant_enabled", return_value=True), \
+                patch.object(api_v2, "get_family_memory_repo", return_value=repo):
+            assert api_v2._run_memory("u", "r1") is None
+        assert api_v2._run_memory("u", None) is None
+
+
+class TestTokenIngestGetsOnlyTheSummary:
+    def test_ci_ingest_by_token_asks_for_summary(self):
+        svc = _ingestion()
+        token_repo = MagicMock()
+        token_repo.resolve.return_value = {"token_id": "t", "org_id": "org-1",
+                                           "created_by": "u", "acting_user_id": "user-1"}
+        with patch.object(api_v2, "_post_ingest_pipeline", return_value=(None, None, None)), \
+                patch.object(api_v2, "_run_memory", return_value=None) as mem, \
+                patch.object(api_v2, "_propose_knowledge_after_ingest"):
+            r = _client(ingestion=svc, token_repo=token_repo, with_user=False).post(
+                "/v2/ci/ingest", headers={"Authorization": "Bearer mnemo_it_x"},
+                data={"project": "web"}, files={"file": ("j.xml", _JUNIT, "application/xml")})
+        assert r.status_code == 200, r.text
+        mem.assert_called_once_with("user-1", "r1", detail=False)

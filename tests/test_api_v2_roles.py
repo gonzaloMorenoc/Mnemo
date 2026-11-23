@@ -24,6 +24,7 @@ _SERVICE_DEPS = [
     "get_knowledge_import_service", "get_embedder", "get_integrations_repo",
     "get_jira_ingestion_service", "get_ingest_token_repo", "get_github_app_auth",
     "get_root_cause_analyzer", "get_knowledge_proposal_service_optional",
+    "get_family_memory_repo",
 ]
 
 
@@ -67,14 +68,12 @@ QA_WORK = [
     ("patch", "/v2/defects/f1/label", {"json": {"label": "flaky", "reason": "timeout de red"}}),
     ("post", "/v2/defects/f1/root-cause?regenerate=true", {}),
     ("post", "/v2/actions/run/r1/propose", {}),
-    ("post", "/v2/defects/ask", {"json": {"org_id": ORG, "question": "¿por qué falla?"}}),
     ("post", "/v2/knowledge", {"json": {"org_id": ORG, "kind": "leccion", "title": "t"}}),
     ("post", "/v2/knowledge/proposals/generate", {"json": {"org_id": ORG}}),
     ("post", "/v2/knowledge/proposals/p1/refine", {}),
     ("post", "/v2/knowledge/import", {"json": {"org_id": ORG, "refs": ["ABC-1"]}}),
     ("patch", "/v2/knowledge/k1", {"json": {"org_id": ORG, "title": "nuevo"}}),
     ("delete", f"/v2/knowledge/k1?org_id={ORG}", {}),
-    ("post", "/v2/knowledge/ask", {"json": {"org_id": ORG, "question": "¿cómo?"}}),
     ("post", "/v2/test-plan/generate", {"data": {"org_id": ORG, "hu_text": "Como usuario…"}}),
     ("post", "/v2/test-plan/export/xray", {"json": {"org_id": ORG, "plan": {"cases": []}}}),
     ("post", "/v2/automation/generate", {"json": {"org_id": ORG, "case": {"title": "x"},
@@ -206,3 +205,25 @@ def test_viewer_can_search_knowledge():
         svc.return_value.search_unified.return_value = []
         resp = client.post("/v2/knowledge/search", json={"org_id": ORG, "query": "login"})
     assert resp.status_code == 200
+
+
+# --- Preguntar a la memoria es LEER (plan brain 23-nov): el viewer también pregunta -------
+
+ASK = [
+    ("post", "/v2/defects/ask", {"json": {"org_id": ORG, "question": "¿por qué falla?"}}),
+    ("post", "/v2/knowledge/ask", {"json": {"org_id": ORG, "question": "¿cómo?"}}),
+]
+
+
+@pytest.mark.parametrize("method,path,kwargs", ASK)
+def test_viewer_can_ask_the_memory(method, path, kwargs):
+    client, _ = _client("viewer")
+    with patch("src.api_v2.KnowledgeService"):
+        resp = _call(client, method, path, kwargs)
+    assert resp.status_code != 403, resp.text
+
+
+@pytest.mark.parametrize("method,path,kwargs", ASK)
+def test_non_member_cannot_ask(method, path, kwargs):
+    client, _ = _client(None)
+    assert _call(client, method, path, kwargs).status_code == 403
