@@ -25,5 +25,5 @@ beautifulsoup4==4.14.3
 xhtml2pdf==0.2.16
 # Declarada aunque llegue con xhtml2pdf: los tests de ingesta de PDF la importan
 # directamente (un import sin declarar ya tumbó prod una vez, con defusedxml).
-reportlab==4.4.10
+reportlab==5.1.0
 python-docx==1.1.2
