@@ -11,10 +11,12 @@ import { getJiraConfig, importKnowledge } from "@/lib/api/endpoints";
 import type { KnowledgeImportResult } from "@/lib/api/types";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 const MAX_REFS = 10;
+const MAX_PROJECT_LENGTH = 200;
 
 function parseRefs(raw: string): string[] {
   return raw.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
@@ -45,6 +47,8 @@ export function KnowledgeImportPanel({ orgId }: { orgId: string }) {
   const { accessToken } = useAuth();
   const qc = useQueryClient();
   const [raw, setRaw] = useState("");
+  // Sin proyecto, lo importado no cuenta para el índice de continuidad ni para el acta.
+  const [project, setProject] = useState("");
   const [result, setResult] = useState<KnowledgeImportResult | null>(null);
 
   const config = useQuery({
@@ -55,9 +59,10 @@ export function KnowledgeImportPanel({ orgId }: { orgId: string }) {
 
   const refs = parseRefs(raw);
   const tooMany = refs.length > MAX_REFS;
+  const projectName = project.trim();
 
   const importMut = useMutation({
-    mutationFn: () => importKnowledge(accessToken!, orgId, refs),
+    mutationFn: () => importKnowledge(accessToken!, orgId, refs, projectName),
     onSuccess: (r) => {
       setResult(r);
       setRaw("");
@@ -103,8 +108,18 @@ export function KnowledgeImportPanel({ orgId }: { orgId: string }) {
               {refs.length}/{MAX_REFS}
             </p>
           </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="import-project">Proyecto al que pertenece lo importado</Label>
+            <Input
+              id="import-project"
+              placeholder="checkout-suite"
+              maxLength={MAX_PROJECT_LENGTH}
+              value={project}
+              onChange={(e) => setProject(e.target.value)}
+            />
+          </div>
           <Button
-            disabled={importMut.isPending || refs.length === 0 || tooMany}
+            disabled={importMut.isPending || refs.length === 0 || tooMany || !projectName}
             onClick={() => importMut.mutate()}
           >
             {importMut.isPending ? "Importando…" : "Generar propuestas"}

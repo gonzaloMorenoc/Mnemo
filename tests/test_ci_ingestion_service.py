@@ -44,3 +44,15 @@ def test_returns_repo_result_passthrough():
     out = svc.ingest_artifact(user_id="svc", artifact=_artifact())
     assert out["run_id"] == "r1" and out["deduplicated"] is False
     assert out["results_recorded"] == 3 and out["snapshots_saved"] == 2
+
+
+def test_non_member_rejected_before_embedding():
+    """03-técnica E9: la membresía se comprueba ANTES de embeber los fallos."""
+    import pytest
+
+    svc, repo = _service()
+    repo.is_member.return_value = False
+    with pytest.raises(PermissionError):
+        svc.ingest_artifact(user_id="u", artifact=_artifact())
+    svc.embedder.embed.assert_not_called()
+    repo.ingest_ci_run.assert_not_called()

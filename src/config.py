@@ -56,6 +56,9 @@ CI_SERVICE_USER_ID = os.getenv("CI_SERVICE_USER_ID", "")
 CI_MAX_BODY_BYTES = int(os.getenv("CI_MAX_BODY_BYTES", str(10 * 1024 * 1024)))
 # Límite de tamaño de las subidas de archivo (reportes/HU). Por defecto 10 MiB.
 INGEST_MAX_BYTES = int(os.getenv("INGEST_MAX_BYTES", str(10 * 1024 * 1024)))
+# Retención de snapshots DOM (hasta 5 MB cada uno): por (org, proyecto, test, tipo)
+# se conservan solo los N más recientes. El triaje y el self-heal solo leen el último.
+DOM_SNAPSHOTS_KEEP_PER_TEST = max(1, int(os.getenv("DOM_SNAPSHOTS_KEEP_PER_TEST", "3")))
 # Org único al que está ligada la cuenta de servicio del CI. Si se define, el webhook
 # rechaza (403) cualquier artefacto con otro org_id (aislamiento mono-org).
 CI_SERVICE_ORG_ID = os.getenv("CI_SERVICE_ORG_ID", "")

@@ -1,9 +1,20 @@
 """Tokens de ingesta CI por organización (public.ingest_tokens).
 
 Formato del token: `mnemo_it_<48 hex>`. En BD solo vive el sha256; el claro se
-devuelve UNA vez al crear. El token actúa con la identidad de su creador
-(created_by): los membership-checks del pipeline aplican sin casos especiales,
-y revocar el membership del creador desactiva de facto sus tokens.
+devuelve UNA vez al crear.
+
+El token es una credencial DE LA ORGANIZACIÓN, no de la persona que lo creó: la
+ingesta se autoriza por la org del token (válido y no revocado). Antes corría como
+`created_by` y, si esa persona dejaba la org, el CI empezaba a dar 403 — el factor
+autobús que Mnemo promete resolver (auditoría 23-nov, #6).
+
+El pipeline posterior (triaje, acta, gate, propuestas) vive en repositorios que
+aíslan por membresía en la capa de app; para no abrir en todos ellos una vía «sin
+usuario», `resolve` elige el ACTOR técnico con el que corre: el creador si sigue
+siendo owner/admin de la org y, si no, el owner (después el admin) vigente más
+antiguo. No es una escalada: el token solo da acceso a `/v2/ci/ingest`, cuyas
+acciones son fijas, y quien lo creó ya tenía que ser owner/admin. `created_by` se
+conserva solo para auditoría. Cortar el acceso = revocar el token (explícito).
 El pooler hace BYPASS de RLS → cada método valida membership en la capa de app.
 """
 import hashlib
@@ -84,21 +95,34 @@ class IngestTokenRepository:
             conn.commit()
         return ok
 
-    def resolve(self, *, token: str) -> Optional[Dict[str, str]]:
-        """Autentica un token en claro → {org_id, created_by} si está activo.
-        Actualiza last_used_at en la misma query (una sola ida a BD)."""
+    def resolve(self, *, token: str) -> Optional[Dict[str, Any]]:
+        """Autentica un token en claro → {token_id, org_id, created_by, acting_user_id}
+        si está activo (None si no existe o está revocado). Actualiza last_used_at en
+        la misma query (una sola ida a BD). `acting_user_id` es None si la org no
+        tiene ningún owner/admin vigente (el endpoint responde 403)."""
         if not token or not token.startswith(TOKEN_PREFIX):
             return None
         with self._connect() as conn, conn.cursor() as cur:
             cur.execute(
-                "update public.ingest_tokens set last_used_at=now()"
-                " where token_hash=%s and revoked_at is null"
-                " returning id, org_id, created_by",
+                "with tok as ("
+                "  update public.ingest_tokens set last_used_at=now()"
+                "  where token_hash=%s and revoked_at is null"
+                "  returning id, org_id, created_by"
+                ")"
+                " select tok.id, tok.org_id, tok.created_by,"
+                "  (select m.user_id from public.memberships m"
+                "    where m.org_id = tok.org_id and m.role in ('owner','admin')"
+                "    order by (m.user_id = tok.created_by) desc, (m.role = 'owner') desc,"
+                "             m.created_at, m.user_id"
+                "    limit 1) as acting_user_id"
+                " from tok",
                 (_hash(token),),
             )
             row = cur.fetchone()
             conn.commit()
         if row is None:
             return None
+        acting = row["acting_user_id"]
         return {"token_id": str(row["id"]), "org_id": str(row["org_id"]),
-                "created_by": str(row["created_by"])}
+                "created_by": str(row["created_by"]),
+                "acting_user_id": str(acting) if acting else None}

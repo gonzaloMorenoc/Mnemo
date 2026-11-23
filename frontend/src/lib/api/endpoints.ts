@@ -276,9 +276,9 @@ export function refineKnowledgeProposal(token: string, proposalId: string) {
     `/api/v2/knowledge/proposals/${encodeURIComponent(proposalId)}/refine`, "POST", { token });
 }
 
-export function importKnowledge(token: string, orgId: string, refs: string[]) {
+export function importKnowledge(token: string, orgId: string, refs: string[], project: string) {
   return apiRequest<KnowledgeImportResult>(
-    "/api/v2/knowledge/import", "POST", { token, body: { org_id: orgId, refs } });
+    "/api/v2/knowledge/import", "POST", { token, body: { org_id: orgId, refs, project } });
 }
 
 export function rejectKnowledgeProposal(token: string, proposalId: string, reason = "") {

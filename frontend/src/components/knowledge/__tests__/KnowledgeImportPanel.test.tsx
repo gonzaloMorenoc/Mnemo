@@ -50,12 +50,24 @@ describe("KnowledgeImportPanel", () => {
     renderPanel();
     const textarea = await screen.findByLabelText(/Claves de Jira/i);
     fireEvent.change(textarea, { target: { value: "PAY-1\nPAY-2, MAL" } });
+    fireEvent.change(screen.getByLabelText(/Proyecto/i), { target: { value: " checkout " } });
     fireEvent.click(screen.getByRole("button", { name: /Generar propuestas/i }));
     await waitFor(() =>
-      expect(importKnowledge).toHaveBeenCalledWith("tok", "o1", ["PAY-1", "PAY-2", "MAL"]));
+      expect(importKnowledge).toHaveBeenCalledWith(
+        "tok", "o1", ["PAY-1", "PAY-2", "MAL"], "checkout"));
     expect(await screen.findByText(/1 nueva/i)).toBeInTheDocument();
     expect(screen.getByText(/1 omitida/i)).toBeInTheDocument();
     expect(screen.getByText(/No parece una clave de Jira/i)).toBeInTheDocument();
+  });
+
+  it("sin proyecto no deja importar (lo importado debe contar en el índice y el acta)", async () => {
+    vi.mocked(getJiraConfig).mockResolvedValue({ configured: true });
+    renderPanel();
+    const textarea = await screen.findByLabelText(/Claves de Jira/i);
+    fireEvent.change(textarea, { target: { value: "PAY-1" } });
+    expect(screen.getByRole("button", { name: /Generar propuestas/i })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText(/Proyecto/i), { target: { value: "web" } });
+    expect(screen.getByRole("button", { name: /Generar propuestas/i })).toBeEnabled();
   });
 
   it("más de 10 refs deshabilita el botón y avisa", async () => {

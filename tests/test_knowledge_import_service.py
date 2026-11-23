@@ -169,7 +169,7 @@ def _service_confluence(page=PAGE_OK, upsert_result=None):
 def test_import_pagina_confluence_crea_propuesta():
     svc, repo, confluence = _service_confluence(
         upsert_result={"id": "p9", "created": True})
-    out = svc.import_refs(user_id="u1", org_id="o1",
+    out = svc.import_refs(user_id="u1", org_id="o1", project="checkout-suite",
                           refs=["https://a.atlassian.net/wiki/spaces/QA/pages/99/T"])
     assert [c["id"] for c in out["created"]] == ["p9"]
     confluence.fetch_page.assert_called_once_with("99")
@@ -183,7 +183,9 @@ def test_import_pagina_confluence_crea_propuesta():
         "https://a.atlassian.net/wiki/pages/viewpage.action?pageId=99"
     assert kwargs["title"] == "Reglas de pagos"
     assert kwargs["tags"] == ["QA"]
-    assert kwargs["project"] is None
+    # #7 (auditoría 23-nov): antes quedaba project=None y no contaba para el índice
+    # ni para el acta, que filtran por proyecto.
+    assert kwargs["project"] == "checkout-suite"
     assert kwargs["approach"] is None
     assert kwargs["challenge"].startswith("Regla 1")
 
@@ -195,7 +197,7 @@ def test_seccion_larga_trunca_con_marca():
                           sections=(("Enorme", "x" * 5000),))
     svc, repo, _ = _service_confluence(page=page,
                                        upsert_result={"id": "p9", "created": True})
-    svc.import_refs(user_id="u1", org_id="o1",
+    svc.import_refs(user_id="u1", org_id="o1", project="web",
                     refs=["https://a.atlassian.net/wiki/pages/99/T"])
     challenge = repo.upsert_import_proposal.call_args.kwargs["challenge"]
     assert len(challenge) <= 4100
@@ -205,7 +207,7 @@ def test_seccion_larga_trunca_con_marca():
 def test_confluence_sin_licencia_error_por_ref_no_502():
     svc, repo, confluence = _service_confluence()
     confluence.fetch_page.side_effect = ConfluenceApiError("404 Not Found")
-    out = svc.import_refs(user_id="u1", org_id="o1",
+    out = svc.import_refs(user_id="u1", org_id="o1", project="web",
                           refs=["https://a.atlassian.net/wiki/pages/99/T"])
     assert len(out["errors"]) == 1
     assert "Confluence" in out["errors"][0]["reason"]
@@ -218,7 +220,7 @@ def test_lote_mixto_jira_y_confluence():
     jira_client = MagicMock()
     jira_client.fetch_issue.return_value = ISSUE_OK
     svc._client_factory = lambda creds: jira_client
-    out = svc.import_refs(user_id="u1", org_id="o1",
+    out = svc.import_refs(user_id="u1", org_id="o1", project="web",
                           refs=["PAY-1", "https://a.atlassian.net/wiki/pages/99/T"])
     assert len(out["created"]) == 2
     sources = [c.kwargs["source"] for c in repo.upsert_import_proposal.call_args_list]
@@ -263,7 +265,7 @@ def _refs_upserted(repo):
 
 def test_una_pagina_crea_una_propuesta_por_seccion():
     svc, repo = _confluence_service()
-    out = svc.import_refs(user_id="u", org_id="o", refs=[URL_PAGINA])
+    out = svc.import_refs(user_id="u", org_id="o", project="web", refs=[URL_PAGINA])
     assert _refs_upserted(repo) == [
         "confluence:123#entorno",
         "confluence:123#datos-de-prueba",
@@ -274,14 +276,14 @@ def test_una_pagina_crea_una_propuesta_por_seccion():
 
 def test_el_titulo_de_cada_propuesta_lleva_pagina_y_seccion():
     svc, repo = _confluence_service()
-    svc.import_refs(user_id="u", org_id="o", refs=[URL_PAGINA])
+    svc.import_refs(user_id="u", org_id="o", project="web", refs=[URL_PAGINA])
     titulos = [c.kwargs["title"] for c in repo.upsert_import_proposal.call_args_list]
     assert titulos[0] == "Manual de QA — Entorno"
 
 
 def test_el_cuerpo_de_cada_seccion_va_a_su_propuesta():
     svc, repo = _confluence_service()
-    svc.import_refs(user_id="u", org_id="o", refs=[URL_PAGINA])
+    svc.import_refs(user_id="u", org_id="o", project="web", refs=[URL_PAGINA])
     challenges = [c.kwargs["challenge"] for c in repo.upsert_import_proposal.call_args_list]
     assert "docker compose up" in challenges[0]
     assert "docker compose" not in challenges[1]
@@ -292,28 +294,28 @@ def test_avisa_de_las_secciones_que_no_caben_por_el_tope():
         id="123", title="Manual", text="", space_key="QA",
         sections=tuple((f"S{i}", "cuerpo") for i in range(15)))
     svc, repo = _confluence_service(page=muchas)
-    out = svc.import_refs(user_id="u", org_id="o", refs=[URL_PAGINA])
+    out = svc.import_refs(user_id="u", org_id="o", project="web", refs=[URL_PAGINA])
     assert repo.upsert_import_proposal.call_count == 12
     assert out["skipped_sections"] == [{"ref": "123", "descartadas": 3}]
 
 
 def test_una_pagina_ya_rechazada_no_resucita_seccionada():
     svc, repo = _confluence_service(ref_status="rejected")
-    out = svc.import_refs(user_id="u", org_id="o", refs=[URL_PAGINA])
+    out = svc.import_refs(user_id="u", org_id="o", project="web", refs=[URL_PAGINA])
     assert out["skipped"] == ["123"]
     assert repo.upsert_import_proposal.call_count == 0
 
 
 def test_una_pagina_ya_aprobada_tampoco_se_reimporta():
     svc, repo = _confluence_service(ref_status="approved")
-    out = svc.import_refs(user_id="u", org_id="o", refs=[URL_PAGINA])
+    out = svc.import_refs(user_id="u", org_id="o", project="web", refs=[URL_PAGINA])
     assert out["skipped"] == ["123"]
     assert repo.upsert_import_proposal.call_count == 0
 
 
 def test_una_pagina_pendiente_se_reemplaza_por_sus_secciones():
     svc, repo = _confluence_service(ref_status="pending")
-    svc.import_refs(user_id="u", org_id="o", refs=[URL_PAGINA])
+    svc.import_refs(user_id="u", org_id="o", project="web", refs=[URL_PAGINA])
     repo.delete_pending_by_ref.assert_called_once()
     assert repo.delete_pending_by_ref.call_args.kwargs["external_ref"] == "confluence:123"
     assert repo.upsert_import_proposal.call_count == 3
@@ -321,7 +323,7 @@ def test_una_pagina_pendiente_se_reemplaza_por_sus_secciones():
 
 def test_el_cupo_horario_se_aplica_a_las_secciones_tras_el_fetch():
     svc, repo = _confluence_service(recent=58)   # de 60 → caben 2
-    out = svc.import_refs(user_id="u", org_id="o", refs=[URL_PAGINA])
+    out = svc.import_refs(user_id="u", org_id="o", project="web", refs=[URL_PAGINA])
     assert repo.upsert_import_proposal.call_count == 2
     assert out["skipped_sections"] == [{"ref": "123", "descartadas": 1}]
 
@@ -332,3 +334,32 @@ def test_una_incidencia_de_jira_sigue_siendo_una_sola_propuesta():
     out = svc.import_refs(user_id="u", org_id="o", refs=["PAY-1"])
     assert _refs_upserted(repo) == ["jira:PAY-1"]
     assert out["skipped_sections"] == []
+
+
+# ── Proyecto elegido por el usuario (auditoría 23-nov, #7) ────────────────────
+
+_PAGE_URL = "https://a.atlassian.net/wiki/spaces/QA/pages/99/T"
+
+
+def test_confluence_sin_proyecto_error_por_ref_sin_fetch():
+    svc, repo, confluence = _service_confluence(upsert_result={"id": "p9", "created": True})
+    out = svc.import_refs(user_id="u1", org_id="o1", refs=[_PAGE_URL])
+    assert out["created"] == []
+    assert out["errors"] and "proyecto" in out["errors"][0]["reason"].lower()
+    confluence.fetch_page.assert_not_called()
+    repo.upsert_import_proposal.assert_not_called()
+
+
+def test_proyecto_en_blanco_cuenta_como_ausente():
+    svc, _, confluence = _service_confluence(upsert_result={"id": "p9", "created": True})
+    out = svc.import_refs(user_id="u1", org_id="o1", project="   ", refs=[_PAGE_URL])
+    assert out["errors"]
+    confluence.fetch_page.assert_not_called()
+
+
+def test_jira_usa_el_proyecto_elegido_si_viene():
+    svc, repo, _ = _service(upsert_result={"id": "p1", "created": True})
+    svc.import_refs(user_id="u1", org_id="o1", project=" checkout-suite ", refs=["PAY-1"])
+    kwargs = repo.upsert_import_proposal.call_args.kwargs
+    assert kwargs["project"] == "checkout-suite"
+    assert kwargs["tags"] == ["PAY"]  # la clave de Jira sigue como etiqueta

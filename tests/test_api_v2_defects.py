@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -27,14 +27,17 @@ def test_ingest_report_happy():
     service = MagicMock()
     service.ingest_report.return_value = {"run_id": "r1", "ingested": 2, "known": 1, "novel": 1}
     client = make_client(service=service)
-    resp = client.post(
-        "/v2/ingest/report",
-        data={"project": "proj-a", "source": "allure", "org_id": "org-1"},
-        files={"file": ("r.json", b"[]", "application/json")},
-    )
+    with patch.object(api_v2, "_post_ingest_pipeline", return_value=(None, None, None)), \
+            patch.object(api_v2, "_propose_knowledge_after_ingest"):
+        resp = client.post(
+            "/v2/ingest/report",
+            data={"project": "proj-a", "source": "allure", "org_id": "org-1"},
+            files={"file": ("r.json", b"[]", "application/json")},
+        )
     assert resp.status_code == 200
     assert resp.json() == {"run_id": "r1", "ingested": 2, "known": 1, "novel": 1,
-                           "deduplicated": False}
+                           "deduplicated": False, "triage": None, "verdict": None,
+                           "gate": None}
     kw = service.ingest_report.call_args.kwargs
     assert kw["org_id"] == "org-1" and kw["source"] == "allure" and kw["data"] == b"[]"
 
