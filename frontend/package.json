@@ -37,13 +37,13 @@
     "clsx": "^2.1.1",
     "framer-motion": "^12.34.2",
     "lucide-react": "^0.574.0",
-    "next": "16.1.6",
+    "next": "16.4.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-hook-form": "^7.71.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
-    "zod": "^4.3.6"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
@@ -56,7 +56,7 @@
     "@types/react-dom": "^19",
     "@vitest/coverage-v8": "^4.0.18",
     "eslint": "^9",
-    "eslint-config-next": "16.1.6",
+    "eslint-config-next": "16.4.6",
     "jsdom": "^28.1.0",
     "tailwindcss": "^4",
     "typescript": "^5",

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/components/providers/auth-provider", () => ({
   useAuth: () => ({ accessToken: "tok" }),
@@ -131,7 +131,33 @@ describe("TestPlanPage — editar campo y Re-generar", () => {
   });
 });
 
+describe("TestPlanPage — Xray sin integración (por defecto)", () => {
+  async function generarPlan() {
+    (generateTestPlan as ReturnType<typeof vi.fn>).mockResolvedValue(MOCK_RESULT);
+    renderWithClient(<TestPlanPage />);
+    fireEvent.change(screen.getByPlaceholderText(/pega aquí la historia/i), { target: { value: "HU" } });
+    fireEvent.click(screen.getByRole("button", { name: /^Generar$/i }));
+    await screen.findByText("Happy path checkout");
+  }
+
+  it("el botón está deshabilitado y explica por qué; Markdown es la acción principal", async () => {
+    await generarPlan();
+    const xrayBtn = screen.getByRole("button", { name: /importar a jira/i });
+    expect(xrayBtn).toBeDisabled();
+    expect(xrayBtn).toHaveAccessibleDescription(/todavía no se puede configurar/i);
+    fireEvent.click(xrayBtn);
+    expect(exportTestPlanXray).not.toHaveBeenCalled();
+  });
+});
+
 describe("TestPlanPage — importar a Jira (Xray)", () => {
+  beforeEach(() => {
+    vi.stubEnv("NEXT_PUBLIC_XRAY_EXPORT_ENABLED", "true");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("llama a exportTestPlanXray y muestra toast con las keys retornadas", async () => {
     (generateTestPlan as ReturnType<typeof vi.fn>).mockResolvedValue(MOCK_RESULT);
     (exportTestPlanXray as ReturnType<typeof vi.fn>).mockResolvedValue({ keys: ["TC-1", "XR-10001"] });
@@ -186,6 +212,8 @@ describe("TestPlanPage — importar a Jira (Xray)", () => {
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith("La exportación a Xray aún no está disponible en esta organización.");
     });
+    // Tras un 503 el botón no vuelve a invitar a un clic que siempre falla.
+    await waitFor(() => expect(screen.getByRole("button", { name: /importar a jira/i })).toBeDisabled());
   });
 
   // I3: non-503 error shows real error message, not "Configura Jira en Integraciones para exportar a Xray"

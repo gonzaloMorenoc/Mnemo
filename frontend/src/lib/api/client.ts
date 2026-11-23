@@ -1,4 +1,5 @@
 import type { ApiErrorShape } from "@/lib/api/types";
+import { uploadTooLargeMessage } from "@/lib/upload-limits";
 
 export class ApiClientError extends Error {
   status: number;
@@ -64,6 +65,8 @@ export async function apiRequest<T>(
  * sigue en `details` para quien lo necesite.
  */
 function errorMessage(status: number, payload: ApiErrorShape | null): string {
+  // 413 lo suele devolver Vercel en texto plano antes de llegar al backend.
+  if (status === 413) return uploadTooLargeMessage();
   if (status >= 500) {
     return `El servidor no ha podido completar la acción (error ${status}). Inténtalo de nuevo en unos segundos.`;
   }

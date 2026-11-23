@@ -21,7 +21,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     return (
       <div className="mx-auto flex min-h-screen w-full max-w-xl items-center justify-center px-6">
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
-          Supabase is not configured. Set `NEXT_PUBLIC_SUPABASE_URL` and
+          El servicio de cuentas no está configurado. Define `NEXT_PUBLIC_SUPABASE_URL` y
           `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
         </div>
       </div>

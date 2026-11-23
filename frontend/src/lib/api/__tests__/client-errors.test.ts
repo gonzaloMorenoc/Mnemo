@@ -27,6 +27,13 @@ describe("apiRequest: mensajes de error que puede leer una persona", () => {
     expect(e.status).toBe(404);
   });
 
+  it("un 413 (cuerpo demasiado grande, texto plano de Vercel) se explica en español", async () => {
+    mockFetch(413, "Request Entity Too Large");
+    const e = await errorOf();
+    expect(e.status).toBe(413);
+    expect(e.message).toMatch(/máximo por subida es 4 MB/);
+  });
+
   it("un 422 de validación (detail es una lista) no acaba en «[object Object]»", async () => {
     mockFetch(422, { detail: [{ loc: ["body", "x"], msg: "field required" }] });
     const e = await errorOf();

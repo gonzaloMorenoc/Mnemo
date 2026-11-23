@@ -37,4 +37,28 @@ describe("OrgSwitcher", () => {
     render(<OrgSwitcher />);
     expect(screen.getByRole("combobox", { name: "Organización" })).toBeInTheDocument();
   });
+
+  it("sin organizaciones muestra un acceso para crear una", () => {
+    vi.mocked(useActiveOrg).mockReturnValue({
+      orgs: [],
+      activeOrgId: "",
+      isLoading: false,
+      hasNoOrgs: true,
+      setActiveOrgId: vi.fn(),
+    } as unknown as ReturnType<typeof useActiveOrg>);
+    render(<OrgSwitcher />);
+    expect(screen.getByRole("link", { name: /Crear organización/ })).toHaveAttribute("href", "/app/org");
+  });
+
+  it("mientras carga no enseña nada (sin parpadeo del acceso)", () => {
+    vi.mocked(useActiveOrg).mockReturnValue({
+      orgs: [],
+      activeOrgId: "",
+      isLoading: true,
+      hasNoOrgs: false,
+      setActiveOrgId: vi.fn(),
+    } as unknown as ReturnType<typeof useActiveOrg>);
+    const { container } = render(<OrgSwitcher />);
+    expect(container).toBeEmptyDOMElement();
+  });
 });

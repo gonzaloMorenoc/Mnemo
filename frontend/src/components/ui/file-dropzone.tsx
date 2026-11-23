@@ -3,6 +3,8 @@
 import { useRef, useState } from "react";
 import { FileText, UploadCloud, X } from "lucide-react";
 
+import { exceedsUploadLimit, MAX_UPLOAD_BYTES, uploadTooLargeMessage } from "@/lib/upload-limits";
+
 /**
  * Zona de subida con arrastrar-y-soltar. Sustituye al `<input type="file">`
  * nativo ("Seleccionar archivo Ningún archivo seleccionado"), que rompía el
@@ -14,12 +16,15 @@ export function FileDropzone({
   onFile,
   accept,
   hint,
+  maxBytes = MAX_UPLOAD_BYTES,
 }: {
   id?: string;
   file: File | null;
   onFile: (f: File | null) => void;
   accept?: string;
   hint?: string;
+  /** Tamaño máximo; por defecto el límite del proxy de Vercel (ver lib/upload-limits). */
+  maxBytes?: number;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -39,6 +44,11 @@ export function FileDropzone({
   function pick(f: File | null) {
     if (f && !acceptsFile(f)) {
       setRejected(`Tipo de archivo no admitido (acepta: ${accept}).`);
+      return;
+    }
+    // Mejor decirlo aquí que esperar a un 413 opaco tras subir varios MB.
+    if (f && exceedsUploadLimit(f.size, maxBytes)) {
+      setRejected(uploadTooLargeMessage(f.size));
       return;
     }
     setRejected(null);
@@ -113,7 +123,7 @@ export function FileDropzone({
             Arrastra el archivo aquí o <span className="font-medium text-zinc-800">haz clic para elegirlo</span>
           </span>
           {rejected ? (
-            <span className="text-xs text-red-600">{rejected}</span>
+            <span role="alert" className="text-xs text-red-600">{rejected}</span>
           ) : (
             hint && <span className="text-xs text-zinc-500">{hint}</span>
           )}

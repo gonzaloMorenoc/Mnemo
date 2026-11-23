@@ -73,6 +73,7 @@ export default function KnowledgePage() {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<KnowledgeAnswer | null>(null);
   const [sources, setSources] = useState<KnowledgeSource[]>([]);
+  const [sourcesFailed, setSourcesFailed] = useState(false);
 
   const captureMutation = useMutation({
     mutationFn: () => {
@@ -114,6 +115,13 @@ export default function KnowledgePage() {
       if (!accessToken) throw new Error("Sin sesión");
       return askKnowledge(accessToken, { org_id: activeOrgId, question });
     },
+    // Cada pregunta empieza limpia: las fuentes de la anterior no pueden quedarse
+    // a la vista como si respondieran a esta.
+    onMutate: () => {
+      setAnswer(null);
+      setSources([]);
+      setSourcesFailed(false);
+    },
     onSuccess: (data) => {
       setAnswer(data);
       // Also fire a search to get sources
@@ -121,7 +129,8 @@ export default function KnowledgePage() {
         searchKnowledge(accessToken, { org_id: activeOrgId, query: question })
           .then(setSources)
           .catch(() => {
-            // degrade silently — sources are optional
+            // Las fuentes son opcionales, pero su fallo se dice: no es «no hay nada».
+            setSourcesFailed(true);
           });
       }
     },
@@ -366,6 +375,12 @@ export default function KnowledgePage() {
 
               <CitedSources citations={answer.citations} sources={answer.sources} />
             </div>
+          )}
+
+          {sourcesFailed && (
+            <p role="status" className="text-xs text-zinc-500">
+              No se pudieron cargar los resultados relacionados. Vuelve a preguntar en unos segundos.
+            </p>
           )}
 
           {sources.length > 0 && (

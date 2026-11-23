@@ -70,4 +70,33 @@ describe("RotationRiskMap", () => {
     ]);
     expect(screen.queryByText("checkout-suite")).toBeNull();
   });
+
+  it("si falla un proyecto, solo esa fila lo dice; el resto del mapa se ve", async () => {
+    (listContinuityProjects as ReturnType<typeof vi.fn>).mockResolvedValue({ projects: Object.keys(SCORES) });
+    (getContinuity as ReturnType<typeof vi.fn>).mockImplementation((_t: string, _o: string, p: string) =>
+      p === "api-pagos"
+        ? Promise.reject(new Error("504"))
+        : Promise.resolve({ score: SCORES[p], dimensions: [], inventario: {} }),
+    );
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <RotationRiskMap accessToken="t" orgId="o1" />
+      </QueryClientProvider>,
+    );
+    await screen.findByText("95");
+    expect(screen.queryByText(/No se pudo calcular el riesgo por proyecto/)).toBeNull();
+    const pagos = screen.getByText("api-pagos").closest("button")!;
+    expect(within(pagos).getByText("No se pudo cargar")).toBeInTheDocument();
+    const filas = screen
+      .getAllByRole("button", { pressed: false })
+      .map((b) => within(b).getByTestId("proyecto").textContent);
+    // el que falla va al final, tras los medibles y los sin datos
+    expect(filas).toEqual(["banca-movil", "checkout-suite", "nuevo", "api-pagos"]);
+
+    (getContinuity as ReturnType<typeof vi.fn>).mockResolvedValue({ score: 54, dimensions: [], inventario: {} });
+    fireEvent.click(screen.getByRole("button", { name: /Reintentar/ }));
+    expect(await screen.findByText("54")).toBeInTheDocument();
+  });
 });
+

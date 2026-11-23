@@ -10,15 +10,19 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { AuthCard } from "@/components/auth/auth-card";
+import { FormField, SupabaseNotConfigured } from "@/components/auth/form-field";
 import { useAuth } from "@/components/providers/auth-provider";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { BackendWarmup } from "@/components/warmup/BackendWarmup";
+import { authErrorMessage } from "@/lib/auth-errors";
+import { safeNextPath } from "@/lib/safe-redirect";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+
+const PASSWORD_MIN = 6;
 
 const schema = z.object({
   email: z.string().email("Introduce un email válido"),
-  password: z.string().min(6, "La contraseña necesita al menos 6 caracteres"),
+  password: z.string().min(PASSWORD_MIN, `La contraseña necesita al menos ${PASSWORD_MIN} caracteres`),
 });
 
 type LoginFormValues = z.infer<typeof schema>;
@@ -27,14 +31,12 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { session, configured } = useAuth();
-  const nextPath = searchParams.get("next") || "/app/continuity";
+  // Solo rutas internas: un ?next=https://… o //… sería una redirección abierta (#16).
+  const nextPath = safeNextPath(searchParams.get("next"));
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(schema),
-    defaultValues: {
-      email: "",
-      password: "",
-    },
+    defaultValues: { email: "", password: "" },
   });
 
   useEffect(() => {
@@ -48,54 +50,51 @@ function LoginForm() {
       const supabase = getSupabaseBrowserClient();
       const { error } = await supabase.auth.signInWithPassword(values);
       if (error) {
-        throw new Error(error.message);
+        throw new Error(authErrorMessage(error));
       }
     },
     onSuccess: () => {
       toast.success("Hola de nuevo.");
       router.replace(nextPath);
     },
-    onError: (error) => {
-      toast.error(error.message);
-    },
   });
+
+  const { errors } = form.formState;
 
   return (
     <AuthCard
       title="Iniciar sesión"
-      description="Accede a tu espacio de trabajo en Mnemo."
+      description="Mnemo guarda la memoria de QA de tus proyectos para que no se pierda cuando alguien rota."
       footerText="¿No tienes cuenta?"
       footerLinkHref="/signup"
       footerLinkLabel="Crear una"
     >
       {!configured ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-          Supabase no está configurado. Define `NEXT_PUBLIC_SUPABASE_URL` y
-          `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
-        </div>
+        <SupabaseNotConfigured />
       ) : (
-        <form className="space-y-4" onSubmit={form.handleSubmit((values) => mutation.mutate(values))}>
-          <div className="space-y-1.5">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" autoComplete="email" {...form.register("email")} />
-            {form.formState.errors.email && (
-              <p className="text-xs text-red-600">{form.formState.errors.email.message}</p>
-            )}
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="password">Contraseña</Label>
-            <Input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              {...form.register("password")}
-            />
-            {form.formState.errors.password && (
-              <p className="text-xs text-red-600">{form.formState.errors.password.message}</p>
-            )}
-          </div>
-
+        <form className="space-y-4" noValidate onSubmit={form.handleSubmit((values) => mutation.mutate(values))}>
+          <BackendWarmup showNotice />
+          <FormField
+            id="email"
+            label="Email"
+            type="email"
+            autoComplete="email"
+            registration={form.register("email")}
+            error={errors.email?.message}
+          />
+          <FormField
+            id="password"
+            label="Contraseña"
+            type="password"
+            autoComplete="current-password"
+            registration={form.register("password")}
+            error={errors.password?.message}
+          />
+          {mutation.isError && (
+            <p role="alert" className="text-sm text-red-700">
+              {mutation.error.message}
+            </p>
+          )}
           <Button className="w-full" type="submit" disabled={mutation.isPending}>
             {mutation.isPending ? "Iniciando sesión…" : "Iniciar sesión"}
           </Button>

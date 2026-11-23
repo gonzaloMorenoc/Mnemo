@@ -3,6 +3,7 @@ import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { FileDropzone } from "@/components/ui/file-dropzone";
+import { MAX_UPLOAD_BYTES } from "@/lib/upload-limits";
 
 afterEach(cleanup);
 
@@ -29,4 +30,16 @@ describe("FileDropzone", () => {
     fireEvent.click(screen.getByRole("button", { name: /Quitar archivo/i }));
     expect(onFile).toHaveBeenCalledWith(null);
   });
+
+  it("rechaza en el cliente un archivo que supera el límite de subida, con un mensaje claro", () => {
+    const onFile = vi.fn();
+    render(<FileDropzone file={null} onFile={onFile} />);
+    const big = new File(["x"], "allure.json", { type: "application/json" });
+    Object.defineProperty(big, "size", { value: MAX_UPLOAD_BYTES + 1 });
+    fireEvent.drop(screen.getByRole("button"), { dataTransfer: { files: [big] } });
+    expect(onFile).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(/máximo por subida es 4 MB/);
+    expect(screen.getByRole("alert")).toHaveTextContent(/token de ingesta/);
+  });
 });
+
