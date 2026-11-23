@@ -10,7 +10,7 @@ services:
     name: mnemo-backend
     runtime: docker
     dockerfilePath: ./Dockerfile
-    healthCheckPath: /v2/health
+    healthCheckPath: /v2/health/live   # liveness: una BD caída no reinicia el servicio en bucle
     plan: standard            # ≥1 GB RAM (free/starter de 512 MB no cargan torch)
     autoDeploy: true
     envVars:

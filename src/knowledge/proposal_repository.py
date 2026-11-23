@@ -11,7 +11,7 @@ from pgvector import Vector
 
 from src.config import DATABASE_URL
 from src.db.pool import get_pool
-from src.defects.embedder import LocalEmbedder
+from src.defects.embedder import get_shared_embedder
 from src.knowledge.repository import embedding_text, insert_qa_knowledge
 
 # Familias que necesitan una propuesta nueva: sin lección en memoria Y sin ninguna
@@ -37,7 +37,7 @@ class KnowledgeProposalRepository:
         if not db_url:
             raise RuntimeError("DATABASE_URL must be configured for Mnemo persistence")
         self.db_url = db_url
-        self.embedder = embedder or LocalEmbedder()
+        self.embedder = embedder or get_shared_embedder()
 
     def _connect(self) -> psycopg.Connection:
         return get_pool().connection()

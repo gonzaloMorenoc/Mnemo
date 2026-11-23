@@ -6,14 +6,14 @@ from psycopg.rows import dict_row
 
 from src.config import DATABASE_URL
 from src.db.pool import get_pool
-from src.defects.embedder import LocalEmbedder
+from src.defects.embedder import get_shared_embedder
 from src.repo_ingest.descriptor import asset_descriptor
 
 
 class TestAssetRepository:
     def __init__(self, db_url: str = DATABASE_URL, embedder=None):
         self.db_url = db_url
-        self.embedder = embedder or LocalEmbedder()
+        self.embedder = embedder or get_shared_embedder()
 
     def _connect(self) -> psycopg.Connection:
         return get_pool().connection()
