@@ -36,6 +36,9 @@ const CI_CURL = [
   `curl -H "Authorization: Bearer $MNEMO_INGEST_TOKEN" \\`,
   `     -F file=@test-results/junit.xml \\`,
   `     -F project=mi-proyecto \\`,
+  // Opcionales: con el commit, el gate publica el check en el PR y el triaje
+  // detecta intermitencias en el mismo SHA (variables de GitHub Actions).
+  `     -F commit_sha=$GITHUB_SHA -F branch=$GITHUB_REF_NAME \\`,
   `     ${BACKEND}/v2/ci/ingest`,
 ].join("\n");
 

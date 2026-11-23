@@ -31,6 +31,10 @@ class IngestReportResponse(BaseModel):
     known: int
     novel: int
     deduplicated: bool = False
+    # Pipeline post-ingesta (best-effort: null si la etapa falló o no se ejecutó)
+    triage: Optional[Dict[str, Any]] = None
+    verdict: Optional[str] = None
+    gate: Optional[str] = None
 
 
 class DefectFamilyResponse(BaseModel):
@@ -324,6 +328,9 @@ class KnowledgeProposalRejectRequest(BaseModel):
 class KnowledgeImportRequest(BaseModel):
     org_id: str
     refs: List[Annotated[str, Field(max_length=500)]] = Field(min_length=1, max_length=10)
+    # Proyecto de Mnemo al que pertenece lo importado (obligatorio para Confluence:
+    # sin él no cuenta para el índice ni para el acta).
+    project: Optional[str] = Field(default=None, max_length=200)
 
 
 class KnowledgeImportRefError(BaseModel):

@@ -21,8 +21,11 @@ class _CapturingRepo:
     def __init__(self):
         self.captured = None
 
+    def is_member(self, **_kwargs):
+        return True
+
     def ingest_run(self, *, user_id, org_id, project, source, items, run_uid=None,
-                   manifest=None):
+                   manifest=None, commit_sha=None, results=()):
         self.captured = {"source": source, "items": items, "run_uid": run_uid}
         return {"run_id": "r", "ingested": len(items), "known": 0, "novel": len(items),
                 "deduplicated": False}

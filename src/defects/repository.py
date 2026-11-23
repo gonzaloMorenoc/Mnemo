@@ -6,7 +6,7 @@ from pgvector import Vector
 from psycopg.rows import dict_row
 from psycopg.types.json import Json
 
-from src.config import DATABASE_URL, MAX_SEMANTIC_DISTANCE
+from src.config import DATABASE_URL, DOM_SNAPSHOTS_KEEP_PER_TEST, MAX_SEMANTIC_DISTANCE
 from src.db.pool import get_pool
 from src.defects.centroid import update_centroid
 from src.defects.match import FamilyCandidate, decide_match
@@ -15,6 +15,9 @@ from src.triage.dom import dom_changed
 
 _CI_STATUSES = ("pass", "fail", "flaky", "skipped")
 _CI_KINDS = ("last_green", "failure")
+# Prefijo del advisory lock que serializa las ingestas de una misma org (ver
+# _lock_org_for_ingest). Distinto de cualquier otro uso de advisory locks.
+_INGEST_LOCK_PREFIX = "mnemo:ingest:"
 
 
 @dataclass
@@ -94,6 +97,170 @@ class AssuranceRepository:
             for r in rows
         ]
 
+    def _insert_family_or_none(self, cur, *, org_id: str, item: IngestItem):
+        """Crea la familia; None si otra transacción ya creó la misma (org_id, signature).
+
+        `on conflict do nothing` en vez de un INSERT pelado: con shards de CI en
+        paralelo, dos runs que estrenan el mismo fallo ya no acaban en UniqueViolation
+        (502 y run perdido). El conflict target repite el predicado del índice parcial
+        uq_defect_families_org_signature (obligatorio para la inferencia)."""
+        title = item.rec.error_type or item.rec.message[:80] or "unknown"
+        cur.execute(
+            """
+            insert into public.defect_families
+                (scope, org_id, signature, title, occurrence_count, centroid)
+            values ('org', %s, %s, %s, 1, %s)
+            on conflict (org_id, signature) where scope = 'org' do nothing
+            returning id
+            """,
+            (org_id, item.fingerprint, title, Vector(list(item.embedding))),
+        )
+        row = cur.fetchone()
+        return row["id"] if row else None
+
+    def _family_id_by_signature(self, cur, *, org_id: str, signature: str):
+        cur.execute(
+            "select id from public.defect_families"
+            " where scope = 'org' and org_id = %s and signature = %s",
+            (org_id, signature),
+        )
+        row = cur.fetchone()
+        if row is None:
+            raise RuntimeError("defect family vanished during ingestion")
+        return row["id"]
+
+    def _bump_family(self, cur, *, family_id, embedding: Sequence[float]):
+        """Suma una ocurrencia a la familia y desplaza su centroide (bajo FOR UPDATE)."""
+        cur.execute(
+            "select occurrence_count, centroid"
+            " from public.defect_families where id = %s for update",
+            (family_id,),
+        )
+        fam = cur.fetchone()
+        new_centroid = update_centroid(
+            list(fam["centroid"]) if fam["centroid"] is not None else None,
+            fam["occurrence_count"], list(embedding),
+        )
+        cur.execute(
+            """
+            update public.defect_families
+            set occurrence_count = occurrence_count + 1, last_seen = now(), centroid = %s
+            where id = %s
+            """,
+            (Vector(new_centroid), family_id),
+        )
+        return family_id
+
+    def _lock_org_for_ingest(self, cur, *, org_id: str) -> None:
+        """Serializa las ingestas concurrentes de UNA org (advisory lock de transacción).
+
+        Los fallos se procesan además ordenados por firma, pero el emparejamiento
+        semántico puede bloquear una familia de firma distinta a la del fallo: el
+        orden por firma por sí solo no impide un ciclo A→B / B→A entre dos runs. El
+        lock por org lo cierra del todo sin afectar a otras orgs, y se libera solo
+        al terminar la transacción."""
+        cur.execute("select pg_advisory_xact_lock(hashtextextended(%s, 0))",
+                    (_INGEST_LOCK_PREFIX + str(org_id),))
+
+    def _match_failures_sorted(self, cur, *, org_id: str, run_id,
+                               items: Sequence[IngestItem]) -> Dict[str, int]:
+        """Empareja e inserta los fallos del run en orden determinista (por firma)."""
+        self._lock_org_for_ingest(cur, org_id=org_id)
+        known = novel = 0
+        for item in sorted(items, key=lambda i: i.fingerprint):
+            if self._match_and_insert_failure(cur, org_id=org_id, run_id=run_id, item=item):
+                novel += 1
+            else:
+                known += 1
+        return {"known": known, "novel": novel}
+
+    @staticmethod
+    def _validate_results(results: Sequence[Dict[str, Any]]) -> None:
+        for r in results:
+            if "test_name" not in r or "status" not in r:
+                raise ValueError("each result requires 'test_name' and 'status'")
+            if r["status"] not in _CI_STATUSES:
+                raise ValueError(f"invalid status: {r['status']!r}")
+
+    def _insert_results(self, cur, *, run_id, org_id: str,
+                        results: Sequence[Dict[str, Any]]) -> None:
+        """Resultado por test del run (pasados incluidos), en lote."""
+        self._validate_results(results)
+        if not results:
+            return
+        cur.executemany(
+            "insert into public.test_results"
+            " (run_id, org_id, test_name, status, retried)"
+            " values (%s, %s, %s, %s, %s)",
+            [(run_id, org_id, r["test_name"], r["status"], bool(r.get("retried", False)))
+             for r in results],
+        )
+
+    def _prune_dom_snapshots(self, cur, *, org_id: str, project: str,
+                             test_names: Sequence[str]) -> None:
+        """Retención: por (test, tipo) conserva solo los DOM_SNAPSHOTS_KEEP_PER_TEST más
+        recientes. Acotado a los tests recién escritos (no barre toda la tabla)."""
+        tests = sorted(set(test_names))
+        if not tests:
+            return
+        cur.execute(
+            """
+            delete from public.dom_snapshots d
+            using (
+                select id from (
+                    select id, row_number() over (partition by test_name, kind
+                                                  order by created_at desc, id desc) as rn
+                    from public.dom_snapshots
+                    where org_id = %(org)s and project = %(project)s
+                      and test_name = any(%(tests)s)
+                ) ranked
+                where rn > %(keep)s
+            ) old
+            where d.id = old.id
+            """,
+            {"org": org_id, "project": project, "tests": tests,
+             "keep": DOM_SNAPSHOTS_KEEP_PER_TEST},
+        )
+
+    def is_member(self, *, user_id: str, org_id: str) -> bool:
+        """Comprobación barata de pertenencia, para cortar ANTES de trabajo caro
+        (parsear y embeber un report). No sustituye a la de cada transacción."""
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                "select exists(select 1 from public.memberships"
+                " where org_id = %s and user_id = %s) as ok",
+                (org_id, user_id),
+            )
+            return bool(cur.fetchone()["ok"])
+
+    def run_needs_pipeline(self, *, user_id: str, run_id: str) -> bool:
+        """¿Hay que relanzar triaje/acta/gate sobre un run ya ingestado?
+
+        Sí si tiene fallos sin veredictos o no tiene acta: el pipeline es best-effort
+        y, si falló (timeout de BD, LLM caído…), el reintento del CI llegaba como
+        «deduplicado» y el run se quedaba sin triaje ni acta para siempre. False si
+        no existe o el usuario no es miembro."""
+        with self._connect() as conn:
+            self._set_claims(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "select"
+                    "  exists(select 1 from public.certificates c where c.run_id = r.id)"
+                    "    as has_cert,"
+                    "  exists(select 1 from public.failures f where f.run_id = r.id)"
+                    "    as has_failures,"
+                    "  exists(select 1 from public.triage_verdicts v where v.run_id = r.id)"
+                    "    as has_verdicts"
+                    " from public.test_runs r"
+                    " where r.id = %s and exists (select 1 from public.memberships m"
+                    "   where m.org_id = r.org_id and m.user_id = %s)",
+                    (run_id, user_id),
+                )
+                row = cur.fetchone()
+        if row is None:
+            return False
+        return (not row["has_cert"]) or (row["has_failures"] and not row["has_verdicts"])
+
     def _match_and_insert_failure(self, cur, *, org_id: str, run_id, item: IngestItem) -> bool:
         """Empareja un fallo con su familia (crea o actualiza centroide/contador) e inserta
         la fila de `failures`. Devuelve True si la familia es nueva (novel), False si conocida.
@@ -104,40 +271,15 @@ class AssuranceRepository:
         decision = decide_match(
             fingerprint=item.fingerprint, embedding=item.embedding, candidates=cands,
         )
-        if decision.is_new:
-            title = item.rec.error_type or item.rec.message[:80] or "unknown"
-            cur.execute(
-                """
-                insert into public.defect_families
-                    (scope, org_id, signature, title, occurrence_count, centroid)
-                values ('org', %s, %s, %s, 1, %s)
-                returning id
-                """,
-                (org_id, item.fingerprint, title, Vector(list(item.embedding))),
-            )
-            family_id = cur.fetchone()["id"]
-            is_new = True
-        else:
-            family_id = decision.family_id
-            cur.execute(
-                "select occurrence_count, centroid"
-                " from public.defect_families where id = %s for update",
-                (family_id,),
-            )
-            fam = cur.fetchone()
-            new_centroid = update_centroid(
-                list(fam["centroid"]) if fam["centroid"] is not None else None,
-                fam["occurrence_count"], list(item.embedding),
-            )
-            cur.execute(
-                """
-                update public.defect_families
-                set occurrence_count = occurrence_count + 1, last_seen = now(), centroid = %s
-                where id = %s
-                """,
-                (Vector(new_centroid), family_id),
-            )
-            is_new = False
+        family_id = self._insert_family_or_none(cur, org_id=org_id, item=item) \
+            if decision.is_new else None
+        is_new = family_id is not None
+        if not is_new:
+            # O la familia ya existía, o una ingesta concurrente de la misma org la
+            # acaba de crear (el insert chocó con el único (org_id, signature)).
+            target = decision.family_id or self._family_id_by_signature(
+                cur, org_id=org_id, signature=item.fingerprint)
+            family_id = self._bump_family(cur, family_id=target, embedding=item.embedding)
         cur.execute(
             """
             insert into public.failures
@@ -202,8 +344,12 @@ class AssuranceRepository:
         commit_sha: Optional[str] = None,
         run_uid: Optional[str] = None,
         manifest: Optional[Dict[str, Any]] = None,
+        results: Sequence[Dict[str, Any]] = (),
     ) -> Dict[str, Any]:
         """Ingest a test run and classify each failure into a defect family.
+
+        `results` (opcional) = resultado por test, pasados incluidos → test_results
+        (señales retry_passed_in_run / intermittent_same_sha del triaje).
 
         Idempotente por (org_id, run_uid) si run_uid viene: un re-upload del mismo
         reporte devuelve el run existente con deduplicated=True en vez de crear otro
@@ -243,11 +389,10 @@ class AssuranceRepository:
                         "deduplicated": True,
                     }
 
-                for item in items:
-                    if self._match_and_insert_failure(cur, org_id=org_id, run_id=run_id, item=item):
-                        novel += 1
-                    else:
-                        known += 1
+                counts = self._match_failures_sorted(cur, org_id=org_id, run_id=run_id,
+                                                     items=items)
+                known, novel = counts["known"], counts["novel"]
+                self._insert_results(cur, run_id=run_id, org_id=org_id, results=results)
 
                 summary = {"ingested": len(items), "known": known, "novel": novel}
                 if manifest is not None:
@@ -316,23 +461,10 @@ class AssuranceRepository:
                         "deduplicated": True,
                     }
 
-                for item in items:
-                    if self._match_and_insert_failure(cur, org_id=org_id, run_id=run_id, item=item):
-                        novel += 1
-                    else:
-                        known += 1
-
-                for r in results:
-                    if "test_name" not in r or "status" not in r:
-                        raise ValueError("each result requires 'test_name' and 'status'")
-                    if r["status"] not in _CI_STATUSES:
-                        raise ValueError(f"invalid status: {r['status']!r}")
-                    cur.execute(
-                        "insert into public.test_results"
-                        " (run_id, org_id, test_name, status, retried)"
-                        " values (%s, %s, %s, %s, %s)",
-                        (run_id, org_id, r["test_name"], r["status"], r.get("retried", False)),
-                    )
+                counts = self._match_failures_sorted(cur, org_id=org_id, run_id=run_id,
+                                                     items=items)
+                known, novel = counts["known"], counts["novel"]
+                self._insert_results(cur, run_id=run_id, org_id=org_id, results=results)
 
                 for s in snapshots:
                     if "test_name" not in s or "kind" not in s or "content" not in s:
@@ -346,6 +478,8 @@ class AssuranceRepository:
                         (org_id, project, s["test_name"], s["kind"], s["content"],
                          s.get("commit_sha")),
                     )
+                self._prune_dom_snapshots(cur, org_id=org_id, project=project,
+                                          test_names=[s["test_name"] for s in snapshots])
 
                 summary = {
                     "ingested": len(items), "known": known, "novel": novel,
@@ -683,6 +817,8 @@ class AssuranceRepository:
                         (org_id, project, s["test_name"], s["kind"], s["content"],
                          s.get("commit_sha")),
                     )
+                self._prune_dom_snapshots(cur, org_id=org_id, project=project,
+                                          test_names=[s["test_name"] for s in snapshots])
             conn.commit()
         return len(snapshots)
 
@@ -766,21 +902,30 @@ class AssuranceRepository:
                     )
                     intermittent = {r["test_name"] for r in cur.fetchall()}
 
-                cur.execute(
-                    "select distinct on (test_name) test_name, content from public.dom_snapshots"
-                    " where org_id = %s and project = %s and kind = 'last_green'"
-                    " order by test_name, created_at desc",
-                    (org_id, project),
-                )
-                green = {r["test_name"]: r["content"] for r in cur.fetchall()}
-                cur.execute(
-                    "select distinct on (test_name) test_name, content from public.dom_snapshots"
-                    " where org_id = %s and project = %s and kind = 'failure'"
-                    "   and commit_sha is not distinct from %s"
-                    " order by test_name, created_at desc",
-                    (org_id, project, commit_sha),
-                )
-                fail_dom = {r["test_name"]: r["content"] for r in cur.fetchall()}
+                # Solo los DOM de los tests que fallaron en ESTE run (antes: todos los
+                # last_green del proyecto, cientos de MB en memoria en cada triaje).
+                failed_tests = sorted({f["test_name"] for f in failures})
+                green: Dict[str, str] = {}
+                fail_dom: Dict[str, str] = {}
+                if failed_tests:
+                    cur.execute(
+                        "select distinct on (test_name) test_name, content"
+                        " from public.dom_snapshots"
+                        " where org_id = %s and project = %s and kind = 'last_green'"
+                        "   and test_name = any(%s)"
+                        " order by test_name, created_at desc",
+                        (org_id, project, failed_tests),
+                    )
+                    green = {r["test_name"]: r["content"] for r in cur.fetchall()}
+                    cur.execute(
+                        "select distinct on (test_name) test_name, content"
+                        " from public.dom_snapshots"
+                        " where org_id = %s and project = %s and kind = 'failure'"
+                        "   and commit_sha is not distinct from %s and test_name = any(%s)"
+                        " order by test_name, created_at desc",
+                        (org_id, project, commit_sha, failed_tests),
+                    )
+                    fail_dom = {r["test_name"]: r["content"] for r in cur.fetchall()}
 
             out = []
             for f in failures:

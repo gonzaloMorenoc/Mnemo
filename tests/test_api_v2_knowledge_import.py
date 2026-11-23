@@ -33,7 +33,25 @@ def test_import_feliz():
     assert r.status_code == 200
     assert r.json()["created"][0]["id"] == "p1"
     svc.import_refs.assert_called_once_with(user_id="user-1", org_id="o1",
-                                            refs=["PAY-1"])
+                                            refs=["PAY-1"], project=None)
+
+
+def test_import_pasa_el_proyecto_elegido():
+    svc = MagicMock()
+    svc.import_refs.return_value = {"created": [], "refreshed": [], "skipped": [],
+                                    "errors": []}
+    r = make_client(import_svc=svc).post(
+        "/v2/knowledge/import",
+        json={"org_id": "o1", "refs": ["PAY-1"], "project": "checkout-suite"})
+    assert r.status_code == 200
+    assert svc.import_refs.call_args.kwargs["project"] == "checkout-suite"
+
+
+def test_import_proyecto_demasiado_largo_422():
+    r = make_client(import_svc=MagicMock()).post(
+        "/v2/knowledge/import",
+        json={"org_id": "o1", "refs": ["PAY-1"], "project": "x" * 201})
+    assert r.status_code == 422
 
 
 def test_import_sin_integracion_409():

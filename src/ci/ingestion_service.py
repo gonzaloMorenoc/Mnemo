@@ -23,6 +23,9 @@ class CiIngestionService:
         resultados por test + snapshots DOM, en una sola transacción. Idempotente por run_uid.
         Nota: la idempotencia (dedup por run_uid) solo se activa si el reporter emite run_uid;
         si es None, solo aplica atomicidad (retrocompatible)."""
+        # Membresía ANTES de embeber (03-técnica E9); la definitiva sigue en la transacción.
+        if not self.repo.is_member(user_id=user_id, org_id=artifact.org_id):
+            raise PermissionError("user is not a member of the organization")
         items = []
         for rec in to_failure_records(artifact):
             message = sanitize_text(rec.message)

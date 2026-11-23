@@ -14,6 +14,9 @@ class FakeRepo:
     def __init__(self):
         self.calls = []
 
+    def is_member(self, **kwargs):
+        return True
+
     def ingest_run(self, **kwargs):
         self.calls.append(kwargs)
         items = kwargs["items"]

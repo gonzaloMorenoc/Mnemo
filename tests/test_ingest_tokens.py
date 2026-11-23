@@ -57,12 +57,40 @@ class TestRepo:
 
     def test_resolve_active_token_updates_last_used(self):
         cur = MagicMock()
-        cur.fetchone.return_value = {"id": "t1", "org_id": "o1", "created_by": "u1"}
+        cur.fetchone.return_value = {"id": "t1", "org_id": "o1", "created_by": "u1",
+                                     "acting_user_id": "u1"}
         with patch("src.ci.ingest_tokens.get_pool", return_value=_fake_pool(cur)):
             info = _repo().resolve(token=TOKEN_PREFIX + "a" * 48)
-        assert info == {"token_id": "t1", "org_id": "o1", "created_by": "u1"}
+        assert info == {"token_id": "t1", "org_id": "o1", "created_by": "u1",
+                        "acting_user_id": "u1"}
         sql = _all_sql(cur)
         assert "last_used_at=now()" in sql and "revoked_at is null" in sql
+
+    def test_resolve_acts_for_the_org_not_for_the_creator(self):
+        """El token es una credencial DE LA ORG (#6): si el creador ya no es
+        owner/admin, el pipeline corre con un owner/admin vigente de esa org;
+        created_by se conserva solo para auditoría."""
+        cur = MagicMock()
+        cur.fetchone.return_value = {"id": "t1", "org_id": "o1", "created_by": "u-fuera",
+                                     "acting_user_id": "u-owner"}
+        with patch("src.ci.ingest_tokens.get_pool", return_value=_fake_pool(cur)):
+            info = _repo().resolve(token=TOKEN_PREFIX + "a" * 48)
+        assert info["created_by"] == "u-fuera" and info["acting_user_id"] == "u-owner"
+        sql = " ".join(_all_sql(cur).split())
+        # el actor sale de los miembros VIGENTES con rol de la org del token,
+        # prefiriendo al creador si sigue siéndolo
+        assert "from public.memberships m" in sql
+        assert "m.org_id = tok.org_id" in sql
+        assert "m.role in ('owner','admin')" in sql
+        assert "(m.user_id = tok.created_by) desc" in sql
+
+    def test_resolve_org_without_owner_admin_has_no_actor(self):
+        cur = MagicMock()
+        cur.fetchone.return_value = {"id": "t1", "org_id": "o1", "created_by": "u1",
+                                     "acting_user_id": None}
+        with patch("src.ci.ingest_tokens.get_pool", return_value=_fake_pool(cur)):
+            info = _repo().resolve(token=TOKEN_PREFIX + "a" * 48)
+        assert info["acting_user_id"] is None
 
     def test_resolve_rejects_bad_prefix_without_db(self):
         with patch("src.ci.ingest_tokens.get_pool") as pool:
@@ -129,7 +157,8 @@ _JUNIT = b'<?xml version="1.0"?><testsuite tests="1"><testcase name="t"/></tests
 
 def test_ci_ingest_full_pipeline_with_token():
     repo = MagicMock()
-    repo.resolve.return_value = {"token_id": "t1", "org_id": "o1", "created_by": "u9"}
+    repo.resolve.return_value = {"token_id": "t1", "org_id": "o1", "created_by": "u9",
+                                 "acting_user_id": "u9"}
     ingestion = MagicMock()
     ingestion.ingest_report.return_value = {"run_id": "r1", "ingested": 1}
     with patch.object(api_v2, "_post_ingest_pipeline",
@@ -152,7 +181,8 @@ def test_ci_ingest_full_pipeline_with_token():
 
 def test_ci_ingest_accepts_x_mnemo_token_header():
     repo = MagicMock()
-    repo.resolve.return_value = {"token_id": "t1", "org_id": "o1", "created_by": "u9"}
+    repo.resolve.return_value = {"token_id": "t1", "org_id": "o1", "created_by": "u9",
+                                 "acting_user_id": "u9"}
     ingestion = MagicMock()
     ingestion.ingest_report.return_value = {"run_id": "r1"}
     with patch.object(api_v2, "_post_ingest_pipeline", return_value=(None, None, None)):
@@ -182,7 +212,8 @@ def test_ci_ingest_invalid_token_401():
 
 def test_ci_ingest_missing_fields_422():
     repo = MagicMock()
-    repo.resolve.return_value = {"token_id": "t1", "org_id": "o1", "created_by": "u9"}
+    repo.resolve.return_value = {"token_id": "t1", "org_id": "o1", "created_by": "u9",
+                                 "acting_user_id": "u9"}
     ingestion = MagicMock()
     r = make_client(repo, ingestion).post(
         "/v2/ci/ingest",
@@ -194,13 +225,33 @@ def test_ci_ingest_missing_fields_422():
     ingestion.ingest_report.assert_not_called()
 
 
-def test_ci_ingest_creator_expelled_403():
-    """La promesa de la doc: si el creador del token deja la org, sus tokens dejan
-    de funcionar (el pipeline lanza PermissionError por el membership check)."""
+def test_ci_ingest_keeps_working_when_creator_left_the_org():
+    """#6: el creador del token deja la org → el CI NO se rompe. La ingesta se
+    autoriza por la org del token y corre con un owner/admin vigente."""
     repo = MagicMock()
-    repo.resolve.return_value = {"token_id": "t1", "org_id": "o1", "created_by": "u-fuera"}
+    repo.resolve.return_value = {"token_id": "t1", "org_id": "o1", "created_by": "u-fuera",
+                                 "acting_user_id": "u-owner"}
     ingestion = MagicMock()
-    ingestion.ingest_report.side_effect = PermissionError("user is not a member")
+    ingestion.ingest_report.return_value = {"run_id": "r1", "ingested": 1}
+    with patch.object(api_v2, "_post_ingest_pipeline",
+                      return_value=(None, None, None)) as pipe:
+        r = make_client(repo, ingestion).post(
+            "/v2/ci/ingest",
+            headers={"Authorization": "Bearer mnemo_it_tok"},
+            files={"file": ("junit.xml", _JUNIT, "application/xml")},
+            data={"project": "web"},
+        )
+    assert r.status_code == 200
+    kw = ingestion.ingest_report.call_args.kwargs
+    assert kw["user_id"] == "u-owner" and kw["org_id"] == "o1"
+    pipe.assert_called_once_with("u-owner", "r1")
+
+
+def test_ci_ingest_org_without_owner_admin_403():
+    repo = MagicMock()
+    repo.resolve.return_value = {"token_id": "t1", "org_id": "o1", "created_by": "u1",
+                                 "acting_user_id": None}
+    ingestion = MagicMock()
     r = make_client(repo, ingestion).post(
         "/v2/ci/ingest",
         headers={"Authorization": "Bearer mnemo_it_tok"},
@@ -208,11 +259,28 @@ def test_ci_ingest_creator_expelled_403():
         data={"project": "web"},
     )
     assert r.status_code == 403
+    ingestion.ingest_report.assert_not_called()
+
+
+def test_ci_ingest_revoked_token_401():
+    """Revocar el token (resolve ya no lo devuelve) corta la ingesta."""
+    repo = MagicMock()
+    repo.resolve.return_value = None
+    ingestion = MagicMock()
+    r = make_client(repo, ingestion).post(
+        "/v2/ci/ingest",
+        headers={"Authorization": "Bearer mnemo_it_revocado"},
+        files={"file": ("junit.xml", _JUNIT, "application/xml")},
+        data={"project": "web"},
+    )
+    assert r.status_code == 401
+    ingestion.ingest_report.assert_not_called()
 
 
 def test_ci_ingest_bad_report_400():
     repo = MagicMock()
-    repo.resolve.return_value = {"token_id": "t1", "org_id": "o1", "created_by": "u9"}
+    repo.resolve.return_value = {"token_id": "t1", "org_id": "o1", "created_by": "u9",
+                                 "acting_user_id": "u9"}
     ingestion = MagicMock()
     ingestion.ingest_report.side_effect = ValueError("formato no reconocido")
     r = make_client(repo, ingestion).post(
