@@ -12,6 +12,7 @@ from pgvector import Vector
 from src.config import DATABASE_URL
 from src.db.pool import get_pool
 from src.defects.embedder import LocalEmbedder
+from src.knowledge.chunk_store import chunk_embeddings, replace_chunks
 from src.knowledge.repository import embedding_text, insert_qa_knowledge
 
 # Familias que necesitan una propuesta nueva: sin lección en memoria Y sin ninguna
@@ -260,6 +261,7 @@ class KnowledgeProposalRepository:
         transacción (no retener la transacción durante el cómputo del modelo). Doble clic →
         0 filas en el CAS → no-op. None si no es pendiente / no autorizado."""
         emb = Vector(list(self.embedder.embed(embedding_text(title, challenge, approach))))
+        chunks = chunk_embeddings(self.embedder, title, challenge, approach)
         with self._connect() as conn, conn.cursor() as cur:
             cur.execute(
                 "update public.knowledge_proposals p set status='approved',"
@@ -298,6 +300,9 @@ class KnowledgeProposalRepository:
                 run_id=str(row["run_id"]) if row["run_id"] else None,
                 created_by=user_id, embedding=emb,
             )
+            if chunks:  # sección importada larga: buscable entera (auditoría 23-nov, #9)
+                replace_chunks(cur, knowledge_id=item["id"], org_id=str(row["org_id"]),
+                               embeddings=chunks)
             conn.commit()
             return dict(item)
 

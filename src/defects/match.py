@@ -41,11 +41,17 @@ MATCH_THRESHOLD = 0.90
 
 def decide_match(*, fingerprint: str, embedding: Sequence[float],
                  candidates: List[FamilyCandidate],
-                 threshold: float = MATCH_THRESHOLD) -> MatchResult:
-    """Empareja un fallo con una familia: firma exacta primero, luego mejor coseno >= threshold."""
+                 threshold: float = MATCH_THRESHOLD,
+                 allow_similarity: bool = True) -> MatchResult:
+    """Empareja un fallo con una familia: firma exacta primero, luego mejor coseno >= threshold.
+
+    Con allow_similarity=False solo vale la firma exacta: un mensaje vacío o
+    genérico embebe un texto que no distingue el defecto (auditoría 23-nov, #3)."""
     for cand in candidates:
         if cand.signature == fingerprint:
             return MatchResult(family_id=cand.family_id, is_new=False, score=1.0)
+    if not allow_similarity:
+        return MatchResult(family_id=None, is_new=True, score=0.0)
 
     best: Optional[FamilyCandidate] = None
     best_score = 0.0

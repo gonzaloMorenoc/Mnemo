@@ -4,6 +4,10 @@ from src.ai.generate import generate_structured
 from src.llm.provider import LLMProvider
 
 _MAX_FAILURES = 6
+# La razón humana entra entera salvo abuso: acota el prompt.
+_MAX_REASON_CHARS = 1000
+# Valor por defecto de defect_families.label: nadie la ha triado (no es humana).
+_UNLABELED = "unknown"
 
 _INTERNAL_FRAME_HINTS = (
     "org.testng", "org.junit", "junit.", "org.openqa.selenium", "org.hamcrest",
@@ -38,10 +42,25 @@ def _sample(failures: List[Dict[str, Any]], n: int) -> List[Dict[str, Any]]:
     return [failures[int(i * step)] for i in range(n)]
 
 
+def _human_label(family: Dict[str, Any]) -> Optional[Dict[str, str]]:
+    """Etiqueta y razón del triaje humano, o None si nadie la ha triado."""
+    label = family.get("label")
+    reason = (family.get("label_reason") or "").strip()[:_MAX_REASON_CHARS]
+    if (not label or label == _UNLABELED) and not reason:
+        return None
+    return {"label": label if label and label != _UNLABELED else "n/d", "reason": reason}
+
+
 def build_root_cause_context(family: Dict[str, Any], failures: List[Dict[str, Any]],
                               *, lineage: Optional[List[str]] = None) -> List[Dict[str, Any]]:
-    """Evidencia citable (id+content) para el análisis: muestra de fallos + linaje cross-proyecto."""
+    """Evidencia citable (id+content) para el análisis: etiqueta humana (si la hay) +
+    muestra de fallos + linaje cross-proyecto."""
     ctx = []
+    human = _human_label(family)
+    if human:
+        ctx.append({"id": "human:label",
+                    "content": (f"Etiqueta humana del triaje: {human['label']}. "
+                                f"Razón del etiquetador: {human['reason'] or 'n/d'}")})
     for f in _sample(failures, _MAX_FAILURES):
         fid = f.get("id") or f.get("test_name") or "?"
         ctx.append({"id": f"failure:{fid}",
@@ -57,6 +76,16 @@ def build_root_cause_prompt(family: Dict[str, Any], failures: List[Dict[str, Any
                              *, lineage: Optional[List[str]] = None) -> str:
     """Prompt estructurado (puro). Pide JSON con citas a los ids de la evidencia."""
     projects = sorted({f.get("project") for f in failures if f.get("project")})
+    human = _human_label(family)
+    # Auditoría 23-nov (R5): la propuesta ignoraba lo que el humano ya concluyó y el
+    # aprobador tenía que elegir entre dos versiones. La etiqueta manda.
+    human_block = (
+        f"Etiqueta humana del triaje: {human['label']} | Razón del etiquetador: "
+        f"{human['reason'] or 'n/d'}\n"
+        "Esa etiqueta y su razón son la conclusión de quien conoce el proyecto: tu causa raíz "
+        "debe ser coherente con ellas y apoyarse en ellas (cita 'human:label'). Si la evidencia "
+        "las contradice, dilo explícitamente en 'why_it_happened' en vez de ignorarlas.\n\n"
+    ) if human else ""
     return (
         "Eres un ingeniero de QA senior. Analiza esta familia de defectos y propón la causa raíz "
         "más probable, por qué ocurrió y pasos de corrección. SOLO ves síntomas (mensajes y trazas), "
@@ -67,6 +96,7 @@ def build_root_cause_prompt(family: Dict[str, Any], failures: List[Dict[str, Any
         "aunque los mensajes de error del Context estén en inglés.\n\n"
         f"Familia: {family.get('title')} | Ocurrencias: {family.get('occurrence_count')} | "
         f"Proyectos: {', '.join(projects) or 'n/d'}\n\n"
+        f"{human_block}"
         'Devuelve SOLO JSON con este esquema exacto: {"root_cause": "", "why_it_happened": "", '
         '"how_to_fix": "", "suggested_fix_steps": [], "confidence": 0.0, "citations": []}'
     )

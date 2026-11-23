@@ -1,10 +1,9 @@
 import hashlib
-from dataclasses import replace
 from typing import Any, Dict
 
 from src.defects.embedder import Embedder
-from src.defects.fingerprint import fingerprint
-from src.defects.repository import AssuranceRepository, IngestItem
+from src.defects.item_prep import build_ingest_item
+from src.defects.repository import AssuranceRepository
 from src.ingest.allure import parse_allure
 from src.ingest.cucumber import parse_cucumber
 from src.ingest.cypress import parse_cypress
@@ -14,7 +13,6 @@ from src.ingest.playwright import parse_playwright
 from src.ingest.robot import parse_robot
 from src.ingest.summary import summarize, to_manifest
 from src.ingest.testng import parse_testng
-from src.sanitizer import sanitize_text
 
 _PARSERS = {
     "allure": parse_allure,
@@ -52,14 +50,8 @@ class IngestionService:
         if parser is None:
             raise ValueError(f"unsupported source: {source}")
         records = parser(data, project=project)
-        items = []
-        for rec in records:
-            message = sanitize_text(rec.message)
-            trace = sanitize_text(rec.trace) if rec.trace else None
-            clean = replace(rec, message=message, trace=trace)
-            fp = fingerprint(clean)
-            embedding = self.embedder.embed(f"{clean.error_type or ''} {message}".strip())
-            items.append(IngestItem(rec=clean, fingerprint=fp, embedding=embedding))
+        # Huella del crudo, guardado y embedding del saneado (auditoría 23-nov, #3).
+        items = [build_ingest_item(rec, self.embedder) for rec in records]
         # Idempotencia (B3): el run_uid se deriva del contenido → re-subir el mismo
         # archivo al mismo proyecto deduplica en vez de doblar occurrence_count.
         artifact_sha256 = hashlib.sha256(data).hexdigest()

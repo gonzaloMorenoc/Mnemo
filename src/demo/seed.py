@@ -50,8 +50,8 @@ def _trend_artifact(*, org_id: str, project: str, commit: str, n_pass: int,
 
 
 # Firmas de fallo conocidas: reproducen EXACTAMENTE el fingerprint (error_type +
-# message normalizado + top_frame del trace — ver src/defects/fingerprint.py, NO
-# el test_name) de un fallo de los fixtures nucleo, para que MERGEN en la misma
+# message normalizado + top_frame del trace + identidad del test —mismo test_name
+# y fichero—, ver src/defects/fingerprint.py) de un fallo de los fixtures nucleo, para que MERGEN en la misma
 # familia que etiqueta seed_knowledge en vez de abrir familias nuevas sin etiquetar.
 _FAIL_EXPORT = CiTestResult(test_name="test_export_csv", status="fail", error_type="AssertionError",
                             message="expected status 200 but got 500",

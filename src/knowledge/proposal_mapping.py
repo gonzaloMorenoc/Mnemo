@@ -23,8 +23,10 @@ def rca_to_proposal(family: Dict[str, Any], rca: Dict[str, Any],
 
     - challenge = causa raíz + por qué ocurrió
     - approach  = cómo arreglar + pasos sugeridos (numerados)
-    - tags      = proyectos afectados (dedup, en orden). NOTA: defect_families no tiene
-      columna 'label', así que la etiqueta de triaje no está disponible aquí.
+    - tags      = proyectos afectados (dedup, en orden). La etiqueta de triaje
+      (defect_families.label) y la razón humana (triage_corrections.reason) NO se
+      copian aquí: ya entran en el prompt de la causa raíz (assurance/root_cause.py),
+      así que el RCA del que sale este borrador parte de ellas.
     - domain/outcome = None (editables al aprobar)
     """
     challenge = _join([rca.get("root_cause", ""), rca.get("why_it_happened", "")])

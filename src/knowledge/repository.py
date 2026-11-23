@@ -7,6 +7,8 @@ from psycopg.rows import dict_row
 from src.config import DATABASE_URL, MAX_SEMANTIC_DISTANCE
 from src.db.pool import get_pool
 from src.defects.embedder import LocalEmbedder
+from src.knowledge.chunk_store import chunk_embeddings, chunks_table_exists, replace_chunks, search_sql
+from src.knowledge.chunking import embedding_text  # noqa: F401 — re-export histórico
 
 # Los 7 primeros son conocimiento sobre el PRODUCTO y sus fallos. Los 4 últimos son el
 # OFICIO del proyecto — lo que se va con el senior y antes no tenía dónde vivir
@@ -23,12 +25,6 @@ KINDS = _KINDS  # export público (el refine valida el kind que propone el LLM)
 _INSERT_COLS = ("org_id, kind, title, challenge, approach, outcome, domain, tags, project,"
                 " source, confidence, source_url, defect_family_id, run_id, created_by,"
                 " embedding")
-
-
-def embedding_text(title: str, challenge: Optional[str] = None,
-                   approach: Optional[str] = None) -> str:
-    """Texto que se embebe para la búsqueda semántica (título + reto + enfoque)."""
-    return "\n".join(p for p in (title, challenge, approach) if p)
 
 
 def insert_qa_knowledge(cur, *, org_id: str, kind: str, title: str,
@@ -93,6 +89,7 @@ class QaKnowledgeRepository:
         if kind not in _KINDS:
             raise ValueError(f"kind inválido: {kind}")
         emb = Vector(list(self.embedder.embed(embedding_text(title, challenge, approach))))
+        chunks = chunk_embeddings(self.embedder, title, challenge, approach)
         with self._connect() as conn, conn.cursor() as cur:
             if not self._is_member(cur, org_id, user_id):
                 return None
@@ -102,6 +99,8 @@ class QaKnowledgeRepository:
                 source=source, confidence=confidence, defect_family_id=defect_family_id,
                 run_id=run_id, created_by=user_id, embedding=emb, source_url=source_url,
             )
+            if chunks:  # texto largo: un embedding por fragmento (auditoría 23-nov, #9)
+                replace_chunks(cur, knowledge_id=row["id"], org_id=org_id, embeddings=chunks)
             conn.commit()
             return dict(row)
 
@@ -151,10 +150,13 @@ class QaKnowledgeRepository:
         if current is None:
             return None
         emb = None
+        chunks: List[Vector] = []
         if {"title", "challenge", "approach"} & updates.keys():
             merged = {**current, **updates}
             emb = Vector(list(self.embedder.embed(embedding_text(
                 merged.get("title") or "", merged.get("challenge"), merged.get("approach")))))
+            chunks = chunk_embeddings(self.embedder, merged.get("title") or "",
+                                      merged.get("challenge"), merged.get("approach"))
 
         cols = list(updates.keys())  # nombres de la whitelist _EDITABLE → sin inyección
         set_sql = ", ".join(f"{c}=%s" for c in cols)
@@ -173,6 +175,9 @@ class QaKnowledgeRepository:
                 (*params, item_id, org_id, user_id, user_id),
             )
             row = cur.fetchone()
+            if row and emb is not None:
+                # El contenido cambió: los fragmentos viejos describen otro texto.
+                replace_chunks(cur, knowledge_id=item_id, org_id=org_id, embeddings=chunks)
             conn.commit()
             return dict(row) if row else None
 
@@ -214,12 +219,8 @@ class QaKnowledgeRepository:
             q = Vector(list(query_embedding))
             # Corte por distancia: sin él, el top-k devolvía ruido cuando no había
             # nada relevante y el LLM respondía desde ese ruido (auditoría 12-ago, H2).
-            cur.execute(
-                "select id, kind, title, challenge, approach, outcome, domain, confidence"
-                " from public.qa_knowledge"
-                " where org_id=%s and status = 'activo' and embedding is not null"
-                "   and embedding <=> %s < %s"
-                " order by embedding <=> %s limit %s",
-                (org_id, q, MAX_SEMANTIC_DISTANCE, q, k),
-            )
+            # Con la migración 033, la distancia de un item es la de su fragmento
+            # más cercano: el final de un texto largo también es buscable (#9).
+            cur.execute(search_sql(with_chunks=chunks_table_exists(cur)),
+                        {"org": org_id, "q": q, "max_dist": MAX_SEMANTIC_DISTANCE, "k": k})
             return [dict(r) for r in cur.fetchall()]

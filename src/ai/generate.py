@@ -4,14 +4,16 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
+# Fuentes que llegan al LLM. Quien las recupera decide el orden (la búsqueda
+# unificada mezcla por relevancia y reserva huecos a las familias con razón o
+# lección: src/knowledge/ranking.py); aquí solo se corta.
+MAX_CONTEXT_SOURCES = 10
+
 
 def _build_context_block(context: List[Dict[str, Any]]) -> str:
-    lines = []
-    for item in context:
-        cid = item.get("id", "?")
-        content = item.get("content", "")
-        lines.append(f"[{cid}] {content}")
-    return "\n\n".join(lines[:10])
+    lines = [f"[{item.get('id', '?')}] {item.get('content', '')}"
+             for item in context[:MAX_CONTEXT_SOURCES]]
+    return "\n\n".join(lines)
 
 
 def _parse_json(raw: Any) -> Optional[Dict[str, Any]]:
