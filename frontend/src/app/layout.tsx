@@ -9,7 +9,8 @@ const sans = Manrope({ subsets: ["latin"], variable: "--font-sans-loaded", displ
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono-loaded", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "Mnemo",
+  // Cada página pone su título; la plantilla añade la marca: «Continuidad · Mnemo».
+  title: { default: "Mnemo · Memoria de QA", template: "%s · Mnemo" },
   description: "Memoria de QA: el conocimiento del proyecto se queda cuando el consultor rota. Actas firmadas, verificables sin cuenta.",
 };
 

@@ -2,6 +2,7 @@ import { ArrowRight, BrainCircuit, Plug, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 
 import { Card } from "@/components/ui/card";
+import { BackendWarmup } from "@/components/warmup/BackendWarmup";
 
 const highlights = [
   {
@@ -27,6 +28,8 @@ const highlights = [
 export default function HomePage() {
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 md:py-12">
+      {/* Despierta el backend (arranque en frío ~1 min) mientras se lee la landing. */}
+      <BackendWarmup />
       {/* Hero: el único gesto vistoso — azul MTP con brillos celestes. */}
       <section
         className="relative overflow-hidden rounded-3xl px-7 py-14 text-white shadow-[0_24px_60px_rgba(16,18,70,0.20)] md:px-12 md:py-16"
@@ -51,15 +54,21 @@ export default function HomePage() {
 
         <div className="mt-8 flex flex-wrap gap-3">
           <Link
-            href="/login"
-            className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-[#101246] transition hover:bg-sky-50"
+            href="/signup"
+            className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-[#101246] transition hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
           >
-            Entrar
+            Crear cuenta
             <ArrowRight size={16} />
           </Link>
           <Link
+            href="/login"
+            className="inline-flex items-center rounded-xl border border-white/35 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+          >
+            Entrar
+          </Link>
+          <Link
             href="/verify"
-            className="inline-flex items-center rounded-xl border border-white/35 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
+            className="inline-flex items-center rounded-xl border border-white/35 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
           >
             Verificar un acta
           </Link>

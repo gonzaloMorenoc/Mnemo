@@ -8,6 +8,9 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+vi.mock("@/lib/warmup", () => ({ WAKING_NOTICE_AFTER_MS: 3000, warmBackend: vi.fn(() => Promise.resolve("ready")) }));
+
+import { warmBackend } from "@/lib/warmup";
 import HomePage from "@/app/page";
 
 afterEach(cleanup);
@@ -27,6 +30,16 @@ describe("HomePage (landing)", () => {
       "href",
       "/verify",
     );
+  });
+
+  it("invita a probar: CTA «Crear cuenta» hacia el registro", () => {
+    render(<HomePage />);
+    expect(screen.getByRole("link", { name: /Crear cuenta/i })).toHaveAttribute("href", "/signup");
+  });
+
+  it("despierta el backend al cargar la landing", () => {
+    render(<HomePage />);
+    expect(warmBackend).toHaveBeenCalled();
   });
 
   it("presenta los tres pilares", () => {

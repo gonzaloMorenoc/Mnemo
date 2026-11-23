@@ -6,6 +6,7 @@ import { MotionConfig } from "framer-motion";
 import { Toaster } from "sonner";
 
 import { AuthProvider } from "@/components/providers/auth-provider";
+import { queryRetryDelay, shouldRetryQuery } from "@/lib/api/retry";
 
 export function AppProviders({ children }: PropsWithChildren) {
   const [queryClient] = useState(
@@ -15,7 +16,10 @@ export function AppProviders({ children }: PropsWithChildren) {
           queries: {
             staleTime: 20_000,
             refetchOnWindowFocus: false,
-            retry: 1,
+            // 502/504 y red caída = backend despertando: varios reintentos con
+            // espera creciente; un 4xx no se reintenta (ver lib/api/retry.ts).
+            retry: shouldRetryQuery,
+            retryDelay: queryRetryDelay,
           },
         },
       }),

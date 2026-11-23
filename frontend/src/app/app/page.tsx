@@ -57,7 +57,9 @@ export default function DashboardPage() {
   const { activeOrgId, isLoading: orgLoading } = useActiveOrg();
   const orgId = activeOrgId || "";
   const enabled = Boolean(accessToken && orgId);
-  const opts = { enabled, retry: false } as const;
+  // Sin retry:false: los reintentos del QueryClient cubren el arranque en frío
+  // (502/504) y no repiten un 4xx.
+  const opts = { enabled } as const;
 
   const github = useQuery({ queryKey: ["github-config", orgId], queryFn: () => getGithubConfig(accessToken!, { org_id: orgId }), ...opts });
   const repo = useQuery({ queryKey: ["repo-tests", orgId], queryFn: () => listRepoTests(accessToken!, { org_id: orgId }), ...opts });
