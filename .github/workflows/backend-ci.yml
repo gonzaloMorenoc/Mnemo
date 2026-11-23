@@ -8,13 +8,20 @@ on:
       - "scripts/**"
       - "requirements.txt"
       - "db/**"
+      - "asgi.py"
+      - "Dockerfile"
       - ".github/workflows/backend-ci.yml"
   push:
     branches: [main, master]
+    # Un push a main con CI verde despliega el backend (deploy-backend.yml): todo lo que
+    # cambia el backend o el esquema tiene que pasar por aquí, también db/ y asgi.py.
     paths:
       - "src/**"
       - "tests/**"
       - "scripts/**"
+      - "db/**"
+      - "asgi.py"
+      - "Dockerfile"
       - "requirements.txt"
       - ".github/workflows/backend-ci.yml"
 

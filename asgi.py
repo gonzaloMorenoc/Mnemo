@@ -21,6 +21,8 @@ from src.config import CI_MAX_BODY_BYTES, INGEST_MAX_BYTES, api_docs_exposed  # 
 from src.orgs.api import router as orgs_members_router  # noqa: E402
 from src.db.pool import get_pool, close_pool  # noqa: E402
 from src.http.body_limit import BodySizeLimitMiddleware  # noqa: E402
+from src.defects.embedder import get_shared_embedder  # noqa: E402
+from src.knowledge.chunk_backfill import start_backfill_in_background  # noqa: E402
 
 # Tope GENERAL de cuerpo para toda ruta (también troceada, sin Content-Length): se
 # corta en el ASGI mientras entra, antes de que FastAPI o el endpoint lo lean entero.
@@ -47,10 +49,14 @@ BODY_LIMITS = {
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
-        get_pool()          # pre-calienta el pool; si la BD no está, no tumbar el arranque
+        pool = get_pool()   # pre-calienta el pool; si la BD no está, no tumbar el arranque
     except Exception as exc:
         import logging
         logging.getLogger(__name__).warning("pool pre-warm failed; lazy init on first request: %s", exc)
+    else:
+        # Fragmentos del conocimiento que falten (migración 033): en segundo plano, sin
+        # paso manual tras desplegar.
+        start_backfill_in_background(pool.connection, get_shared_embedder)
     yield
     close_pool()
 

@@ -27,16 +27,45 @@ no tiene que ver con el LLM.
    (Project → Settings → Database → Connection string → *Session pooler*, puerto 5432).
    La conexión directa `db.<ref>.supabase.co` es solo IPv6 en proyectos nuevos y puede
    no enrutar desde el host del backend.
-2. Aplica **todas las migraciones de `db/migrations/`, en orden**, antes de desplegar el
-   backend: el código asume el esquema ya migrado.
+2. Las migraciones de `db/migrations/` las aplica **el CI**: ver «Despliegue automático».
+   Para una BD nueva fuera del CI: `DATABASE_URL=... python3 scripts/migrate.py`.
 
-   ```bash
-   for f in db/migrations/*.sql; do psql "$DATABASE_URL" -f "$f"; done
-   ```
+## Despliegue automático (al fusionar en main)
 
-   Son idempotentes (`if exists` / `if not exists`), así que volver a aplicarlas no rompe
-   nada; `scripts/docker_init.py` las re-aplica en cada arranque del entorno Docker. Cuando
-   haya migraciones nuevas, se aplican antes de desplegar el backend que las necesita.
+Sin pasos manuales. El workflow **«Desplegar backend»** (`.github/workflows/deploy-backend.yml`)
+arranca cuando el **Backend CI** de un push a `main` acaba en verde:
+
+1. **Comprueba que el commit sigue siendo la punta de `main`.** Si no lo es, no hace nada:
+   el commit más nuevo se desplegará cuando acabe su propio CI. Así nunca se mezcla un
+   esquema viejo con código nuevo, porque el Space construye siempre la punta de `main`.
+2. **Migraciones** con `scripts/migrate.py`:
+   - aplica solo las pendientes, en orden, cada una en su transacción;
+   - las registra en `mnemo_meta.schema_migrations` (nombre y sha256, fuera de `public`);
+   - re-aplica siempre la `999` al final, la que cierra la Data API.
+
+   Si una falla, se deshace, el workflow falla y **no** se reconstruye el backend: sigue
+   sirviendo la versión anterior. Editar una migración ya aplicada también hace fallar el
+   despliegue: hay que crear otra nueva.
+3. **Reconstrucción del Space** de Hugging Face (*factory rebuild*, clona `main`) y espera
+   hasta que `/v2/health` responde 200 con la BD.
+4. **Al arrancar**, el backend rellena en segundo plano los datos derivados que falten (los
+   fragmentos del conocimiento de la migración 033). Se desactiva con
+   `MNEMO_CHUNK_BACKFILL_ON_START=false`.
+
+También se puede lanzar a mano desde *Actions → Desplegar backend → Run workflow*.
+
+**Configuración única del repositorio:**
+
+| Tipo | Nombre | Valor |
+|---|---|---|
+| Secreto | `PROD_DATABASE_URL` | cadena del *Session pooler* (la misma `DATABASE_URL` del backend) |
+| Secreto | `HF_TOKEN` | token de Hugging Face con escritura sobre el Space |
+| Variable (opcional) | `HF_SPACE_ID` | por defecto `Gonzalo7/Mnemo` |
+| Variable | `BACKEND_HEALTH_URL` | ya existe (keep-warm) |
+
+El registro arrancó con prod en la `030`: la primera ejecución da por aplicadas las
+`<= 030` (`MIGRATIONS_BASELINE_THROUGH`) y aplica las posteriores. En una BD nueva no hay
+baseline: se aplican todas.
 
 ## Paso 2 — Backend en Render
 
@@ -245,8 +274,8 @@ despliegue) y [`docs/demo/guion.md`](../demo/guion.md) (guion de la presentació
 
 ## Lista de comprobación
 
-- [ ] Todas las migraciones de `db/migrations/` aplicadas en orden (se puede comprobar que
-      RLS está activo con `relrowsecurity` en `pg_class`).
+- [ ] Último «Desplegar backend» en verde (migraciones aplicadas: `select * from
+      mnemo_meta.schema_migrations order by filename`).
 - [ ] `GET https://<backend>/v2/health` responde 200.
 - [ ] `GET https://<backend>/v2/certificates/pubkey` responde 200 con la clave pública (las
       actas firmadas están operativas).

@@ -116,10 +116,9 @@ la que cubre el CI.
 2. **Variables del backend:** copia [`.env.example`](.env.example) a `.env` y rellena
    `DATABASE_URL` (cadena del *Session pooler*), `SUPABASE_URL` y `SUPABASE_JWKS_URL`. El
    resto es opcional y va por función (ver abajo).
-3. **Migraciones:** todas las de `db/migrations/`, en orden. Son idempotentes:
-   ```bash
-   for f in db/migrations/*.sql; do psql "$DATABASE_URL" -f "$f"; done
-   ```
+3. **Migraciones:** `python3 scripts/migrate.py` aplica las pendientes de `db/migrations/`
+   en orden y las registra (en producción lo hace el CI al fusionar en `main`, ver
+   [`docs/deploy/produccion.md`](docs/deploy/produccion.md)).
    `python3 scripts/docker_init.py` hace lo mismo y además crea un usuario de demo vía
    GoTrue y siembra datos de ejemplo; necesita también `SERVICE_ROLE_KEY`, `DEMO_EMAIL` y
    `DEMO_PASSWORD` en el `.env`.

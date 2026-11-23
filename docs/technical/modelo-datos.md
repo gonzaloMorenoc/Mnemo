@@ -55,9 +55,9 @@ Mnemo no usa la Data API de Supabase (PostgREST): el frontend solo usa Supabase 
 acceso a datos pasa por el backend. La migración **`999_cerrar_data_api.sql`** retira a `anon` y
 `authenticated` todos los permisos sobre las tablas y secuencias de `public`, el `EXECUTE` de las
 funciones de la app (también a `PUBLIC`, para cerrar `/rest/v1/rpc/*`) y los privilegios por
-defecto, para que un objeto nuevo no nazca expuesto. Es siempre la última en aplicarse: varias
-migraciones antiguas vuelven a conceder `select, insert, update, delete` a `authenticated` al
-re-aplicarse, y la 999 lo neutraliza cada vez (`tests/test_migrations_data_api.py` lo vigila).
+defecto, para que un objeto nuevo no nazca expuesto. Es siempre la última y el runner
+(`scripts/migrate.py`) la re-aplica en cada despliegue, después de las pendientes: neutraliza
+cualquier grant que una migración haya concedido (`tests/test_migrations_data_api.py` lo vigila).
 
 Si algún día se quiere usar PostgREST, hay que rehacer antes las policies por rol: hoy son
 «cualquier miembro puede todo» y dejarían a un miembro saltarse las validaciones del backend.
@@ -286,7 +286,7 @@ La reingesta de un repo borra e inserta todas sus filas (`replace_for_repo`).
 - **Dedup de familias por firma:** el matching busca primero la familia con la `signature` exacta (además del top-K por coseno) y el índice único `(org_id, signature)` de `003` impide duplicarla.
 - **Idempotencia de ingesta:** un `run_uid` repetido devuelve el run existente y su `summary` en vez de duplicar fallos y `occurrence_count`.
 - **Los kinds van en dos sitios:** el CHECK de `qa_knowledge` y el de `knowledge_proposals` deben llevar la misma lista que `_KINDS`; el refine del LLM escribe el kind en la propuesta.
-- **Migraciones idempotentes:** `scripts/docker_init.py` re-aplica todas las migraciones en cada arranque, en orden. Por eso las recientes usan `if not exists`, `drop constraint if exists` y `drop policy if exists` antes de `create policy`.
+- **Migraciones con registro:** `scripts/migrate.py` (CI al fusionar en `main`, y `scripts/docker_init.py`) aplica solo las pendientes y las registra en `mnemo_meta.schema_migrations` con su sha256; una migración aplicada no se edita, se crea otra. Siguen escribiéndose idempotentes (`if not exists`, `drop policy if exists`…) por si se re-aplican en una BD a medias. La `999` se re-aplica siempre.
 
 ---
 
