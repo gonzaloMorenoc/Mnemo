@@ -13,7 +13,6 @@ import {
   pullJiraBugs,
   ingestJiraFile,
   getGithubConfig,
-  saveGithubConfig,
   indexRepo,
   listRepoTests,
 } from "@/lib/api/endpoints";
@@ -25,10 +24,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { FileDropzone } from "@/components/ui/file-dropzone";
 import { IngestTokensPanel } from "@/components/integrations/IngestTokensPanel";
 import { ConnectionCard } from "@/components/integrations/ConnectionCard";
+import { GithubConnectButton } from "@/components/integrations/GithubConnectButton";
 import type { JiraIngestResponse } from "@/lib/api/types";
-
-// Página de instalación de la GitHub App (opcional; sin ella se muestran instrucciones).
-const GITHUB_APP_URL = process.env.NEXT_PUBLIC_GITHUB_APP_URL;
 
 export default function IntegrationsPage() {
   const { accessToken } = useAuth();
@@ -43,10 +40,6 @@ export default function IntegrationsPage() {
   // Pull / file state
   const [project, setProject] = useState("");
   const [file, setFile] = useState<File | null>(null);
-
-  // GitHub form state
-  const [ghInstallId, setGhInstallId] = useState("");
-  const [ghRepoFullName, setGhRepoFullName] = useState("");
 
   // Feedback state (Jira)
   const [msg, setMsg] = useState<string | null>(null);
@@ -86,21 +79,6 @@ export default function IntegrationsPage() {
     enabled: Boolean(accessToken && orgId),
   });
   const repoTests = repoTestsQuery.data ?? [];
-
-  // ── save github config mutation ─────────────────────────────────────────────
-  const saveGithubMut = useMutation({
-    mutationFn: () =>
-      saveGithubConfig(accessToken!, {
-        org_id: orgId,
-        installation_id: ghInstallId,
-        repo_full_name: ghRepoFullName,
-      }),
-    onSuccess: () => {
-      void githubConfigQuery.refetch();
-      toast.success("Configuración de GitHub guardada.");
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
 
   // ── index repo mutation ─────────────────────────────────────────────────────
   const indexMut = useMutation({
@@ -237,80 +215,18 @@ export default function IntegrationsPage() {
 
       {/* ── GitHub: conexión + indexar tests ──────────────────────────────── */}
       <ConnectionCard title="GitHub" connected={githubConfigured}>
-        <ol className="list-decimal space-y-1 pl-4 text-xs text-zinc-500">
-          <li>
-            Instala la GitHub App de Mnemo en tu organización
-            {GITHUB_APP_URL ? (
-              <>
-                {" — "}
-                <a
-                  href={GITHUB_APP_URL}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="font-medium text-zinc-700 underline underline-offset-2 hover:text-zinc-900"
-                >
-                  instalar ahora ↗
-                </a>
-              </>
-            ) : (
-              <> (GitHub → Settings → GitHub Apps)</>
-            )}
-            .
-          </li>
-          <li>
-            Al terminar, GitHub te deja en una URL{" "}
-            <code className="rounded bg-zinc-100 px-1">…/installations/12345678</code>: ese
-            número es el <strong>Installation ID</strong>.
-          </li>
-          <li>Pégalo aquí junto al repositorio y guarda.</li>
-        </ol>
-        <div className="space-y-4">
-          <div className="space-y-1">
-            <Label htmlFor="gh-install-id">Installation ID</Label>
-            <Input
-              id="gh-install-id"
-              aria-describedby="gh-install-id-hint"
-              value={ghInstallId}
-              onChange={(e) => setGhInstallId(e.target.value)}
-              placeholder="12345678"
-            />
-            <p
-              id="gh-install-id-hint"
-              data-testid="gh-install-id-hint"
-              className="text-xs text-zinc-500"
-            >
-              El número final de la URL de instalación (ej. 12345678).
-            </p>
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="gh-repo">Repositorio (owner/repo)</Label>
-            <Input
-              id="gh-repo"
-              aria-describedby="gh-repo-hint"
-              value={ghRepoFullName}
-              onChange={(e) => setGhRepoFullName(e.target.value)}
-              placeholder="mi-empresa/mi-repo"
-            />
-            <p
-              id="gh-repo-hint"
-              data-testid="gh-repo-hint"
-              className="text-xs text-zinc-500"
-            >
-              Formato: <code>owner/nombre</code> (ej. mi-empresa/mi-repo).
-            </p>
-          </div>
-          {githubConfigured && githubConfigQuery.data?.repo_full_name && (
-            <p className="text-xs text-zinc-500">
-              Repositorio configurado: <strong>{githubConfigQuery.data.repo_full_name}</strong>. Rellena los campos para actualizar.
-            </p>
-          )}
-          <Button
-            onClick={() => saveGithubMut.mutate()}
-            disabled={saveGithubMut.isPending || !ghInstallId || !ghRepoFullName}
-          >
-            {saveGithubMut.isPending ? "Guardando…" : "Guardar configuración de GitHub"}
-          </Button>
-        </div>
+        {githubConfigured && githubConfigQuery.data?.repo_full_name && (
+          <p className="text-xs text-zinc-500">
+            Repositorio configurado: <strong>{githubConfigQuery.data.repo_full_name}</strong>.
+            Vuelve a conectar para cambiarlo.
+          </p>
+        )}
+        <GithubConnectButton
+          key={githubConfigQuery.data?.repo_full_name ?? ""}
+          accessToken={accessToken}
+          orgId={orgId}
+          initialRepo={githubConfigQuery.data?.repo_full_name ?? ""}
+        />
 
         {/* Acción anidada: indexar los tests del repo (necesita GitHub) */}
         <div className="space-y-3 border-t border-zinc-100 pt-4">

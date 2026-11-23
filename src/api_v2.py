@@ -2,6 +2,7 @@ import logging
 import time
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from urllib.parse import urlencode
 
 import psycopg
 from fastapi import (
@@ -30,7 +31,8 @@ from src.certify.service import CertificateService, parse_public_keys
 from src.certify.signing import SigningKeyMissing, canonical_json, verify
 from src.db.pool import get_pool
 from src.config import (CI_MAX_BODY_BYTES, CI_SERVICE_ORG_ID, CI_SERVICE_USER_ID,
-                        CI_WEBHOOK_SECRET, INGEST_MAX_BYTES, LLM_MODEL,
+                        CI_WEBHOOK_SECRET, GITHUB_APP_CLIENT_ID, GITHUB_APP_CLIENT_SECRET,
+                        GITHUB_APP_SLUG, INGEST_MAX_BYTES, LLM_MODEL,
                         MNEMO_PUBLIC_APP_URL, MNEMO_SIGNING_PRIVATE_KEY,
                         MNEMO_SIGNING_PUBLIC_KEY, MNEMO_SIGNING_RETIRED_PUBLIC_KEYS,
                         MNEMO_VERSION, multi_tenant_enabled)
@@ -44,6 +46,9 @@ from src.ci.github_app import GitHubCodeHost, GitHubError
 from src.ci.github_auth import GitHubAppAuth, GitHubAppNotConfigured, GitHubAuthError
 from src.ci.ingest_fields import (PROJECT_MAX_LEN, optional_text, parse_branch,
                                   parse_commit_sha)
+from src.ci.github_install_proof import (GitHubProofNotConfigured, GitHubUserInstallationVerifier,
+                                         InvalidInstallState, sign_install_state,
+                                         verify_install_state)
 from src.ci.ingestion_service import CiIngestionService
 from src.triage.service import TriageService
 from src.ci.models import CiRunArtifact
@@ -52,6 +57,7 @@ from src.defects.ingestion_service import IngestionService
 from src.defects.repository import AssuranceRepository
 from src.assurance.narrator import LLMNarrator, Narrator
 from src.llm.factory import get_llm_provider, llm_status, resolved_model_name
+from src.llm.org_policy import bind_llm_org, bind_llm_org_of, external_llm_allowed
 from src.assurance.verdict import build_verdict
 from src.jira.client import JiraApiError
 from src.jira.integrations_repository import InstallationAlreadyBound, IntegrationsRepository
@@ -281,6 +287,49 @@ def _get_github_auth() -> GitHubAppAuth:
 def get_github_app_auth() -> GitHubAppAuth:
     """Dependencia inyectable (override en tests) para verificar instalaciones."""
     return _get_github_auth()
+
+
+def get_github_user_verifier() -> GitHubUserInstallationVerifier:
+    """Dependencia inyectable (override en tests): canjea el `code` OAuth del callback
+    de la GitHub App y comprueba GET /user/installations."""
+    return GitHubUserInstallationVerifier(client_id=GITHUB_APP_CLIENT_ID,
+                                          client_secret=GITHUB_APP_CLIENT_SECRET)
+
+
+def _verify_installation_possession(
+    verifier: GitHubUserInstallationVerifier, *, body: GitHubConfigRequest, user_id: str
+) -> None:
+    """Prueba de posesión de la instalación (auditoría 23-nov, H4; ver
+    src/ci/github_install_proof.py). Sin ella, el primero que reclamaba un
+    installation_id ajeno se lo quedaba. En self-host single-tenant no aplica: no hay
+    otros tenants a los que suplantar. Va ANTES del upsert: quien no demuestra acceso
+    tampoco aprende (409) si la instalación ya está vinculada a otra org."""
+    if not multi_tenant_enabled():
+        return
+    if not body.state or not body.code:
+        raise HTTPException(
+            status_code=400,
+            detail="Falta la prueba de posesión (state y code): inicia la vinculación "
+                   "desde GET /v2/integrations/github/install-url")
+    try:
+        verify_install_state(body.state, org_id=body.org_id, user_id=user_id)
+    except InvalidInstallState as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except GitHubProofNotConfigured as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    if not verifier.configured:
+        raise HTTPException(status_code=503,
+                            detail="OAuth de la GitHub App no configurado; no se puede "
+                                   "verificar el acceso a la instalación")
+    try:
+        has_access = verifier.user_has_installation(code=body.code,
+                                                    installation_id=body.installation_id)
+    except (GitHubAuthError, GitHubProofNotConfigured) as exc:
+        raise HTTPException(status_code=403,
+                            detail="No se pudo verificar tu acceso a la instalación de GitHub") from exc
+    if not has_access:
+        raise HTTPException(status_code=403,
+                            detail="Tu usuario de GitHub no tiene acceso a esa instalación")
 
 
 def _verify_installation_ownership(
@@ -754,6 +803,7 @@ def _post_ingest_pipeline(user_id: str, run_id: str):
     """Triaje + certificado + gate tras una ingesta, todo best-effort (cada paso
     degrada sin romper lo ya commiteado). Compartido por el webhook de CI y por
     la ingesta genérica por token (/ci/ingest). Devuelve (triage, verdict, gate)."""
+    bind_llm_org_of("test_runs", run_id)
     triage_summary = None
     try:
         triage_summary = get_triage_service().triage_run(user_id=user_id, run_id=run_id)
@@ -791,9 +841,13 @@ def _propose_knowledge_after_ingest(user_id: str, org_id: str) -> None:
     las que se queden sin propuesta siguen siendo candidatas en la próxima ingesta.
     """
     try:
+        bind_llm_org(org_id)
         service = get_knowledge_proposal_service_optional()
         if service is None:
             return  # multi-tenant no configurado: nada que hacer
+        if not external_llm_allowed(org_id):
+            logger.info("propuestas post-ingesta omitidas: LLM externo desactivado por la org")
+            return
         if not llm_status().get("configured"):
             # Sin LLM no hay causa raíz: generate gastaría el lote en fallbacks que
             # luego descarta, en CADA run. llm_status() sin probe NO llama a la API.
@@ -848,6 +902,14 @@ async def _read_body_capped(request: Request, cap: int) -> bytes:
 
 @router.post("/ci/webhook", response_model=CiWebhookResponse)
 async def ci_webhook(request: Request, background: BackgroundTasks) -> CiWebhookResponse:
+    if not CI_SERVICE_ORG_ID:
+        # Sin org fija, el org_id saldría del CUERPO: quien tenga el secreto compartido
+        # podría inyectar runs (y autoemitir actas) en otra org donde la cuenta de
+        # servicio sea miembro. Se rechaza sin leer el cuerpo (auditoría 23-nov, H6).
+        raise HTTPException(
+            status_code=503,
+            detail="Webhook global desactivado: fija CI_SERVICE_ORG_ID, o usa la "
+                   "ingesta por organización /v2/ci/ingest con un token de ingesta")
     declared = request.headers.get("content-length")
     if declared is not None and declared.isdigit() and int(declared) > CI_MAX_BODY_BYTES:
         raise HTTPException(status_code=413, detail="payload too large")
@@ -861,7 +923,7 @@ async def ci_webhook(request: Request, background: BackgroundTasks) -> CiWebhook
         artifact = CiRunArtifact.model_validate_json(body)
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail="invalid artifact") from exc
-    if CI_SERVICE_ORG_ID and artifact.org_id != CI_SERVICE_ORG_ID:
+    if artifact.org_id != CI_SERVICE_ORG_ID:
         raise HTTPException(status_code=403, detail="org_id not allowed for this CI account")
     resp = await run_in_threadpool(_process_ci_artifact, artifact)
     if not resp.deduplicated:
@@ -1032,6 +1094,7 @@ def resolve_triage_run_v2(
     service: TriageService = Depends(get_triage_service),
 ) -> Dict[str, int]:
     enforce(access, user.user_id, Capability.QA_WORK, resource=(Resource.RUN, run_id))
+    bind_llm_org_of("test_runs", run_id)
     try:
         return service.resolve_tiebreaks(user_id=user.user_id, run_id=run_id)
     except psycopg.Error as exc:
@@ -1083,8 +1146,10 @@ def set_github_integration(
     access: OrgAccess = Depends(get_org_access),
     integrations: IntegrationsRepository = Depends(get_integrations_repo),
     gh_auth: GitHubAppAuth = Depends(get_github_app_auth),
+    verifier: GitHubUserInstallationVerifier = Depends(get_github_user_verifier),
 ) -> GitHubConfigResponse:
     enforce(access, user.user_id, Capability.ADMIN, org_id=body.org_id)
+    _verify_installation_possession(verifier, body=body, user_id=user.user_id)
     _verify_installation_ownership(
         gh_auth, installation_id=body.installation_id, repo_full_name=body.repo_full_name
     )
@@ -1103,6 +1168,32 @@ def set_github_integration(
         raise HTTPException(status_code=502, detail="Database error") from exc
     return GitHubConfigResponse(configured=True, repo_full_name=body.repo_full_name,
                                 installation_id=body.installation_id)
+
+
+@router.get("/integrations/github/install-url", response_model=Dict[str, str])
+def github_install_url(
+    org_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> Dict[str, str]:
+    """Inicio de la vinculación con prueba de posesión: devuelve la URL de instalación
+    de la App y la de autorización OAuth, ambas con un `state` firmado para (org,
+    usuario) que caduca en 10 min. GitHub redirige al callback con `installation_id`,
+    `code` y `state`, que se mandan tal cual a POST /v2/integrations/github. El state
+    no da permisos: el POST exige además owner/admin y el `code` de GitHub."""
+    if not GITHUB_APP_SLUG or not GITHUB_APP_CLIENT_ID:
+        raise HTTPException(status_code=503,
+                            detail="GitHub App no configurada (GITHUB_APP_SLUG / GITHUB_APP_CLIENT_ID)")
+    try:
+        state = sign_install_state(org_id, user.user_id)
+    except GitHubProofNotConfigured as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    query = urlencode({"state": state})
+    return {
+        "state": state,
+        "install_url": f"https://github.com/apps/{GITHUB_APP_SLUG}/installations/new?{query}",
+        "authorize_url": "https://github.com/login/oauth/authorize?"
+                         + urlencode({"client_id": GITHUB_APP_CLIENT_ID, "state": state}),
+    }
 
 
 @router.get("/integrations/github", response_model=GitHubConfigResponse)
@@ -1254,6 +1345,7 @@ def root_cause_v2(
     analyzer=Depends(get_root_cause_analyzer),
     proposals: Optional[KnowledgeProposalService] = Depends(get_knowledge_proposal_service_optional),
 ) -> RootCauseResponse:
+    bind_llm_org_of("defect_families", defect_id)
     try:
         data = repo.get_family_with_failures(user_id=user.user_id, defect_id=defect_id)
         if data is None:
@@ -1298,6 +1390,7 @@ def assurance_verdict_v2(
     repo: AssuranceRepository = Depends(get_assurance_repo),
     narrator: Narrator = Depends(get_narrator),
 ) -> AssuranceVerdictResponse:
+    bind_llm_org_of("test_runs", run_id)
     try:
         data = repo.get_run_assurance_data(user_id=user.user_id, run_id=run_id)
     except psycopg.Error as exc:
@@ -1329,6 +1422,7 @@ def propose_actions_v2(
     service: ActionService = Depends(get_action_service),
 ) -> ProposeActionsResponse:
     enforce(access, user.user_id, Capability.QA_WORK, resource=(Resource.RUN, run_id))
+    bind_llm_org_of("test_runs", run_id)
     try:
         return ProposeActionsResponse(**service.propose_actions(user_id=user.user_id, run_id=run_id))
     except psycopg.Error as exc:
@@ -1359,6 +1453,7 @@ def approve_action_v2(
     service: ActionService = Depends(get_action_service),
 ) -> ActionApproveResponse:
     enforce(access, user.user_id, Capability.ADMIN, resource=(Resource.ACTION, action_id))
+    bind_llm_org_of("actions", action_id)
     try:
         return ActionApproveResponse(
             **service.approve_action(user_id=user.user_id, action_id=action_id)
@@ -1397,6 +1492,7 @@ def generate_certificate_v2(
     service: CertificateService = Depends(get_certificate_service),
 ) -> CertificateResponse:
     enforce(access, user.user_id, Capability.ADMIN, resource=(Resource.RUN, run_id))
+    bind_llm_org_of("test_runs", run_id)
     try:
         created_at = datetime.now(timezone.utc).isoformat()
         return CertificateResponse(**service.generate(user_id=user.user_id, run_id=run_id,
@@ -1592,6 +1688,7 @@ def defects_ask_v2(
 ) -> AskResponse:
     enforce(access, user.user_id, Capability.QA_WORK, org_id=req.org_id)
     from src.ai.nl_query import answer_question
+    bind_llm_org(req.org_id)
     try:
         emb = embedder.embed(req.question)
         families = repo.search_families_semantic(user_id=user.user_id, org_id=req.org_id,
@@ -1615,6 +1712,7 @@ def run_briefing_v2(
     actions_repo: ActionRepository = Depends(get_action_repo),
 ) -> BriefingResponse:
     from src.ai.briefing import build_run_data, generate_briefing
+    bind_llm_org_of("test_runs", run_id)
     try:
         data = repo.get_run_assurance_data(user_id=user.user_id, run_id=run_id)
         if data["run"] is None:
@@ -1667,6 +1765,7 @@ def get_graph_gaps(
 ) -> List[Dict[str, Any]]:
     # recommendations=false → sin LLM (solo conteo/lista): el Dashboard lo usa para
     # no bloquear ~20 s en generar recomendaciones que no muestra.
+    bind_llm_org(org_id)
     return detect_gaps(user_id=user.user_id, org_id=org_id, with_recommendations=recommendations)
 
 
@@ -1741,6 +1840,7 @@ def generate_knowledge_proposals(
     svc: KnowledgeProposalService = Depends(get_knowledge_proposal_service),
 ) -> Dict[str, int]:
     enforce(access, user.user_id, Capability.QA_WORK, org_id=req.org_id)
+    bind_llm_org(req.org_id)
     try:
         return svc.generate(user_id=user.user_id, org_id=req.org_id,
                             family_ids=req.family_ids, cap=req.cap)
@@ -1801,6 +1901,7 @@ def refine_knowledge_proposal(
     """UNA llamada LLM que condensa la propuesta (y propone kind/domain). Si el LLM
     cae, la propuesta queda EXACTAMENTE como estaba (nunca se pierde el determinista)."""
     enforce(access, user.user_id, Capability.QA_WORK, resource=(Resource.PROPOSAL, proposal_id))
+    bind_llm_org_of("knowledge_proposals", proposal_id)
     try:
         prop = svc.repo.get_proposal(user_id=user.user_id, proposal_id=proposal_id)
         if prop is None or prop.get("status") != "pending":
@@ -1931,6 +2032,7 @@ def ask_knowledge(
 ) -> Dict[str, Any]:
     enforce(access, user.user_id, Capability.QA_WORK, org_id=req.org_id)
     svc = KnowledgeService(krepo, arepo, embedder=embedder)
+    bind_llm_org(req.org_id)
     try:
         return svc.ask(user_id=user.user_id, org_id=req.org_id, question=req.question)
     except psycopg.Error as exc:
@@ -1950,6 +2052,7 @@ def onboarding_domain_summary(
     embedder=Depends(get_embedder),
 ) -> Dict[str, Any]:
     svc = KnowledgeService(krepo, arepo, embedder=embedder)
+    bind_llm_org(req.org_id)
     return summarize_domain(knowledge_service=svc, user_id=user.user_id, org_id=req.org_id, topic=req.topic)
 
 
@@ -1962,6 +2065,7 @@ def onboarding_learning_path(
     embedder=Depends(get_embedder),
 ) -> Dict[str, Any]:
     svc = KnowledgeService(krepo, arepo, embedder=embedder)
+    bind_llm_org(req.org_id)
     return learning_path(knowledge_service=svc, user_id=user.user_id, org_id=req.org_id, topic=req.topic)
 
 
@@ -1991,6 +2095,7 @@ async def generate_test_plan_v2(
     # (hasta 50 s) son síncronos y van al threadpool para no congelar el event loop a
     # todos los clientes (auditoría 2026-11-23 #2).
     await run_in_threadpool(enforce, access, user.user_id, Capability.QA_WORK, org_id=org_id)
+    bind_llm_org(org_id)
     try:
         data = await _read_upload_capped_async(file) if (
             hu_text is None and jira_url is None and file is not None) else None
@@ -2086,6 +2191,7 @@ def automation_generate(
     enforce(access, user.user_id, Capability.QA_WORK, org_id=req.org_id)
     if not req.case:
         raise HTTPException(status_code=400, detail="case requerido")
+    bind_llm_org(req.org_id)
     examples = req.style_sample
     if not examples:
         try:
@@ -2187,3 +2293,9 @@ def repo_tests(
 ) -> List[Dict[str, Any]]:
     """List indexed test assets for the given org."""
     return TestAssetRepository().list_assets(user_id=user.user_id, org_id=org_id)
+
+
+# Interruptor de LLM externo por organización (módulo propio: src/orgs/llm_settings_api.py).
+from src.orgs.llm_settings_api import router as _llm_settings_router  # noqa: E402
+
+router.include_router(_llm_settings_router)

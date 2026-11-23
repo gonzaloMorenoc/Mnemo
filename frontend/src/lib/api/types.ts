@@ -91,6 +91,12 @@ export interface GitHubConfigResponse {
   installation_id: string | null;
 }
 
+export interface GitHubInstallUrlResponse {
+  state: string;
+  install_url: string;
+  authorize_url: string;
+}
+
 export interface JiraIngestResponse {
   run_id: string | null;
   ingested: number;

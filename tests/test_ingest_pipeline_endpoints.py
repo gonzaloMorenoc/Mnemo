@@ -222,6 +222,8 @@ def test_ci_ingest_resolves_token_off_the_event_loop():
 def test_webhook_chunked_body_over_cap_413_without_reading_it_all(monkeypatch):
     """Sin Content-Length (chunked) el tope se aplica mientras se lee el cuerpo."""
     monkeypatch.setattr(api_v2, "CI_MAX_BODY_BYTES", 100)
+    # Sin CI_SERVICE_ORG_ID el webhook global responde 503 sin leer nada.
+    monkeypatch.setattr(api_v2, "CI_SERVICE_ORG_ID", "o1")
 
     def chunks():
         for _ in range(50):

@@ -19,6 +19,9 @@ def _sign(body: bytes) -> str:
 def make_client(service, monkeypatch, triage=None):
     monkeypatch.setattr(api_v2, "CI_WEBHOOK_SECRET", SECRET)
     monkeypatch.setattr(api_v2, "CI_SERVICE_USER_ID", "svc-user")
+    # El webhook global exige CI_SERVICE_ORG_ID (auditoría 23-nov, H6); respeta el
+    # valor que un test haya fijado antes (p. ej. otra org para probar el 403).
+    monkeypatch.setattr(api_v2, "CI_SERVICE_ORG_ID", api_v2.CI_SERVICE_ORG_ID or "org-1")
     monkeypatch.setattr(api_v2, "get_ci_ingestion_service", lambda: service)
     # Tras la ingesta, el endpoint encola una BackgroundTask que genera propuestas de
     # conocimiento, y TestClient las ejecuta EN LÍNEA antes de devolver la respuesta.
@@ -135,6 +138,20 @@ def test_webhook_multitenant_unconfigured_is_503(monkeypatch):
     resp = client.post("/v2/ci/webhook", content=body,
                        headers={"X-Hub-Signature-256": _sign(body)})
     assert resp.status_code == 503
+
+
+def test_webhook_sin_org_de_servicio_rechaza_en_vez_de_confiar_en_el_cuerpo(monkeypatch):
+    """Sin CI_SERVICE_ORG_ID el org_id saldría del cuerpo: un cliente con el secreto
+    compartido inyectaría runs en otra org. La vía por org es /v2/ci/ingest con token."""
+    service = _ok_service()
+    client = make_client(service, monkeypatch)
+    monkeypatch.setattr(api_v2, "CI_SERVICE_ORG_ID", "")
+    body = _body()
+    resp = client.post("/v2/ci/webhook", content=body,
+                       headers={"X-Hub-Signature-256": _sign(body)})
+    assert resp.status_code == 503
+    assert "/v2/ci/ingest" in resp.json()["detail"]
+    service.ingest_artifact.assert_not_called()
 
 
 def test_webhook_payload_too_large_is_413(monkeypatch):

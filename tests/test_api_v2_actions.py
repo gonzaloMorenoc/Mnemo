@@ -161,13 +161,20 @@ def test_set_github_integration_already_bound_409():
 
 def test_set_github_integration_app_unconfigured_multitenant_503(monkeypatch):
     from src.ci.github_auth import GitHubAppNotConfigured
+    from src.ci.github_install_proof import sign_install_state
     monkeypatch.setattr(api_v2, "multi_tenant_enabled", lambda: True)
+    monkeypatch.setenv("GITHUB_STATE_SECRET", "test-state-secret")
     integ = MagicMock()
     auth = MagicMock()
     auth.installation_account.side_effect = GitHubAppNotConfigured("no app")
-    resp = _client(integrations=integ, gh_auth=auth).post(
+    verifier = MagicMock(configured=True)
+    verifier.user_has_installation.return_value = True
+    client = _client(integrations=integ, gh_auth=auth)
+    client.app.dependency_overrides[api_v2.get_github_user_verifier] = lambda: verifier
+    resp = client.post(
         "/v2/integrations/github",
-        json={"org_id": "o1", "installation_id": "42", "repo_full_name": "acme/web"})
+        json={"org_id": "o1", "installation_id": "42", "repo_full_name": "acme/web",
+              "state": sign_install_state("o1", "user-1"), "code": "c"})
     assert resp.status_code == 503
     integ.upsert_github_config.assert_not_called()
 

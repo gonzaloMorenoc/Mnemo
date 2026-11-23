@@ -89,7 +89,7 @@ Las rutas de subida aplican `INGEST_MAX_BYTES` (413). La ingesta de reports es i
 
 Cuerpo `CiRunArtifact`: `{project, org_id, commit_sha, source (por defecto "playwright"), run_uid?, tests: [{test_name, status: pass|fail|flaky|skipped, retried, error_type?, message?, trace?, file?, line?, dom?}]}` (máx. 10 000 tests).
 
-Orden de comprobaciones: cota `CI_MAX_BODY_BYTES` (413) → firma HMAC (401) → `CI_SERVICE_USER_ID` configurado (503) → validación del artefacto (422) → si `CI_SERVICE_ORG_ID` está definido, rechaza artefactos de otra org (403). La ingesta es idempotente por `(org_id, run_uid)`.
+Orden de comprobaciones: `CI_SERVICE_ORG_ID` configurado (503 sin leer el cuerpo; la vía multi-organización es `/v2/ci/ingest` con token) → cota `CI_MAX_BODY_BYTES` (413, también para cuerpos troceados: la corta el ASGI) → firma HMAC (401) → `CI_SERVICE_USER_ID` configurado (503) → validación del artefacto (422) → artefactos de otra org que no sea `CI_SERVICE_ORG_ID` (403). La ingesta es idempotente por `(org_id, run_uid)`.
 
 Respuesta `CiWebhookResponse = {run_id, ingested, known, novel, results_recorded, snapshots_saved, deduplicated, triage, verdict, gate}`.
 
@@ -299,10 +299,27 @@ Estilo de `automation/generate`, en cascada: `style_sample` manual → tests rea
 |---|---|---|---|
 | `POST` | `/v2/integrations/jira` | `{org_id, base_url, email, token, jql (por defecto "issuetype = Bug")}`: upsert → `{configured, base_url, email, jql}`. 400 si la URL base no pasa la validación | JWT + miembro |
 | `GET` | `/v2/integrations/jira?org_id=` | Configuración Jira (nunca el token) | JWT + miembro |
-| `POST` | `/v2/integrations/github` | `{org_id, installation_id, repo_full_name (owner/repo)}`: upsert → `{configured, repo_full_name, installation_id}`. Ver nota | JWT + miembro |
+| `GET` | `/v2/integrations/github/install-url?org_id=` | Inicio de la vinculación: `{state, install_url, authorize_url}` con un `state` firmado (HMAC) para (org, usuario) que caduca en 10 min. 503 sin `GITHUB_APP_SLUG`/`GITHUB_APP_CLIENT_ID` | JWT |
+| `POST` | `/v2/integrations/github` | `{org_id, installation_id, repo_full_name (owner/repo), state, code}`: upsert → `{configured, repo_full_name, installation_id}`. `state` y `code` son obligatorios en multi-tenant. Ver nota | JWT + owner/admin |
 | `GET` | `/v2/integrations/github?org_id=` | Configuración GitHub de la org | JWT + miembro |
 
-**Vinculación de GitHub.** Antes de guardar se comprueba que la cuenta dueña de la instalación coincide con el owner del repo (mitiga el confused-deputy entre tenants): 403 si no coincide o no se puede verificar, 503 si la GitHub App no está configurada en multitenant, 409 si la instalación ya está vinculada a otra org.
+**Vinculación de GitHub (prueba de posesión).** En multi-tenant ya no basta con que la cuenta de la instalación coincida con el owner del repo: el primero que reclamaba un `installation_id` ajeno se lo quedaba. Flujo:
+
+1. El frontend pide `GET /v2/integrations/github/install-url?org_id=` y manda al usuario a `install_url` (instalación nueva) o a `authorize_url` (App ya instalada).
+2. La GitHub App debe tener activado «Request user authorization (OAuth) during installation» y su *Callback URL* apuntando a una página del frontend. GitHub redirige allí con `installation_id`, `code` y `state`.
+3. El frontend manda esos valores, con `repo_full_name`, a `POST /v2/integrations/github`.
+4. El backend comprueba el `state` (firma, caducidad, misma org y mismo usuario: 403 si no), canjea el `code` por un token de usuario de GitHub (`GITHUB_APP_CLIENT_ID`/`GITHUB_APP_CLIENT_SECRET`) y exige que la instalación aparezca en `GET /user/installations` (403 si no). Después, la comprobación de siempre (cuenta de la instalación = owner del repo) y el upsert (409 si ya está vinculada a otra org; solo lo ve quien ha demostrado acceso).
+
+Errores: 400 sin `state`/`code`, 403 por `state` inválido o sin acceso, 503 si falta OAuth de la App o el secreto del `state` (`GITHUB_STATE_SECRET`, o derivado de `MNEMO_SECRET_KEY`). En self-host single-tenant no se exige la prueba (no hay otros tenants). Las vinculaciones ya existentes no se tocan. En el frontend, Integraciones → GitHub → «Conectar con GitHub» hace el paso 1 (guarda org y repositorio en `sessionStorage`) y la página `/app/integrations/github/callback` hace el paso 3; si GitHub no devuelve `installation_id` (flujo «solo autorizar») o el navegador no conserva el repositorio, la página los pide antes de enviar.
+
+## Ajustes de IA por organización
+
+| Método | Ruta | Descripción | Auth |
+|---|---|---|---|
+| `GET` | `/v2/orgs/{org_id}/llm-settings` | `{org_id, allow_external_llm, provider, provider_is_external, global_external_allowed}` | JWT + owner/admin |
+| `PUT` | `/v2/orgs/{org_id}/llm-settings` | `{allow_external_llm: bool}`. Con `false`, las funciones de IA de la org degradan como «sin LLM» aunque el despliegue tenga un proveedor externo (Groq, OpenAI, Anthropic). Un Ollama local no se ve afectado | JWT + owner/admin |
+
+Todo prompt que sale a un proveedor externo pasa antes por un único guardián (`src/llm/guard.py`, aplicado en `src/llm/factory.py`): sanea secretos y datos personales (tokens, claves, PEM, DNI/NIE, IBAN, teléfonos, emails) y aplica el ajuste de la org de los datos. Sin fila en `org_llm_settings` (migración 035) rige la política global `ALLOW_EXTERNAL_LLM`.
 
 ---
 

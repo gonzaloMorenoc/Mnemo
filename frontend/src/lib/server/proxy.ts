@@ -52,7 +52,7 @@ export async function proxyToBackend(
   request: NextRequest,
   endpoint: string,
   init: {
-    method: "GET" | "POST" | "PATCH" | "DELETE";
+    method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
     body?: BodyInit;
     contentType?: string;
     timeoutMs?: number;

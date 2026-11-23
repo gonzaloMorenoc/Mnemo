@@ -68,9 +68,8 @@ En **Vercel → proyecto → Settings → Environment Variables**:
 - `NEXT_PUBLIC_API_BASE_URL` = la URL del backend (p. ej.
   `https://mnemo-backend-XXXX.onrender.com`), **sin barra final**.
 - `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` (para el login).
-- Opcional: `NEXT_PUBLIC_GITHUB_APP_URL` = página de instalación de la GitHub App
-  (`https://github.com/apps/<tu-app>/installations/new`); activa el enlace «instalar
-  ahora» en Integraciones.
+- `NEXT_PUBLIC_GITHUB_APP_URL` ya no se usa: «Conectar con GitHub» pide la URL de
+  instalación al backend (ver «GitHub App: Callback URL» más abajo).
 - Root Directory = `frontend`; Node 22.x (`frontend/.nvmrc`).
 
 Las `NEXT_PUBLIC_*` se fijan en el build: tras cambiarlas hay que volver a desplegar el
@@ -161,6 +160,35 @@ configurada"` y no se puede emitir ni verificar ningún acta.
 
 ---
 
+## Seguridad: variables nuevas (auditoría 23-nov)
+
+| Variable | Qué es |
+|----------|--------|
+| `GITHUB_APP_SLUG`, `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET` | Necesarias para **vincular** la GitHub App en multi-tenant: se exige prueba de posesión de la instalación (`state` firmado + `code` OAuth de GitHub). Sin ellas, `POST /v2/integrations/github` responde 503. En la App hay que activar «Request user authorization (OAuth) during installation». Ver `docs/technical/api.md` |
+| `GITHUB_STATE_SECRET` | Opcional: secreto para firmar el `state`. Si falta, se deriva de `MNEMO_SECRET_KEY` |
+| `MNEMO_EXPOSE_API_DOCS` | `true` para publicar `/docs`, `/redoc` y `/openapi.json`. Por defecto están **desactivados** |
+
+### GitHub App: Callback URL
+
+En **GitHub → Settings → Developer settings → GitHub Apps → (la App de Mnemo) → General**:
+
+- **Callback URL** = `https://<dominio-del-frontend>/app/integrations/github/callback`
+  (el dominio de Vercel, no el del backend; p. ej.
+  `https://mnemo.vercel.app/app/integrations/github/callback`). Si hay varios
+  entornos (preview, local), añade una Callback URL por cada uno.
+- Activa **«Request user authorization (OAuth) during installation»**: sin él GitHub
+  no devuelve el `code` y la página de callback muestra «GitHub no devolvió la
+  autorización».
+- Deja vacía la *Setup URL* (con OAuth durante la instalación, GitHub usa la Callback URL).
+
+Flujo en la app: Integraciones → GitHub → indicar `owner/repo` → «Conectar con GitHub»
+→ instalar/autorizar en GitHub → vuelta a la página de callback, que guarda la
+vinculación y regresa a Integraciones.
+
+Cada organización puede además desactivar el LLM externo desde **Ajustes** (owner/admin) o con `PUT /v2/orgs/{org_id}/llm-settings`. Requiere la migración 035.
+
+---
+
 ## Webhook de CI (ingesta automática desde el CI del cliente)
 
 Para que `POST /v2/ci/webhook` funcione (reporter de Playwright o cualquier emisor del
@@ -170,7 +198,7 @@ artefacto), el backend necesita estas variables (sin ellas responde 401/503):
 |----------|--------|
 | `CI_WEBHOOK_SECRET` | Secreto compartido para la firma HMAC-SHA256 (`X-Hub-Signature-256`) |
 | `CI_SERVICE_USER_ID` | UUID del usuario de servicio al que se atribuye la ingesta (debe ser miembro de la organización) |
-| `CI_SERVICE_ORG_ID` | Opcional: si se define, el webhook rechaza (403) artefactos de cualquier otra organización |
+| `CI_SERVICE_ORG_ID` | **Obligatoria para el webhook global** `/v2/ci/webhook`: la única organización aceptada (403 al resto). Sin ella el webhook responde 503 en vez de confiar en el `org_id` del cuerpo. Para varias organizaciones, usa `/v2/ci/ingest` con un token de ingesta por organización |
 
 La alternativa sin secreto compartido es `POST /v2/ci/ingest` con un token de ingesta por
 organización, que se crea desde la app (Integraciones).

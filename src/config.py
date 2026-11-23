@@ -70,6 +70,12 @@ TRIAGE_MASS_COFAILURE_MIN = int(os.getenv("TRIAGE_MASS_COFAILURE_MIN", "3"))
 # GitHub App (F3c): credenciales globales de la app.
 GITHUB_APP_ID = os.getenv("GITHUB_APP_ID", "")
 GITHUB_APP_PRIVATE_KEY = os.getenv("GITHUB_APP_PRIVATE_KEY", "")
+# Prueba de posesión al vincular una instalación (auditoría 23-nov, H4): slug público
+# de la App (URL de instalación) y credenciales OAuth de la App para canjear el `code`
+# del callback por un token de usuario y comprobar GET /user/installations.
+GITHUB_APP_SLUG = os.getenv("GITHUB_APP_SLUG", "")
+GITHUB_APP_CLIENT_ID = os.getenv("GITHUB_APP_CLIENT_ID", "")
+GITHUB_APP_CLIENT_SECRET = os.getenv("GITHUB_APP_CLIENT_SECRET", "")
 
 # Certificación (Mnemo Autopilot F4a): firma Ed25519 de Release Assurance Certificates.
 MNEMO_VERSION = "0.4.0"
@@ -82,6 +88,12 @@ MNEMO_SIGNING_RETIRED_PUBLIC_KEYS = os.getenv("MNEMO_SIGNING_RETIRED_PUBLIC_KEYS
 # URL pública del frontend (para el pie "verificable en …" del acta en PDF).
 # Vacía = el acta no imprime host: nunca una URL inventada en un documento.
 MNEMO_PUBLIC_APP_URL = os.getenv("MNEMO_PUBLIC_APP_URL", "").rstrip("/")
+
+
+def api_docs_exposed() -> bool:
+    """/docs, /redoc y /openapi.json solo con MNEMO_EXPOSE_API_DOCS=true: en producción
+    no se publica el mapa completo de la API (auditoría 23-nov, H9.5)."""
+    return os.getenv("MNEMO_EXPOSE_API_DOCS", "").lower() == "true"
 
 
 def multi_tenant_enabled() -> bool:
