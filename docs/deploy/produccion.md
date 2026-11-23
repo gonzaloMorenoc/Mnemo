@@ -161,6 +161,18 @@ configurada"` y no se puede emitir ni verificar ningún acta.
 
 ---
 
+## Seguridad: variables nuevas (auditoría 23-nov)
+
+| Variable | Qué es |
+|----------|--------|
+| `GITHUB_APP_SLUG`, `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET` | Necesarias para **vincular** la GitHub App en multi-tenant: se exige prueba de posesión de la instalación (`state` firmado + `code` OAuth de GitHub). Sin ellas, `POST /v2/integrations/github` responde 503. En la App hay que activar «Request user authorization (OAuth) during installation». Ver `docs/technical/api.md` |
+| `GITHUB_STATE_SECRET` | Opcional: secreto para firmar el `state`. Si falta, se deriva de `MNEMO_SECRET_KEY` |
+| `MNEMO_EXPOSE_API_DOCS` | `true` para publicar `/docs`, `/redoc` y `/openapi.json`. Por defecto están **desactivados** |
+
+Cada organización puede además desactivar el LLM externo desde **Ajustes** (owner/admin) o con `PUT /v2/orgs/{org_id}/llm-settings`. Requiere la migración 035.
+
+---
+
 ## Webhook de CI (ingesta automática desde el CI del cliente)
 
 Para que `POST /v2/ci/webhook` funcione (reporter de Playwright o cualquier emisor del

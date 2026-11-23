@@ -2,6 +2,7 @@ import logging
 import time
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from urllib.parse import urlencode
 
 import psycopg
 from fastapi import (
@@ -29,7 +30,8 @@ from src.certify.render import render_html, render_pdf
 from src.certify.service import CertificateService, parse_public_keys
 from src.certify.signing import SigningKeyMissing, canonical_json, verify
 from src.config import (CI_MAX_BODY_BYTES, CI_SERVICE_ORG_ID, CI_SERVICE_USER_ID,
-                        CI_WEBHOOK_SECRET, INGEST_MAX_BYTES, LLM_MODEL,
+                        CI_WEBHOOK_SECRET, GITHUB_APP_CLIENT_ID, GITHUB_APP_CLIENT_SECRET,
+                        GITHUB_APP_SLUG, INGEST_MAX_BYTES, LLM_MODEL,
                         MNEMO_PUBLIC_APP_URL, MNEMO_SIGNING_PRIVATE_KEY,
                         MNEMO_SIGNING_PUBLIC_KEY, MNEMO_SIGNING_RETIRED_PUBLIC_KEYS,
                         MNEMO_VERSION, multi_tenant_enabled)
@@ -41,6 +43,9 @@ from src.actions.service import ActionService
 from src.actions.ticket import TicketActuator
 from src.ci.github_app import GitHubCodeHost, GitHubError
 from src.ci.github_auth import GitHubAppAuth, GitHubAppNotConfigured, GitHubAuthError
+from src.ci.github_install_proof import (GitHubProofNotConfigured, GitHubUserInstallationVerifier,
+                                         InvalidInstallState, sign_install_state,
+                                         verify_install_state)
 from src.ci.ingestion_service import CiIngestionService
 from src.triage.service import TriageService
 from src.ci.models import CiRunArtifact
@@ -277,6 +282,49 @@ def _get_github_auth() -> GitHubAppAuth:
 def get_github_app_auth() -> GitHubAppAuth:
     """Dependencia inyectable (override en tests) para verificar instalaciones."""
     return _get_github_auth()
+
+
+def get_github_user_verifier() -> GitHubUserInstallationVerifier:
+    """Dependencia inyectable (override en tests): canjea el `code` OAuth del callback
+    de la GitHub App y comprueba GET /user/installations."""
+    return GitHubUserInstallationVerifier(client_id=GITHUB_APP_CLIENT_ID,
+                                          client_secret=GITHUB_APP_CLIENT_SECRET)
+
+
+def _verify_installation_possession(
+    verifier: GitHubUserInstallationVerifier, *, body: GitHubConfigRequest, user_id: str
+) -> None:
+    """Prueba de posesión de la instalación (auditoría 23-nov, H4; ver
+    src/ci/github_install_proof.py). Sin ella, el primero que reclamaba un
+    installation_id ajeno se lo quedaba. En self-host single-tenant no aplica: no hay
+    otros tenants a los que suplantar. Va ANTES del upsert: quien no demuestra acceso
+    tampoco aprende (409) si la instalación ya está vinculada a otra org."""
+    if not multi_tenant_enabled():
+        return
+    if not body.state or not body.code:
+        raise HTTPException(
+            status_code=400,
+            detail="Falta la prueba de posesión (state y code): inicia la vinculación "
+                   "desde GET /v2/integrations/github/install-url")
+    try:
+        verify_install_state(body.state, org_id=body.org_id, user_id=user_id)
+    except InvalidInstallState as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except GitHubProofNotConfigured as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    if not verifier.configured:
+        raise HTTPException(status_code=503,
+                            detail="OAuth de la GitHub App no configurado; no se puede "
+                                   "verificar el acceso a la instalación")
+    try:
+        has_access = verifier.user_has_installation(code=body.code,
+                                                    installation_id=body.installation_id)
+    except (GitHubAuthError, GitHubProofNotConfigured) as exc:
+        raise HTTPException(status_code=403,
+                            detail="No se pudo verificar tu acceso a la instalación de GitHub") from exc
+    if not has_access:
+        raise HTTPException(status_code=403,
+                            detail="Tu usuario de GitHub no tiene acceso a esa instalación")
 
 
 def _verify_installation_ownership(
@@ -953,7 +1001,9 @@ def set_github_integration(
     user: AuthenticatedUser = Depends(get_current_user),
     integrations: IntegrationsRepository = Depends(get_integrations_repo),
     gh_auth: GitHubAppAuth = Depends(get_github_app_auth),
+    verifier: GitHubUserInstallationVerifier = Depends(get_github_user_verifier),
 ) -> GitHubConfigResponse:
+    _verify_installation_possession(verifier, body=body, user_id=user.user_id)
     _verify_installation_ownership(
         gh_auth, installation_id=body.installation_id, repo_full_name=body.repo_full_name
     )
@@ -972,6 +1022,32 @@ def set_github_integration(
         raise HTTPException(status_code=502, detail="Database error") from exc
     return GitHubConfigResponse(configured=True, repo_full_name=body.repo_full_name,
                                 installation_id=body.installation_id)
+
+
+@router.get("/integrations/github/install-url", response_model=Dict[str, str])
+def github_install_url(
+    org_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> Dict[str, str]:
+    """Inicio de la vinculación con prueba de posesión: devuelve la URL de instalación
+    de la App y la de autorización OAuth, ambas con un `state` firmado para (org,
+    usuario) que caduca en 10 min. GitHub redirige al callback con `installation_id`,
+    `code` y `state`, que se mandan tal cual a POST /v2/integrations/github. El state
+    no da permisos: el POST exige además owner/admin y el `code` de GitHub."""
+    if not GITHUB_APP_SLUG or not GITHUB_APP_CLIENT_ID:
+        raise HTTPException(status_code=503,
+                            detail="GitHub App no configurada (GITHUB_APP_SLUG / GITHUB_APP_CLIENT_ID)")
+    try:
+        state = sign_install_state(org_id, user.user_id)
+    except GitHubProofNotConfigured as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    query = urlencode({"state": state})
+    return {
+        "state": state,
+        "install_url": f"https://github.com/apps/{GITHUB_APP_SLUG}/installations/new?{query}",
+        "authorize_url": "https://github.com/login/oauth/authorize?"
+                         + urlencode({"client_id": GITHUB_APP_CLIENT_ID, "state": state}),
+    }
 
 
 @router.get("/integrations/github", response_model=GitHubConfigResponse)

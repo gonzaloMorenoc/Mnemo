@@ -67,6 +67,12 @@ TRIAGE_MASS_COFAILURE_MIN = int(os.getenv("TRIAGE_MASS_COFAILURE_MIN", "3"))
 # GitHub App (F3c): credenciales globales de la app.
 GITHUB_APP_ID = os.getenv("GITHUB_APP_ID", "")
 GITHUB_APP_PRIVATE_KEY = os.getenv("GITHUB_APP_PRIVATE_KEY", "")
+# Prueba de posesión al vincular una instalación (auditoría 23-nov, H4): slug público
+# de la App (URL de instalación) y credenciales OAuth de la App para canjear el `code`
+# del callback por un token de usuario y comprobar GET /user/installations.
+GITHUB_APP_SLUG = os.getenv("GITHUB_APP_SLUG", "")
+GITHUB_APP_CLIENT_ID = os.getenv("GITHUB_APP_CLIENT_ID", "")
+GITHUB_APP_CLIENT_SECRET = os.getenv("GITHUB_APP_CLIENT_SECRET", "")
 
 # Certificación (Mnemo Autopilot F4a): firma Ed25519 de Release Assurance Certificates.
 MNEMO_VERSION = "0.4.0"

@@ -290,10 +290,27 @@ Estilo de `automation/generate`, en cascada: `style_sample` manual → tests rea
 |---|---|---|---|
 | `POST` | `/v2/integrations/jira` | `{org_id, base_url, email, token, jql (por defecto "issuetype = Bug")}`: upsert → `{configured, base_url, email, jql}`. 400 si la URL base no pasa la validación | JWT + miembro |
 | `GET` | `/v2/integrations/jira?org_id=` | Configuración Jira (nunca el token) | JWT + miembro |
-| `POST` | `/v2/integrations/github` | `{org_id, installation_id, repo_full_name (owner/repo)}`: upsert → `{configured, repo_full_name, installation_id}`. Ver nota | JWT + miembro |
+| `GET` | `/v2/integrations/github/install-url?org_id=` | Inicio de la vinculación: `{state, install_url, authorize_url}` con un `state` firmado (HMAC) para (org, usuario) que caduca en 10 min. 503 sin `GITHUB_APP_SLUG`/`GITHUB_APP_CLIENT_ID` | JWT |
+| `POST` | `/v2/integrations/github` | `{org_id, installation_id, repo_full_name (owner/repo), state, code}`: upsert → `{configured, repo_full_name, installation_id}`. `state` y `code` son obligatorios en multi-tenant. Ver nota | JWT + owner/admin |
 | `GET` | `/v2/integrations/github?org_id=` | Configuración GitHub de la org | JWT + miembro |
 
-**Vinculación de GitHub.** Antes de guardar se comprueba que la cuenta dueña de la instalación coincide con el owner del repo (mitiga el confused-deputy entre tenants): 403 si no coincide o no se puede verificar, 503 si la GitHub App no está configurada en multitenant, 409 si la instalación ya está vinculada a otra org.
+**Vinculación de GitHub (prueba de posesión).** En multi-tenant ya no basta con que la cuenta de la instalación coincida con el owner del repo: el primero que reclamaba un `installation_id` ajeno se lo quedaba. Flujo:
+
+1. El frontend pide `GET /v2/integrations/github/install-url?org_id=` y manda al usuario a `install_url` (instalación nueva) o a `authorize_url` (App ya instalada).
+2. La GitHub App debe tener activado «Request user authorization (OAuth) during installation» y su *Callback URL* apuntando a una página del frontend. GitHub redirige allí con `installation_id`, `code` y `state`.
+3. El frontend manda esos valores, con `repo_full_name`, a `POST /v2/integrations/github`.
+4. El backend comprueba el `state` (firma, caducidad, misma org y mismo usuario: 403 si no), canjea el `code` por un token de usuario de GitHub (`GITHUB_APP_CLIENT_ID`/`GITHUB_APP_CLIENT_SECRET`) y exige que la instalación aparezca en `GET /user/installations` (403 si no). Después, la comprobación de siempre (cuenta de la instalación = owner del repo) y el upsert (409 si ya está vinculada a otra org; solo lo ve quien ha demostrado acceso).
+
+Errores: 400 sin `state`/`code`, 403 por `state` inválido o sin acceso, 503 si falta OAuth de la App o el secreto del `state` (`GITHUB_STATE_SECRET`, o derivado de `MNEMO_SECRET_KEY`). En self-host single-tenant no se exige la prueba (no hay otros tenants). Las vinculaciones ya existentes no se tocan. **Pendiente:** la página de callback del frontend; hasta entonces, en multi-tenant solo se puede vincular con el flujo anterior a mano (pidiendo la URL y mandando el POST).
+
+## Ajustes de IA por organización
+
+| Método | Ruta | Descripción | Auth |
+|---|---|---|---|
+| `GET` | `/v2/orgs/{org_id}/llm-settings` | `{org_id, allow_external_llm, provider, provider_is_external, global_external_allowed}` | JWT + owner/admin |
+| `PUT` | `/v2/orgs/{org_id}/llm-settings` | `{allow_external_llm: bool}`. Con `false`, las funciones de IA de la org degradan como «sin LLM» aunque el despliegue tenga un proveedor externo (Groq, OpenAI, Anthropic). Un Ollama local no se ve afectado | JWT + owner/admin |
+
+Todo prompt que sale a un proveedor externo pasa antes por un único guardián (`src/llm/guard.py`, aplicado en `src/llm/factory.py`): sanea secretos y datos personales (tokens, claves, PEM, DNI/NIE, IBAN, teléfonos, emails) y aplica el ajuste de la org de los datos. Sin fila en `org_llm_settings` (migración 035) rige la política global `ALLOW_EXTERNAL_LLM`.
 
 ---
 

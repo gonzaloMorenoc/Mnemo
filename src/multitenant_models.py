@@ -107,6 +107,10 @@ class GitHubConfigRequest(BaseModel):
     org_id: str
     installation_id: str
     repo_full_name: str
+    # Prueba de posesión (obligatoria en multi-tenant): `state` firmado de
+    # /v2/integrations/github/install-url y `code` OAuth del callback de GitHub.
+    state: Optional[str] = Field(default=None, max_length=1024)
+    code: Optional[str] = Field(default=None, max_length=512)
 
     @field_validator("repo_full_name")
     @classmethod
