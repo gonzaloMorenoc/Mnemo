@@ -160,9 +160,26 @@ export default function ContinuityPage() {
         </Card>
       ) : projects.length === 0 && !projectsQuery.isPending ? (
         <Card className="max-w-3xl p-5">
-          <p className="text-sm text-zinc-500">
-            Todavía no hay proyectos con ejecuciones ni conocimiento en esta organización.
-          </p>
+          <div className="space-y-3">
+            <p className="text-sm text-zinc-700">
+              Todavía no hay proyectos con ejecuciones ni conocimiento en esta organización.
+            </p>
+            <p className="text-sm text-zinc-500">
+              Un proyecto aparece aquí en cuanto tiene su primer run o su primera pieza de
+              conocimiento. Empieza por lo que tengas a mano:
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild size="sm">
+                <Link href="/app/autopilot">Subir un informe de tests</Link>
+              </Button>
+              <Button asChild size="sm" variant="outline">
+                <Link href="/app/knowledge?tab=capturar">Añadir conocimiento</Link>
+              </Button>
+              <Button asChild size="sm" variant="outline">
+                <Link href="/app/integrations">Conectar el CI</Link>
+              </Button>
+            </div>
+          </div>
         </Card>
       ) : (
         <>
