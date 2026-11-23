@@ -1,29 +1,17 @@
-# Actualizaciones de dependencias (auditoría 23-nov). Semanal y agrupadas para no
-# inundar de PRs; las de seguridad las abre Dependabot aparte, sin esperar.
+# Solo actualizaciones de SEGURIDAD (Dependabot las abre en cuanto hay un aviso).
+# Las de versión están desactivadas (open-pull-requests-limit: 0): cada PR dispara CI
+# y despliegues, y la cuota de Vercel es limitada. pip-audit en el CI vigila además las
+# dependencias Python en cada PR.
 version: 2
 updates:
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
-    groups:
-      python-minor-patch:
-        update-types: ["minor", "patch"]
+      interval: "monthly"
+    open-pull-requests-limit: 0
 
   - package-ecosystem: "npm"
     directory: "/frontend"
     schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
-    groups:
-      npm-minor-patch:
-        update-types: ["minor", "patch"]
-
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    groups:
-      actions:
-        patterns: ["*"]
+      interval: "monthly"
+    open-pull-requests-limit: 0
