@@ -55,6 +55,7 @@ _Q_LESSONS = """
         where k.org_id = %(org)s and k.status = 'activo'
           and k.kind = any(%(kinds)s)
           and k.defect_family_id = any(%(ids)s::uuid[])
+          and (%(proj)s::text is null or k.project is null or k.project = %(proj)s)
     ) ranked
     where rn <= %(max_lessons)s
     order by family_id, rn
@@ -67,6 +68,7 @@ _Q_STATS = """
     from public.failures fl
     join public.test_runs r on r.id = fl.run_id
     where fl.org_id = %(org)s and fl.defect_family_id = any(%(ids)s::uuid[])
+      and (%(proj)s::text is null or r.project = %(proj)s)
     group by fl.defect_family_id
 """
 
@@ -105,14 +107,17 @@ class FamilyMemoryRepository:
     def __init__(self, connection_factory: Callable = _default_connection):
         self._connect = connection_factory
 
-    def load(self, *, user_id: str, org_id: str,
-             family_ids: Sequence[str]) -> List[FamilyMemory]:
-        """Memoria de las familias pedidas, en el MISMO orden. [] si no es miembro."""
+    def load(self, *, user_id: str, org_id: str, family_ids: Sequence[str],
+             project: Optional[str] = None) -> List[FamilyMemory]:
+        """Memoria de las familias pedidas, en el MISMO orden. [] si no es miembro.
+
+        Con `project` (token de lectura atado a un proyecto): lecciones de ese proyecto
+        o de toda la org, y runs/proyectos contados solo en él. Sin él, como siempre."""
         ids = list(dict.fromkeys(str(f) for f in family_ids if f))[:MAX_LOAD]
         if not ids:
             return []
         params = {"org": org_id, "user": user_id, "ids": ids, "max_lessons": MAX_LESSONS,
-                  "kinds": list(LESSON_KINDS)}
+                  "kinds": list(LESSON_KINDS), "proj": project}
         with self._connect() as conn, conn.cursor(row_factory=dict_row) as cur:
             cur.execute(_Q_MEMBER, params)
             if not cur.fetchone()["ok"]:

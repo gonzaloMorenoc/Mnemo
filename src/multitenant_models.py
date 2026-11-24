@@ -380,6 +380,11 @@ class KnowledgeImportResponse(BaseModel):
 class IngestTokenCreateRequest(BaseModel):
     org_id: str
     name: str = Field(min_length=1, max_length=100)
+    # "ingest" (CI, por defecto) o "read" (asistentes de IA por MCP, solo lectura).
+    scope: Literal["ingest", "read"] = "ingest"
+    # Solo lectura: limita el token a un proyecto (clave). Sin él, toda la organización.
+    project: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    expires_in_days: Optional[int] = Field(default=None, ge=1, le=365)
 
 
 class KnowledgeUpdateRequest(BaseModel):

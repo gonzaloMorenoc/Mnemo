@@ -31,6 +31,7 @@ import type {
   GenerateProposalsResult,
   IngestToken,
   IngestTokenCreated,
+  TokenScope,
   KnowledgeAnswer,
   KnowledgeImportResult,
   KnowledgeItem,
@@ -360,14 +361,19 @@ export function getGraph(
 
 // --- Tokens de ingesta CI (cualquier CI se enchufa con un token) ---
 
-export function listIngestTokens(token: string, orgId: string) {
-  return apiRequest<IngestToken[]>(
-    `/api/v2/ingest/tokens?org_id=${encodeURIComponent(orgId)}`, "GET", { token });
+export function listIngestTokens(token: string, orgId: string, scope: TokenScope = "ingest") {
+  const qs = new URLSearchParams({ org_id: orgId, scope });
+  return apiRequest<IngestToken[]>(`/api/v2/ingest/tokens?${qs.toString()}`, "GET", { token });
 }
 
-export function createIngestToken(token: string, orgId: string, name: string) {
+export function createIngestToken(
+  token: string,
+  orgId: string,
+  name: string,
+  opts: { scope?: TokenScope; project?: string; expires_in_days?: number } = {},
+) {
   return apiRequest<IngestTokenCreated>(
-    "/api/v2/ingest/tokens", "POST", { token, body: { org_id: orgId, name } });
+    "/api/v2/ingest/tokens", "POST", { token, body: { org_id: orgId, name, ...opts } });
 }
 
 export function revokeIngestToken(token: string, tokenId: string) {

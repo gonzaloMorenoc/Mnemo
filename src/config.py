@@ -90,6 +90,16 @@ MNEMO_SIGNING_RETIRED_PUBLIC_KEYS = os.getenv("MNEMO_SIGNING_RETIRED_PUBLIC_KEYS
 MNEMO_PUBLIC_APP_URL = os.getenv("MNEMO_PUBLIC_APP_URL", "").rstrip("/")
 
 
+# Servidor MCP de solo lectura (/mcp, tokens mnemo_rt_). Límite por token: cubo de
+# fichas en memoria (el backend es un solo proceso). Orígenes de navegador admitidos:
+# ninguno por defecto — los clientes MCP de escritorio no mandan `Origin`; uno que sí
+# lo manda sin estar en la lista es una web ajena (DNS rebinding) y se rechaza.
+MCP_RATE_PER_MINUTE = int(os.getenv("MCP_RATE_PER_MINUTE", "60"))
+MCP_BURST = int(os.getenv("MCP_BURST", "20"))
+MCP_ALLOWED_ORIGINS = frozenset(
+    o.strip().rstrip("/") for o in os.getenv("MCP_ALLOWED_ORIGINS", "").split(",") if o.strip())
+
+
 def api_docs_exposed() -> bool:
     """/docs, /redoc y /openapi.json solo con MNEMO_EXPOSE_API_DOCS=true: en producción
     no se publica el mapa completo de la API (auditoría 23-nov, H9.5)."""
