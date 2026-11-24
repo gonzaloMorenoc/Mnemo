@@ -177,6 +177,16 @@ python3 -m pytest -m integration         # integración: OJO, corre contra la BD
 cd frontend && npm run check:ci          # lint + vitest + build (lo que corre el CI)
 ```
 
+Tests contra un Postgres **de prueba** (esquema completo, sin tocar ninguna BD real; el CI los corre en el job «Migraciones y BD»):
+
+```bash
+docker run -d --name mnemo-pg -e POSTGRES_PASSWORD=pg -p 55432:5432 pgvector/pgvector:pg15
+export MNEMO_TEST_DATABASE_URL=postgresql://postgres:pg@localhost:55432/postgres
+psql "$MNEMO_TEST_DATABASE_URL" -f scripts/ci/bootstrap_test_db.sql
+DATABASE_URL="$MNEMO_TEST_DATABASE_URL" python3 scripts/migrate.py
+python3 -m pytest -m testdb
+```
+
 ## Licencia
 
 Código fuente disponible, todos los derechos reservados: se puede consultar y ejecutar en

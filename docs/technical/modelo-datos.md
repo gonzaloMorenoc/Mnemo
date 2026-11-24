@@ -47,6 +47,7 @@ Todas las tablas de `public` tienen `enable` + `force` (las 7 de `001` recibiero
 | `analyses` | propio o miembro de la org | Restos del v1, sin uso. |
 | `defect_families` | `scope = 'global' or is_org_member(org_id)`; escritura solo `scope = 'org'` | |
 | `ingest_tokens` | select `is_org_member`; insert/update/delete `is_org_admin` (+ `created_by = auth.uid()` en insert) | Tabla de credenciales. |
+| `projects` | select `is_org_member`; escritura `is_org_admin` | La gestión va por la API; las ingestas la crean por trigger. |
 | resto | `is_org_member(org_id)` para todo | |
 
 ### Grants al rol `authenticated`: ninguno (Data API cerrada)
@@ -105,7 +106,8 @@ Notas:
 |---|---|---|
 | `organizations` | Org / cliente | `name`, `created_by` (FK `auth.users`, `on delete restrict`), `join_code` unique, `join_code_expires_at`, `created_at` |
 | `memberships` | **Fuente de verdad del aislamiento** | PK `(org_id, user_id)`, `role` enum `org_role` ∈ `owner`/`admin`/`member`/`viewer` |
-| `profiles` | Perfil por usuario (resto del v1) | PK `user_id`, `display_name`, `default_org_id` (FK, `set null`). El código actual no la usa. |
+| `profiles` | Perfil por usuario (resto del v1) | PK `user_id`, `display_name`, `default_org_id` (FK, `set null`). Solo se lee `display_name` (autor en la memoria del equipo); nadie la rellena todavía. |
+| `projects` (036) | Proyecto de una org | `key` **inmutable** (el texto que usan las ingestas y que va dentro de las actas firmadas), `name` visible editable, `description`, `is_example`, `archived_at`; unique `(org_id, key)`. FK compuesta `(org_id, project) → projects (org_id, key)` desde `test_runs`, `dom_snapshots`, `qa_knowledge`, `knowledge_proposals` y `handover_acts`; `project` null = de toda la organización (fuera de la FK). El trigger `ensure_project` crea la fila si falta (las ingestas no saben de `projects`) y convierte un proyecto vacío de conocimiento/propuestas en null. Se archiva, no se borra. |
 
 ### 3.2 Restos del v1, sin uso (001)
 
@@ -325,6 +327,9 @@ La reingesta de un repo borra e inserta todas sus filas (`replace_for_repo`).
 | 029 | Veredicto `sin_confirmar` en el CHECK de `certificates`. |
 | 030 | `triage_corrections.reason_embedding vector(384)`. |
 | 032 | `organizations.join_code_expires_at` (7 días por defecto) y `join_organization_by_code` da `viewer` y rechaza códigos caducados. |
+| 033 | Tabla `qa_knowledge_chunks` (embeddings por fragmento de los textos largos). |
+| 035 | Tabla `org_llm_settings` (interruptor de LLM externo por organización). |
+| 036 | Tabla `projects` (clave inmutable, nombre editable, archivado), backfill desde las 5 tablas con `project`, trigger `ensure_project` y FK compuesta. |
 | 999 | Cierra la Data API: revoca todo a `anon`/`authenticated` en `public`. Siempre la última. |
 
 ---

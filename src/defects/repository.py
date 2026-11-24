@@ -1263,7 +1263,8 @@ class AssuranceRepository:
                 ]
 
     def search_families_semantic(self, *, user_id: str, org_id: str,
-                                 query_embedding: Sequence[float], k: int = 8) -> List[Dict[str, Any]]:
+                                 query_embedding: Sequence[float], k: int = 8,
+                                 project: Optional[str] = None) -> List[Dict[str, Any]]:
         """Familias del tenant más similares a la consulta (coseno sobre el centroide).
         Membership-gated; solo familias con centroide. [] si no es miembro.
 
@@ -1303,9 +1304,14 @@ class AssuranceRepository:
                     "    order by tc.corrected_at desc limit 1"
                     "  ) c on true"
                     "  where f.scope = 'org' and f.org_id = %s and f.centroid is not null"
+                    # Una familia es de la org; «del proyecto» = con fallos en sus runs.
+                    "   and (%s::text is null or exists (select 1 from public.failures fl"
+                    "        join public.test_runs r on r.id = fl.run_id"
+                    "        where fl.defect_family_id = f.id and r.project = %s))"
                     " ) ranked where dist < %s or dist_errores < %s"
                     " order by dist limit %s",
-                    (q, q, q, q, org_id, MAX_SEMANTIC_DISTANCE, MAX_SEMANTIC_DISTANCE, k),
+                    (q, q, q, q, org_id, project, project, MAX_SEMANTIC_DISTANCE,
+                     MAX_SEMANTIC_DISTANCE, k),
                 )
                 return [
                     {"family_id": str(r["id"]), "signature": r["signature"], "label": r["label"],

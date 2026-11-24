@@ -17,11 +17,16 @@ _TABLE_EXISTS_SQL = "select to_regclass('public.qa_knowledge_chunks') is not nul
 
 _COLUMNS = "k.id, k.kind, k.title, k.challenge, k.approach, k.outcome, k.domain, k.confidence"
 
+# Con proyecto: lo de ese proyecto + lo de toda la organización (project null). Sin
+# proyecto (%(proj)s null): todo, como antes.
+_PROJECT = "(%(proj)s::text is null or k.project is null or k.project = %(proj)s)"
+
 # Solo el embedding del item (sin la migración 033).
 _SEARCH_ITEMS_ONLY = f"""
     select {_COLUMNS}, k.embedding <=> %(q)s as dist
     from public.qa_knowledge k
     where k.org_id = %(org)s and k.status = 'activo' and k.embedding is not null
+      and {_PROJECT}
       and k.embedding <=> %(q)s < %(max_dist)s
     order by dist limit %(k)s
 """
@@ -32,11 +37,13 @@ _SEARCH_WITH_CHUNKS = f"""
         select k.id as knowledge_id, k.embedding <=> %(q)s as dist
         from public.qa_knowledge k
         where k.org_id = %(org)s and k.status = 'activo' and k.embedding is not null
+          and {_PROJECT}
         union all
         select c.knowledge_id, c.embedding <=> %(q)s as dist
         from public.qa_knowledge_chunks c
         join public.qa_knowledge k on k.id = c.knowledge_id
         where c.org_id = %(org)s and k.org_id = %(org)s and k.status = 'activo'
+          and {_PROJECT}
     ), best as (
         select knowledge_id, min(dist) as dist from cand group by knowledge_id
     )

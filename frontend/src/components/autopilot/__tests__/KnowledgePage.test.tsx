@@ -22,6 +22,12 @@ vi.mock("@/components/providers/org-provider", () => ({
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
+const mockProject = { value: "" };
+vi.mock("@/components/providers/project-provider", () => ({
+  useActiveProject: () => ({ projects: [], activeProject: mockProject.value, setActiveProject: vi.fn() }),
+  projectParam: (p: string) => (p ? { project: p } : {}),
+}));
+
 vi.mock("@/lib/api/endpoints", () => ({
   createKnowledge: vi.fn(),
   askKnowledge: vi.fn(),
@@ -33,6 +39,7 @@ import { toast } from "sonner";
 import KnowledgePage from "@/app/app/knowledge/page";
 
 afterEach(() => {
+  mockProject.value = "";
   vi.clearAllMocks();
   cleanup();
   mockActiveOrg.value = "o1";
@@ -161,5 +168,21 @@ describe("KnowledgePage", () => {
 
     expect(screen.queryByText(/selecciona una organización para ver y capturar conocimiento/i)).not.toBeInTheDocument();
     expect(screen.getByTestId("knowledge-loading-skeleton")).toBeInTheDocument();
+  });
+});
+
+
+describe("KnowledgePage con proyecto activo", () => {
+  it("pregunta y busca fuentes filtrando por el proyecto activo", async () => {
+    mockProject.value = "checkout-suite";
+    (askKnowledge as ReturnType<typeof vi.fn>).mockResolvedValue({ answer: "ok", citations: [], sources: [] });
+    (searchKnowledge as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    renderWithClient(<KnowledgePage />);
+    fireEvent.change(screen.getByPlaceholderText(/qué quieres saber/i), { target: { value: "¿pagos?" } });
+    fireEvent.click(screen.getByRole("button", { name: /preguntar/i }));
+    await waitFor(() => expect(askKnowledge).toHaveBeenCalledWith("tok", {
+      org_id: "o1", question: "¿pagos?", project: "checkout-suite" }));
+    await waitFor(() => expect(searchKnowledge).toHaveBeenCalledWith("tok", {
+      org_id: "o1", query: "¿pagos?", project: "checkout-suite" }));
   });
 });

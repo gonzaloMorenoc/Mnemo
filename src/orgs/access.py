@@ -27,6 +27,7 @@ class Resource(str, Enum):
     ACTION = "action"
     PROPOSAL = "proposal"
     INGEST_TOKEN = "ingest_token"
+    PROJECT = "project"
 
 
 # Lista blanca: el nombre de tabla NUNCA viene de la petición.
@@ -36,6 +37,7 @@ _RESOURCE_TABLE = {
     Resource.ACTION: "public.actions",
     Resource.PROPOSAL: "public.knowledge_proposals",
     Resource.INGEST_TOKEN: "public.ingest_tokens",
+    Resource.PROJECT: "public.projects",
 }
 
 _DENIED_DETAIL = {

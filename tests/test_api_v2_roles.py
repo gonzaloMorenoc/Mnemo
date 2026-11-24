@@ -227,3 +227,37 @@ def test_viewer_can_ask_the_memory(method, path, kwargs):
 def test_non_member_cannot_ask(method, path, kwargs):
     client, _ = _client(None)
     assert _call(client, method, path, kwargs).status_code == 403
+
+
+# --- Filtro por proyecto (plan brain, frente A): llega hasta el servicio ------------------
+
+def test_knowledge_ask_pasa_el_proyecto():
+    client, _ = _client("viewer")
+    with patch("src.api_v2.KnowledgeService") as svc_cls:
+        svc_cls.return_value.ask.return_value = {"answer": "a", "sources": []}
+        resp = client.post("/v2/knowledge/ask",
+                           json={"org_id": ORG, "question": "¿cómo?", "project": "web"})
+    assert resp.status_code == 200
+    assert svc_cls.return_value.ask.call_args.kwargs["project"] == "web"
+
+
+def test_knowledge_search_pasa_el_proyecto():
+    client, _ = _client("viewer")
+    with patch("src.api_v2.KnowledgeService") as svc_cls:
+        svc_cls.return_value.search_unified.return_value = []
+        resp = client.post("/v2/knowledge/search", json={"org_id": ORG, "query": "q"})
+    assert resp.status_code == 200
+    assert svc_cls.return_value.search_unified.call_args.kwargs["project"] is None
+
+
+def test_defects_ask_pasa_el_proyecto():
+    client, _ = _client("viewer")
+    repo, embedder = MagicMock(), MagicMock()
+    repo.search_families_semantic.return_value = []
+    client.app.dependency_overrides[api_v2.get_assurance_repo] = lambda: repo
+    client.app.dependency_overrides[api_v2.get_embedder] = lambda: embedder
+    with patch("src.ai.nl_query.answer_question", return_value={"answer": "a", "citations": []}):
+        resp = client.post("/v2/defects/ask",
+                           json={"org_id": ORG, "question": "¿por qué?", "project": "web"})
+    assert resp.status_code == 200, resp.text
+    assert repo.search_families_semantic.call_args.kwargs["project"] == "web"

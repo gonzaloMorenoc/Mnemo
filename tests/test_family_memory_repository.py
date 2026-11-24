@@ -12,7 +12,7 @@ import pytest
 
 from src.memory.repository import FamilyMemoryRepository
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.testdb]
 DBURL = os.getenv("MNEMO_TEST_DATABASE_URL", "")
 
 

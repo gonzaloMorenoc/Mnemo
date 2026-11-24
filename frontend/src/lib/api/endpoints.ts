@@ -3,6 +3,7 @@ import type {
   ActionApproveResult,
   ActionItem,
   ActionRejectResult,
+  Project,
   AssuranceVerdictResponse,
   AutoGenCase,
   BriefingResponse,
@@ -241,12 +242,15 @@ export function deleteKnowledge(token: string, itemId: string, orgId: string) {
 
 export function searchKnowledge(
   token: string,
-  body: { org_id: string; query: string; k?: number },
+  body: { org_id: string; query: string; k?: number; project?: string },
 ) {
   return apiRequest<KnowledgeSource[]>("/api/v2/knowledge/search", "POST", { token, body });
 }
 
-export function askKnowledge(token: string, body: { org_id: string; question: string }) {
+export function askKnowledge(
+  token: string,
+  body: { org_id: string; question: string; project?: string },
+) {
   return apiRequest<KnowledgeAnswer>("/api/v2/knowledge/ask", "POST", { token, body });
 }
 
@@ -301,11 +305,17 @@ export function generateTestPlan(token: string, form: FormData) {
   return apiRequest<TestPlanResult>("/api/v2/test-plan/generate", "POST", { token, body: form });
 }
 
-export function domainSummary(token: string, body: { org_id: string; topic: string }) {
+export function domainSummary(
+  token: string,
+  body: { org_id: string; topic: string; project?: string },
+) {
   return apiRequest<DomainSummary>("/api/v2/onboarding/domain-summary", "POST", { token, body });
 }
 
-export function learningPath(token: string, body: { org_id: string; topic: string }) {
+export function learningPath(
+  token: string,
+  body: { org_id: string; topic: string; project?: string },
+) {
   return apiRequest<LearningPath>("/api/v2/onboarding/learning-path", "POST", { token, body });
 }
 
@@ -493,4 +503,27 @@ export function putLlmSettings(token: string, orgId: string, allowExternalLlm: b
     "PUT",
     { token, body: { allow_external_llm: allowExternalLlm } },
   );
+}
+
+// --- Proyectos (clave inmutable; nombre visible y archivado editables por admin) ---
+
+export function listProjects(token: string, orgId: string, includeArchived = true) {
+  const qs = new URLSearchParams({ org_id: orgId, include_archived: String(includeArchived) });
+  return apiRequest<Project[]>(`/api/v2/projects?${qs.toString()}`, "GET", { token });
+}
+
+export function createProject(
+  token: string,
+  body: { org_id: string; key: string; name?: string; description?: string },
+) {
+  return apiRequest<Project>("/api/v2/projects", "POST", { token, body });
+}
+
+export function updateProject(
+  token: string,
+  projectId: string,
+  body: { name?: string; description?: string; archived?: boolean },
+) {
+  return apiRequest<Project>(
+    `/api/v2/projects/${encodeURIComponent(projectId)}`, "PATCH", { token, body });
 }

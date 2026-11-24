@@ -1781,7 +1781,7 @@ def defects_ask_v2(
     try:
         emb = embedder.embed(req.question)
         families = repo.search_families_semantic(user_id=user.user_id, org_id=req.org_id,
-                                                 query_embedding=emb, k=8)
+                                                 query_embedding=emb, k=8, project=req.project)
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail="Database error") from exc
     try:
@@ -2105,7 +2105,8 @@ def search_knowledge(
 ) -> List[Dict[str, Any]]:
     svc = KnowledgeService(krepo, arepo, embedder=embedder)
     try:
-        return svc.search_unified(user_id=user.user_id, org_id=req.org_id, query=req.query, k=req.k)
+        return svc.search_unified(user_id=user.user_id, org_id=req.org_id, query=req.query, k=req.k,
+                                  project=req.project)
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail="Database error") from exc
 
@@ -2123,7 +2124,8 @@ def ask_knowledge(
     svc = KnowledgeService(krepo, arepo, embedder=embedder)
     bind_llm_org(req.org_id)
     try:
-        return svc.ask(user_id=user.user_id, org_id=req.org_id, question=req.question)
+        return svc.ask(user_id=user.user_id, org_id=req.org_id, question=req.question,
+                       project=req.project)
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail="Database error") from exc
 
@@ -2142,7 +2144,8 @@ def onboarding_domain_summary(
 ) -> Dict[str, Any]:
     svc = KnowledgeService(krepo, arepo, embedder=embedder)
     bind_llm_org(req.org_id)
-    return summarize_domain(knowledge_service=svc, user_id=user.user_id, org_id=req.org_id, topic=req.topic)
+    return summarize_domain(knowledge_service=svc, user_id=user.user_id, org_id=req.org_id,
+                            topic=req.topic, project=req.project)
 
 
 @router.post("/onboarding/learning-path", response_model=Dict[str, Any])
@@ -2155,7 +2158,8 @@ def onboarding_learning_path(
 ) -> Dict[str, Any]:
     svc = KnowledgeService(krepo, arepo, embedder=embedder)
     bind_llm_org(req.org_id)
-    return learning_path(knowledge_service=svc, user_id=user.user_id, org_id=req.org_id, topic=req.topic)
+    return learning_path(knowledge_service=svc, user_id=user.user_id, org_id=req.org_id,
+                         topic=req.topic, project=req.project)
 
 
 # ---------------------------------------------------------------------------
