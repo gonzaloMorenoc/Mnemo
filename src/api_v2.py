@@ -2,7 +2,7 @@ import logging
 import time
 import uuid
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Tuple
 from urllib.parse import urlencode
 
 import psycopg
@@ -66,7 +66,7 @@ from src.jira.ingestion_service import JiraIngestionService
 from src.jira.safe_url import validate_base_url
 from src.graph.service import GraphService
 from src.graph.gaps import detect_gaps
-from src.ci.ingest_tokens import IngestTokenRepository
+from src.ci.ingest_tokens import IngestTokenRepository, UnknownProject
 from src.continuity.index import compute_index, list_projects
 from src.continuity.repository import ContinuityRepository
 from src.continuity.service import ContinuityService
@@ -982,10 +982,19 @@ def create_ingest_token(
     access: OrgAccess = Depends(get_org_access),
     repo: IngestTokenRepository = Depends(get_ingest_token_repo),
 ) -> Dict[str, Any]:
-    """Crea un token de ingesta (owner/admin). El token en claro SOLO viaja aquí."""
+    """Crea un token (owner/admin): de ingesta para el CI o de solo lectura para
+    asistentes de IA por MCP. El token en claro SOLO viaja aquí."""
     enforce(access, user.user_id, Capability.ADMIN, org_id=req.org_id)
+    if req.project is not None and req.scope != "read":
+        raise HTTPException(status_code=422,
+                            detail="solo los tokens de lectura se limitan a un proyecto")
     try:
-        out = repo.create_token(user_id=user.user_id, org_id=req.org_id, name=req.name)
+        out = repo.create_token(user_id=user.user_id, org_id=req.org_id, name=req.name,
+                                scope=req.scope, project=req.project,
+                                expires_in_days=req.expires_in_days)
+    except UnknownProject as exc:
+        raise HTTPException(status_code=422,
+                            detail="ese proyecto no existe en la organización") from exc
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail="Database error") from exc
     if out is None:
@@ -996,11 +1005,12 @@ def create_ingest_token(
 @router.get("/ingest/tokens", response_model=List[Dict[str, Any]])
 def list_ingest_tokens(
     org_id: str,
+    scope: Optional[Literal["ingest", "read"]] = None,
     user: AuthenticatedUser = Depends(get_current_user),
     repo: IngestTokenRepository = Depends(get_ingest_token_repo),
 ) -> List[Dict[str, Any]]:
     try:
-        return repo.list_tokens(user_id=user.user_id, org_id=org_id)
+        return repo.list_tokens(user_id=user.user_id, org_id=org_id, scope=scope)
     except psycopg.Error as exc:
         raise HTTPException(status_code=502, detail="Database error") from exc
 

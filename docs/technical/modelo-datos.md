@@ -267,7 +267,7 @@ La reingesta de un repo borra e inserta todas sus filas (`replace_for_repo`).
 | `installation_id`, `repo_full_name` (011) | GitHub App. Índice único parcial sobre `installation_id where provider = 'github'` (021): una instalación pertenece a una sola org (mitigación del confused-deputy; la verificación de propiedad está además en la API) |
 | `xray_mode` (019) | CHECK ∈ `cloud`/`server` |
 
-**`ingest_tokens`** (024) — tokens de ingesta CI por org.
+**`ingest_tokens`** (024, 037) — tokens de la org: de ingesta para el CI y de solo lectura para asistentes de IA (MCP).
 
 | Columna | Detalle |
 |---|---|
@@ -275,6 +275,9 @@ La reingesta de un repo borra e inserta todas sus filas (`replace_for_repo`).
 | `token_hash` | `unique`; sha256 del token, que en claro se muestra una sola vez |
 | `created_by` | El token actúa con la identidad de quien lo creó, así que las comprobaciones de pertenencia del pipeline aplican tal cual |
 | `last_used_at`, `revoked_at` | |
+| `scopes` (037) | `text[]`, default `{ingest}`; CHECK ⊆ {`ingest`, `read`}. Los de lectura llevan prefijo `mnemo_rt_` |
+| `project` (037) | Opcional: limita un token de lectura a un proyecto. FK `(org_id, project) → projects` |
+| `expires_at` (037) | Opcional; caducado = inválido |
 
 ---
 
@@ -330,6 +333,7 @@ La reingesta de un repo borra e inserta todas sus filas (`replace_for_repo`).
 | 033 | Tabla `qa_knowledge_chunks` (embeddings por fragmento de los textos largos). |
 | 035 | Tabla `org_llm_settings` (interruptor de LLM externo por organización). |
 | 036 | Tabla `projects` (clave inmutable, nombre editable, archivado), backfill desde las 5 tablas con `project`, trigger `ensure_project` y FK compuesta. |
+| 037 | `ingest_tokens`: `scopes`, `project` y `expires_at` (tokens de lectura para MCP); índice `(org_id, lower(test_name))` en `failures`. |
 | 999 | Cierra la Data API: revoca todo a `anon`/`authenticated` en `public`. Siempre la última. |
 
 ---

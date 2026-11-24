@@ -36,6 +36,8 @@ vi.mock("@/lib/api/endpoints", () => ({
   listIngestTokens: vi.fn().mockResolvedValue([]),
   createIngestToken: vi.fn(),
   revokeIngestToken: vi.fn(),
+  // usado por ReadTokensPanel (acordeón de asistentes de IA)
+  listProjects: vi.fn().mockResolvedValue([]),
 }));
 
 import {

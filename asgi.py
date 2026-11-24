@@ -20,6 +20,7 @@ from src.api_v2 import router as v2_router  # noqa: E402
 from src.config import CI_MAX_BODY_BYTES, INGEST_MAX_BYTES, api_docs_exposed  # noqa: E402
 from src.orgs.api import router as orgs_members_router  # noqa: E402
 from src.projects.api import router as projects_router  # noqa: E402
+from src.mcp_server.server import router as mcp_router  # noqa: E402
 from src.db.pool import get_pool, close_pool  # noqa: E402
 from src.http.body_limit import BodySizeLimitMiddleware  # noqa: E402
 from src.defects.embedder import get_shared_embedder  # noqa: E402
@@ -44,6 +45,8 @@ BODY_LIMITS = {
     # Público y sin auth: un acta real ocupa ~2 KB; 512 KB deja margen para runs con
     # cientos de fallos en la evidencia.
     "/v2/certificates/verify": 512 * 1024,
+    # MCP: un mensaje JSON-RPC con una traza de error cabe de sobra en 64 KB.
+    "/mcp": 64 * 1024,
 }
 
 
@@ -68,6 +71,7 @@ def create_app(*, expose_api_docs: bool) -> FastAPI:
     application.include_router(v2_router)
     application.include_router(orgs_members_router)
     application.include_router(projects_router)
+    application.include_router(mcp_router)
     application.add_middleware(BodySizeLimitMiddleware, limits=BODY_LIMITS,
                                default_limit=DEFAULT_MAX_BODY_BYTES)
     return application

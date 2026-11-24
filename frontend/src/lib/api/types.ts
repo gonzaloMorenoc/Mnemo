@@ -176,12 +176,18 @@ export interface ProposeActionsResult {
   skipped: number;
 }
 
+/** "ingest" = el CI sube reportes; "read" = asistentes de IA por MCP, solo lectura. */
+export type TokenScope = "ingest" | "read";
+
 export interface IngestToken {
   id: string;
   name: string;
   created_at?: string | null;
   last_used_at?: string | null;
   revoked_at?: string | null;
+  scope?: TokenScope;
+  project?: string | null;
+  expires_at?: string | null;
 }
 
 export interface IngestTokenCreated extends IngestToken {

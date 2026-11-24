@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FileDropzone } from "@/components/ui/file-dropzone";
 import { IngestTokensPanel } from "@/components/integrations/IngestTokensPanel";
+import { ReadTokensPanel } from "@/components/integrations/ReadTokensPanel";
 import { ConnectionCard } from "@/components/integrations/ConnectionCard";
 import { GithubConnectButton } from "@/components/integrations/GithubConnectButton";
 import type { JiraIngestResponse } from "@/lib/api/types";
@@ -376,6 +377,11 @@ export default function IntegrationsPage() {
       {/* ── CI: tokens de ingesta ─────────────────────────────────────────── */}
       <ConnectionCard title="CI · Tokens de ingesta">
         <IngestTokensPanel orgId={orgId} bare />
+      </ConnectionCard>
+
+      {/* ── Asistentes de IA: tokens de solo lectura (MCP) ─────────────────── */}
+      <ConnectionCard title="Asistentes de IA · MCP (solo lectura)">
+        <ReadTokensPanel orgId={orgId} />
       </ConnectionCard>
     </div>
   );

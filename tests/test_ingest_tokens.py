@@ -62,9 +62,11 @@ class TestRepo:
         with patch("src.ci.ingest_tokens.get_pool", return_value=_fake_pool(cur)):
             info = _repo().resolve(token=TOKEN_PREFIX + "a" * 48)
         assert info == {"token_id": "t1", "org_id": "o1", "created_by": "u1",
-                        "acting_user_id": "u1"}
+                        "acting_user_id": "u1", "project": None}
         sql = _all_sql(cur)
         assert "last_used_at=now()" in sql and "revoked_at is null" in sql
+        assert "any(scopes)" in sql and "expires_at" in sql
+        assert cur.execute.call_args.args[1][1] == "ingest"
 
     def test_resolve_acts_for_the_org_not_for_the_creator(self):
         """El token es una credencial DE LA ORG (#6): si el creador ya no es
@@ -139,6 +141,49 @@ def test_create_token_403_without_role():
     repo.create_token.return_value = None
     r = make_client(repo).post("/v2/ingest/tokens", json={"org_id": "o1", "name": "ci"})
     assert r.status_code == 403
+
+
+def test_create_read_token_passes_scope_project_and_expiry():
+    repo = MagicMock()
+    repo.create_token.return_value = {"id": "t1", "name": "claude", "token": "mnemo_rt_abc"}
+    r = make_client(repo).post("/v2/ingest/tokens", json={
+        "org_id": "o1", "name": "claude", "scope": "read", "project": "checkout",
+        "expires_in_days": 90})
+    assert r.status_code == 200
+    kw = repo.create_token.call_args.kwargs
+    assert (kw["scope"], kw["project"], kw["expires_in_days"]) == ("read", "checkout", 90)
+
+
+def test_create_token_rejects_project_on_ingest_and_bad_scope():
+    repo = MagicMock()
+    client = make_client(repo)
+    r = client.post("/v2/ingest/tokens", json={"org_id": "o1", "name": "ci", "project": "x"})
+    assert r.status_code == 422
+    r = client.post("/v2/ingest/tokens", json={"org_id": "o1", "name": "ci", "scope": "admin"})
+    assert r.status_code == 422
+    r = client.post("/v2/ingest/tokens", json={"org_id": "o1", "name": "ci", "scope": "read",
+                                                "expires_in_days": 0})
+    assert r.status_code == 422
+    repo.create_token.assert_not_called()
+
+
+def test_create_read_token_unknown_project_422():
+    from src.ci.ingest_tokens import UnknownProject
+    repo = MagicMock()
+    repo.create_token.side_effect = UnknownProject("x")
+    r = make_client(repo).post("/v2/ingest/tokens", json={
+        "org_id": "o1", "name": "c", "scope": "read", "project": "x"})
+    assert r.status_code == 422
+
+
+def test_list_tokens_filters_by_scope():
+    repo = MagicMock()
+    repo.list_tokens.return_value = []
+    r = make_client(repo).get("/v2/ingest/tokens", params={"org_id": "o1", "scope": "read"})
+    assert r.status_code == 200
+    assert repo.list_tokens.call_args.kwargs["scope"] == "read"
+    assert make_client(repo).get("/v2/ingest/tokens",
+                                 params={"org_id": "o1", "scope": "x"}).status_code == 422
 
 
 def test_revoke_endpoint():

@@ -89,8 +89,8 @@ La **clave** (`key`) es la que manda el CI en `project` y va dentro de las actas
 | `GET` | `/v2/runs?org_id=&project=&limit=&offset=` | Histórico de runs (más reciente primero) con el veredicto del acta más reciente, `risk_score` y nº de fallos. `limit` por defecto 50, acotado a 1–100; lista vacía si no es miembro | JWT + miembro |
 | `POST` | `/v2/ci/webhook` | Artefacto JSON de CI firmado (ver abajo) → `CiWebhookResponse` | HMAC |
 | `POST` | `/v2/ci/ingest` | Ingesta genérica: multipart `file` + `project` (+ `source`, por defecto `auto`; opcionales `commit_sha` y `branch`) | Token de ingesta |
-| `POST` | `/v2/ingest/tokens` | `{org_id, name}` → crea un token. El token en claro **solo se devuelve aquí**; en BD vive su sha256 | JWT + owner/admin |
-| `GET` | `/v2/ingest/tokens?org_id=` | Lista los tokens de la org (sin el claro) | JWT + miembro |
+| `POST` | `/v2/ingest/tokens` | `{org_id, name, scope?, project?, expires_in_days?}` → crea un token. `scope` = `ingest` (CI, por defecto, prefijo `mnemo_it_`) o `read` (asistentes de IA por MCP, prefijo `mnemo_rt_`). `project` solo para `read` (422 si no existe o es de ingesta); `expires_in_days` 1–365. El token en claro **solo se devuelve aquí**; en BD vive su sha256 | JWT + owner/admin |
+| `GET` | `/v2/ingest/tokens?org_id=&scope=` | Lista los tokens de la org (sin el claro), con `scope`, `project` y `expires_at`; `scope` filtra por ámbito | JWT + miembro |
 | `POST` | `/v2/ingest/tokens/{token_id}/revoke` | Revoca un token → `{revoked: true}`; 403 si no existe, ya estaba revocado o falta el rol | JWT + owner/admin |
 
 Las rutas de subida aplican `INGEST_MAX_BYTES` (413). La ingesta de reports es idempotente: reentregar el mismo artefacto devuelve `deduplicated: true` sin repetir el pipeline.
@@ -136,6 +136,24 @@ Si el run es nuevo —o llega deduplicado pero se quedó sin triaje (tiene fallo
 Después de enviar la respuesta, una `BackgroundTask` genera **propuestas de conocimiento** para hasta 3 familias sin lección (el CI no espera al LLM). Se omite si el stack multitenant o el LLM no están configurados; los fallos solo se registran en el log.
 
 ---
+
+## Servidor MCP (asistentes de IA, solo lectura)
+
+`POST /mcp` — transporte *Streamable HTTP* de MCP **sin estado** y con respuestas JSON (versiones 2024-11-05 a 2025-11-25). `GET` y `DELETE` → 405. Guía de conexión para Claude Code, Cursor y Copilot: [`docs/guias/mcp.md`](../guias/mcp.md).
+
+- **Auth:** `Authorization: Bearer mnemo_rt_…` (token de ámbito `read`, válido, no revocado ni caducado) → 401 con `WWW-Authenticate` si no. Un token de ingesta no vale aquí, ni uno de lectura en `/v2/ci/ingest`. Las lecturas corren con el owner/admin vigente de la org (como la ingesta); 403 si no hay ninguno.
+- **Orden:** `Origin` (si viene y no está en `MCP_ALLOWED_ORIGINS` → 403, defensa contra *DNS rebinding*) → límite por token, antes de tocar la BD (`MCP_RATE_PER_MINUTE`, por defecto 60, ráfaga `MCP_BURST` 20 → 429 con `Retry-After`) → token en BD (antes de leer el cuerpo) → JSON-RPC. Cuerpo máximo 64 KB.
+- **Métodos:** `initialize`, `ping`, `tools/list`, `tools/call`; notificaciones → 202. Sin lotes.
+- **Herramientas** (todas de solo lectura, deterministas, **sin LLM**: el asistente del cliente redacta):
+
+| Herramienta | Argumentos | Devuelve |
+|---|---|---|
+| `list_projects` | — | Proyectos activos que alcanza el token (clave, nombre, runs, último run, conocimiento) |
+| `search_memory` | `query`, `project?`, `limit?` (1–20) | Fuentes (conocimiento + familias) por significado, con relevancia |
+| `get_failure_memory` | `test_name?`, `error_message?`, `error_type?`, `file?`, `trace?`, `project?` | Familias que encajan (por huella exacta, nombre del test o parecido del mensaje) con etiqueta, razón humana, lecciones, runs y proyectos |
+| `get_project_overview` | `project?` | Índice de continuidad con desglose e inventario + última acta (puntuación y fecha) |
+
+Con un token atado a un proyecto, todo se limita a ese proyecto (más el conocimiento de toda la organización) y pedir otro es un error. Una familia que también falla en otro proyecto sale solo con su etiqueta y las lecciones del proyecto (`compartida: true`): su razón, autor, título y fechas pueden ser de ese otro proyecto (`triage_corrections` no guarda proyecto), y en `search_memory` se omite. Los kinds `dato_prueba` y `contacto` nunca salen por MCP. La salida se limpia de caracteres invisibles (control, formato, uso privado), pasa por `sanitize_for_llm`, neutraliza imágenes Markdown, se recorta y va marcada como **dato** (`aviso`), nunca instrucciones. Cada llamada se registra (token, org, proyecto, herramienta, resultado, ms), sin el texto.
 
 ## Triaje
 
