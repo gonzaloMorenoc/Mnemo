@@ -26,7 +26,8 @@ from starlette.requests import ClientDisconnect
 from src.ci.ingest_tokens import READ_TOKEN_PREFIX, SCOPE_READ
 from src.config import MCP_ALLOWED_ORIGINS, MCP_BURST, MCP_RATE_PER_MINUTE
 from src.mcp_server.ratelimit import TokenBucket
-from src.mcp_server.tools import TOOL_SPECS, MemoryTools, TokenContext, ToolInputError
+from src.mcp_server.tools import (TOOL_NAMES, TOOL_SPECS, MemoryTools, TokenContext,
+                                  ToolInputError)
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +93,11 @@ def _http_error(status: int, message: str, headers: Optional[Dict[str, str]] = N
                         status_code=status, headers=headers)
 
 
+def _too_many(wait: float) -> JSONResponse:
+    return _http_error(429, "demasiadas peticiones; espera un poco",
+                       {"Retry-After": str(max(1, int(wait + 0.999)))})
+
+
 def _bearer(request: Request) -> str:
     auth = request.headers.get("Authorization", "")
     return auth[7:].strip() if auth[:7].lower() == "bearer " else ""
@@ -113,11 +119,13 @@ async def mcp_endpoint(request: Request) -> Response:
     token = _bearer(request)
     # Límite ANTES de tocar la BD (resolve escribe last_used_at): la clave es el hash del
     # token, así que un token válido usado en bucle no genera una escritura por petición.
+    # Un token inventado (con el prefijo) sí llega a la BD: es una búsqueda por índice
+    # único que no escribe nada, igual que en /v2/ci/ingest. Un límite por IP no es fiable
+    # detrás del proxy de HF y dejaría a un atacante bloquear a todos los usuarios.
     if token.startswith(READ_TOKEN_PREFIX):
         wait = _bucket.take(hashlib.sha256(token.encode("utf-8")).hexdigest())
         if wait:
-            return _http_error(429, "demasiadas peticiones; espera un poco",
-                               {"Retry-After": str(max(1, int(wait + 0.999)))})
+            return _too_many(wait)
     try:
         info = await run_in_threadpool(get_token_repo().resolve, token=token, scope=SCOPE_READ)
     except psycopg.Error:
@@ -133,7 +141,7 @@ async def mcp_endpoint(request: Request) -> Response:
         message = json.loads(await request.body())
     except ClientDisconnect:
         return Response(status_code=400)      # el cliente se fue: nada que contestar
-    except (ValueError, UnicodeDecodeError):
+    except (ValueError, UnicodeDecodeError, RecursionError):
         return _rpc_error(None, PARSE_ERROR, "JSON no válido", status=400)
     if not isinstance(message, dict) or message.get("jsonrpc") != "2.0":
         return _rpc_error(None, INVALID_REQUEST, "se espera un único mensaje JSON-RPC 2.0",
@@ -163,6 +171,8 @@ async def _dispatch(ctx: TokenContext, msg_id: Any, method: str, params: Any) ->
     if method == "tools/call":
         if not isinstance(params, dict) or not isinstance(params.get("name"), str):
             return _rpc_error(msg_id, INVALID_PARAMS, "falta el nombre de la herramienta")
+        if params["name"] not in TOOL_NAMES:
+            return _rpc_error(msg_id, INVALID_PARAMS, "herramienta desconocida")
         return await _call_tool(ctx, msg_id, params["name"], params.get("arguments") or {})
     return _rpc_error(msg_id, METHOD_NOT_FOUND, f"método no soportado: {method}")
 

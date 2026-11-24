@@ -13,8 +13,11 @@ llama a ningún LLM para responder: devuelve fuentes y tu asistente redacta.
 
 En Mnemo: **Integraciones → Asistentes de IA · MCP (solo lectura)** (owner/admin).
 
-- **Alcance:** un proyecto (recomendado para consultores externos: no verá otros) o toda
-  la organización.
+- **Alcance:** un proyecto (recomendado para consultores externos) o toda la
+  organización. Con un proyecto, el token solo ve lo de ese proyecto y lo de toda la
+  organización. Si un mismo fallo aparece también en otro proyecto, solo enseña su
+  etiqueta y las lecciones del propio proyecto, no la razón ni el título, que pueden
+  venir de ese otro.
 - **Caducidad:** 30 días, 90 días, 1 año o sin caducidad.
 
 El token (`mnemo_rt_…`) **solo se muestra una vez**. Guárdalo como variable de entorno:
@@ -97,7 +100,8 @@ Pregunta con naturalidad; el asistente elige la herramienta:
 - **60 peticiones por minuto** por token (ráfagas de 20); por encima, 429 con `Retry-After`.
 - Lo que devuelve Mnemo lo escribieron personas o vino de herramientas importadas: va
   marcado como **dato**, y el asistente no debe seguirlo como instrucciones.
-- Se eliminan secretos y datos personales antes de responder, y cada campo se recorta.
+- Se eliminan secretos, datos personales y caracteres invisibles antes de responder, y
+  cada campo se recorta. Los datos de prueba y los contactos nunca salen por MCP.
 - Cada llamada queda registrada (token, herramienta y resultado; nunca el texto).
 - El backend gratuito se duerme si no se usa: la primera llamada puede tardar unos
   segundos en despertarlo.

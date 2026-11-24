@@ -212,3 +212,44 @@ def test_hecho_cuando_del_plan(org, monkeypatch):
     assert names == {"list_projects", "search_memory", "get_failure_memory",
                      "get_project_overview"}
     assert _tokens().resolve(token=token) is None
+
+
+def test_familia_compartida_no_filtra_texto_de_otro_proyecto(org, monkeypatch):
+    """Revisión: el mismo fallo en checkout y banca es UNA familia; la razón la escribió
+    alguien de banca. El token de checkout ve la etiqueta y sus lecciones, no esa razón."""
+    with _conn() as conn, conn.cursor() as cur:
+        cur.execute("insert into public.defect_families (scope, org_id, signature, title, label)"
+                    " values ('org', %s, %s, 'mensaje de banca', 'infra') returning id::text as id",
+                    (org["org"], f"sig-shared-{org['org'][:6]}"))
+        fam = cur.fetchone()["id"]
+        for proj in ("checkout", "banca"):
+            cur.execute("select id from public.test_runs where org_id=%s and project=%s limit 1",
+                        (org["org"], proj))
+            cur.execute("insert into public.failures (run_id, org_id, test_name, message,"
+                        " fingerprint, defect_family_id) values (%s,%s,'test_login_comun','x',"
+                        "'fp-shared',%s)", (cur.fetchone()["id"], org["org"], fam))
+        cur.execute("insert into public.triage_corrections (org_id, family_id, human_category,"
+                    " reason, corrected_by) values (%s,%s,'infra','el sandbox del cliente X',%s)",
+                    (org["org"], fam, org["owner"]))
+        conn.commit()
+    tools, app = _client(org)
+    monkeypatch.setattr(server, "get_tools", lambda: tools)
+    monkeypatch.setattr(server, "get_token_repo", _tokens)
+    client = TestClient(app)
+
+    scoped = _call(client, _read_token(org, project="checkout")["token"], "get_failure_memory",
+                   {"test_name": "test_login_comun"})["structuredContent"]["familias"][0]
+    assert scoped["compartida"] and scoped["label"] == "infra"
+    assert "reason" not in scoped and "title" not in scoped
+    assert "cliente X" not in str(scoped) and "banca" not in str(scoped)
+
+    whole = _call(client, _read_token(org)["token"], "get_failure_memory",
+                  {"test_name": "test_login_comun"})["structuredContent"]["familias"][0]
+    assert whole["reason"] == "el sandbox del cliente X"
+    assert sorted(whole["projects"]) == ["banca", "checkout"]
+
+    lookup = FailureLookup(connection_factory=_conn)
+    assert lookup.shared_with_other_projects(org_id=org["org"], family_ids=[fam, org["fams"]["checkout"]],
+                                             project="checkout") == {fam}
+    # Por debajo de 3 caracteres, solo nombre exacto.
+    assert lookup.find(org_id=org["org"], test_name="lo") == []

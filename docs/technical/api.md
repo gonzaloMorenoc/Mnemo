@@ -153,7 +153,7 @@ Después de enviar la respuesta, una `BackgroundTask` genera **propuestas de con
 | `get_failure_memory` | `test_name?`, `error_message?`, `error_type?`, `file?`, `trace?`, `project?` | Familias que encajan (por huella exacta, nombre del test o parecido del mensaje) con etiqueta, razón humana, lecciones, runs y proyectos |
 | `get_project_overview` | `project?` | Índice de continuidad con desglose e inventario + última acta (puntuación y fecha) |
 
-Con un token atado a un proyecto, todo se limita a ese proyecto (más el conocimiento de toda la organización) y pedir otro es un error. La salida pasa por `sanitize_for_llm`, se recorta y va marcada como **dato** (`aviso`), nunca instrucciones. Cada llamada se registra (token, org, proyecto, herramienta, resultado, ms), sin el texto.
+Con un token atado a un proyecto, todo se limita a ese proyecto (más el conocimiento de toda la organización) y pedir otro es un error. Una familia que también falla en otro proyecto sale solo con su etiqueta y las lecciones del proyecto (`compartida: true`): su razón, autor, título y fechas pueden ser de ese otro proyecto (`triage_corrections` no guarda proyecto), y en `search_memory` se omite. Los kinds `dato_prueba` y `contacto` nunca salen por MCP. La salida se limpia de caracteres invisibles (control, formato, uso privado), pasa por `sanitize_for_llm`, neutraliza imágenes Markdown, se recorta y va marcada como **dato** (`aviso`), nunca instrucciones. Cada llamada se registra (token, org, proyecto, herramienta, resultado, ms), sin el texto.
 
 ## Triaje
 

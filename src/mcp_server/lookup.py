@@ -35,12 +35,32 @@ _Q_BY_TEST_NAME = """
     from public.failures fl
     join public.test_runs r on r.id = fl.run_id
     where fl.org_id = %(org)s and fl.defect_family_id is not null
-      and lower(fl.test_name) like '%%' || %(pattern)s || '%%' escape '\\'
+      and (lower(fl.test_name) = lower(%(name)s)
+           or (%(pattern)s::text is not null
+               and lower(fl.test_name) like '%%' || %(pattern)s || '%%' escape '\\'))
       and (%(proj)s::text is null or r.project = %(proj)s)
     group by fl.defect_family_id
     order by exact desc, seen desc
     limit %(limit)s
 """
+
+
+# Familias que TAMBIÉN fallan en otro proyecto: su texto (razón, autor, título, causa)
+# puede venir de ese otro proyecto — triage_corrections no guarda el proyecto.
+_Q_SHARED = """
+    select distinct fl.defect_family_id::text as family_id
+    from public.failures fl
+    join public.test_runs r on r.id = fl.run_id
+    where fl.org_id = %(org)s and fl.defect_family_id = any(%(ids)s::uuid[])
+      and r.project is distinct from %(proj)s
+"""
+
+_Q_KINDS = """
+    select id::text as id, kind from public.qa_knowledge
+    where org_id = %(org)s and id = any(%(ids)s::uuid[])
+"""
+
+MIN_SUBSTRING = 3   # por debajo, solo nombre exacto (un «%a%» recorre todos los fallos)
 
 
 def _like_escape(text: str) -> str:
@@ -69,14 +89,33 @@ class FailureLookup:
                 cur.execute(_Q_BY_FINGERPRINT, {"org": org_id, "fp": fingerprint(rec),
                                                 "proj": project, "limit": MAX_FAMILIES})
                 found += [{"family_id": r["family_id"], "match": "huella"} for r in cur.fetchall()]
-            if test_name.strip():
-                cur.execute(_Q_BY_TEST_NAME, {"org": org_id, "name": test_name.strip(),
-                                              "pattern": _like_escape(test_name.strip()),
+            name = test_name.strip()
+            if name:
+                pattern = _like_escape(name) if len(name) >= MIN_SUBSTRING else None
+                cur.execute(_Q_BY_TEST_NAME, {"org": org_id, "name": name,
+                                              "pattern": pattern,
                                               "proj": project, "limit": MAX_FAMILIES})
                 found += [{"family_id": r["family_id"],
                            "match": "nombre_exacto" if r["exact"] else "nombre"}
                           for r in cur.fetchall()]
         return dedupe(found)
+
+    def shared_with_other_projects(self, *, org_id: str, family_ids: List[str],
+                                   project: str) -> set:
+        """Familias (de las dadas) con fallos también en OTRO proyecto de la org."""
+        if not family_ids:
+            return set()
+        with self._connect() as conn, conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(_Q_SHARED, {"org": org_id, "ids": list(family_ids), "proj": project})
+            return {r["family_id"] for r in cur.fetchall()}
+
+    def knowledge_kinds(self, *, org_id: str, ids: List[str]) -> dict:
+        """{id: kind} de elementos de conocimiento de la org."""
+        if not ids:
+            return {}
+        with self._connect() as conn, conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(_Q_KINDS, {"org": org_id, "ids": list(ids)})
+            return {r["id"]: r["kind"] for r in cur.fetchall()}
 
 
 def dedupe(found: List[dict]) -> List[dict]:

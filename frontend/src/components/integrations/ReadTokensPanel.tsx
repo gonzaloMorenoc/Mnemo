@@ -81,7 +81,11 @@ export function ReadTokensPanel({ orgId }: { orgId: string }) {
   const [created, setCreated] = useState<{ data: IngestTokenCreated; orgId: string } | null>(
     null,
   );
-  const createdForThisOrg = created && created.orgId === orgId ? created.data : null;
+  // Solo si el backend lo creó DE LECTURA: uno anterior a la 037 ignora `scope` y
+  // devolvería un token de ingesta, que no debe presentarse como de MCP.
+  const createdForThisOrg =
+    created && created.orgId === orgId && created.data.token.startsWith("mnemo_rt_")
+      ? created.data : null;
   const mcpUrl = `${getPublicEnv().apiBaseUrl}/mcp`;
   const snippets = clientSnippets(mcpUrl);
   const snippet = snippets.find((s) => s.id === client) ?? snippets[0];
@@ -107,6 +111,10 @@ export function ReadTokensPanel({ orgId }: { orgId: string }) {
         ...(expiry ? { expires_in_days: expiry } : {}),
       }),
     onSuccess: (t) => {
+      if (!t.token.startsWith("mnemo_rt_")) {
+        toast.error("El servidor aún no admite tokens de lectura. Revoca el creado y "
+                    + "vuelve a intentarlo en unos minutos.");
+      }
       setCreated({ data: t, orgId });
       setName("");
       invalidate();

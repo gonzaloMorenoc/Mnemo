@@ -13,6 +13,7 @@ Todo lo que se devuelve:
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
@@ -24,7 +25,18 @@ NOTICE = ("Datos de la memoria de Mnemo (escritos por personas e importados de "
 MAX_TEXT = 1200          # por campo de texto
 MAX_QUERY = 500
 MAX_RESULTS = 20
-_INVISIBLE = re.compile("[\x00-\x08\x0b-\x1f\x7f​-‏‪-‮⁦-⁩]")
+# Kinds que nunca salen hacia fuera (mismo criterio que la memoria del check del PR):
+# credenciales de prueba que el saneador no reconoce y datos de personas.
+PRIVATE_KINDS = frozenset({"dato_prueba", "contacto"})
+# `![…](url)` en una interfaz que pinte Markdown es un canal de exfiltración.
+_MD_IMAGE = re.compile(r"!\s*\[")
+
+
+def _strip_invisible(text: str) -> str:
+    """Fuera control, formato (bidi, «tags» U+E00xx, ZWSP, BOM…), uso privado y sin
+    asignar: texto que una persona no ve pero un LLM sí lee."""
+    return "".join(ch for ch in text
+                   if ch in "\n\t" or unicodedata.category(ch) not in ("Cc", "Cf", "Co", "Cn"))
 
 
 class ToolInputError(ValueError):
@@ -42,7 +54,9 @@ class TokenContext:
 def safe(value: Any) -> Any:
     """Saneado + recorte recursivo de todo el texto de salida."""
     if isinstance(value, str):
-        return clip(_INVISIBLE.sub("", sanitize_for_llm(value)), MAX_TEXT)
+        # Primero lo invisible: un ZWSP dentro de un email impediría reconocerlo.
+        text = _MD_IMAGE.sub("[", _strip_invisible(value))
+        return clip(sanitize_for_llm(text), MAX_TEXT)
     if isinstance(value, dict):
         return {k: safe(v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
@@ -153,6 +167,21 @@ TOOL_SPECS: List[Dict[str, Any]] = [
 TOOL_NAMES = frozenset(t["name"] for t in TOOL_SPECS)
 
 
+# Lo que en una familia compartida con otro proyecto puede venir de ese proyecto.
+_SHARED_REDACT = ("title", "reason", "reason_by", "reason_by_active", "reason_at",
+                  "first_seen", "last_seen")
+
+
+def _family_out(memory: Any, shared: bool) -> Dict[str, Any]:
+    out = memory.to_dict(include_private=False)
+    if not shared:
+        return out
+    out = {k: v for k, v in out.items() if k not in _SHARED_REDACT}
+    return {**out, "compartida": True,
+            "nota_alcance": "Este fallo también aparece en otro proyecto: con este token "
+                            "solo se ven la etiqueta y lo de este proyecto."}
+
+
 @dataclass
 class MemoryTools:
     """Las 4 herramientas. Las dependencias se inyectan (tests sin BD)."""
@@ -194,9 +223,23 @@ class MemoryTools:
         limit = _int(args, "limit", 8, 1, MAX_RESULTS)
         sources = self.knowledge_service().search_unified(
             user_id=ctx.actor, org_id=ctx.org_id, query=query, k=limit, project=project)
-        keep = ("id", "type", "title", "content", "label", "confidence", "score")
-        return {"proyecto": project, "fuentes": [{k: s.get(k) for k in keep if k in s}
-                                                 for s in sources[:limit]]}
+        kinds = self.lookup.knowledge_kinds(
+            org_id=ctx.org_id, ids=[s["id"] for s in sources if s.get("type") == "knowledge"])
+        shared = self._shared(ctx, [s["id"] for s in sources if s.get("type") == "defect"])
+        visible = [s for s in sources
+                   if kinds.get(s["id"]) not in PRIVATE_KINDS and s["id"] not in shared]
+        keep = ("id", "type", "title", "display_title", "content", "confidence", "score")
+        return {"proyecto": project,
+                "fuentes": [{k: s.get(k) for k in keep if k in s} for s in visible[:limit]],
+                "omitidas": len(sources) - len(visible)}
+
+    def _shared(self, ctx: TokenContext, family_ids: List[str]) -> set:
+        """Con token de proyecto: familias que también fallan en otro proyecto. Su razón,
+        autor, título y causa pueden ser de ese otro proyecto, así que no se enseñan."""
+        if ctx.project is None or not family_ids:
+            return set()
+        return self.lookup.shared_with_other_projects(
+            org_id=ctx.org_id, family_ids=family_ids, project=ctx.project)
 
     def get_failure_memory(self, ctx: TokenContext, args: Dict[str, Any]) -> Dict[str, Any]:
         test_name = _text(args, "test_name", required=False)
@@ -215,10 +258,11 @@ class MemoryTools:
                                          family_ids=[f["family_id"] for f in found],
                                          project=project)
         match = {f["family_id"]: f["match"] for f in found}
+        shared = self._shared(ctx, [m.family_id for m in memories])
         return {
             "proyecto": project,
-            "familias": [{**m.to_dict(include_private=False), "coincidencia": match.get(m.family_id)}
-                         for m in memories],
+            "familias": [{**_family_out(m, m.family_id in shared),
+                          "coincidencia": match.get(m.family_id)} for m in memories],
             "nota": None if memories else "El equipo aún no tiene memoria de este fallo.",
         }
 
